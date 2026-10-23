@@ -1,0 +1,9 @@
+overnight/worker.jsonl
+overnight/worker.err
+overnight/driver.log
+overnight/driver.pid
+overnight/started
+__pycache__/
+*.pyc
+build/
+.venv/
