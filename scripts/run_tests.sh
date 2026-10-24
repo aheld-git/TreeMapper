@@ -13,7 +13,15 @@ rc=0
 echo "== C++ core: configure + build ($BUILD/core, -j$JOBS)"
 cmake -S "$ROOT/core" -B "$BUILD/core" -DCMAKE_BUILD_TYPE=RelWithDebInfo ${TM_CANDIDATES:+-DTM_CANDIDATES="$TM_CANDIDATES"} > "$BUILD.core.cmake.log" 2>&1 \
   || { cat "$BUILD.core.cmake.log"; exit 1; }
-cmake --build "$BUILD/core" -j"$JOBS" 2>&1 | grep -E "error|warning|Error" || true
+# A failed build must fail the run. Piping the build into grep used to swallow its exit status, so a
+# broken tree printed "ALL TESTS PASSED" after running stale test binaries from an earlier build.
+if ! cmake --build "$BUILD/core" -j"$JOBS" > "$BUILD.core.build.log" 2>&1; then
+  grep -E "error|Error" "$BUILD.core.build.log" | head -40 || true
+  echo "C++ BUILD FAILED (full log: $BUILD.core.build.log)"
+  echo "TESTS FAILED"
+  exit 1
+fi
+grep -E "warning" "$BUILD.core.build.log" | head -20 || true
 echo "== C++ core: ctest"
 (cd "$BUILD/core" && ctest --output-on-failure) || rc=1
 
