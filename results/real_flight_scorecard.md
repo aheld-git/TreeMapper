@@ -1,5 +1,8 @@
 # Real flight: no-ground-truth scorecard (BB_treehopping_farm)
 
+> Final review: cand_obj (sim profile) here is the pre-fix build; after the S8 truncation guard it publishes 101 final
+> trees / 111 IDs (was 102 / 115). The real profile's map is byte-identical after the fixes (`results/final_review_fixes.md` section 2).
+
 Input:
 - `/data/work/extracted/real_farm/frames.bin`, with the verified chain: 82 deg mount and disparity offset 4.30 px
   (`real_flight_geometry.md`);
