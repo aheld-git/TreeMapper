@@ -1,4 +1,4 @@
-# Overnight local run: environment, rules, time box
+# Local autonomous run: environment, rules, time box
 
 This file **overrides** the cloud assumptions in `PROJECT_BRIEF.md`. Everything else in the brief stands.
 
@@ -19,26 +19,26 @@ This file **overrides** the cloud assumptions in `PROJECT_BRIEF.md`. Everything 
     treehoppingnavigation-bridge:latest -lc 'source /opt/ros/noetic/setup.bash && ...'
   ```
   Always mount the data read-only (`:ro`) exactly as shown: the container runs as root and would otherwise bypass file permissions. Files the container writes into `/ws` are owned by root, so pass `--user $(id -u):$(id -g)` when you can. Use it to build and test the ROS wrappers, and to read bags with the real `rosbag` API if you want that. Pure-Python bag reading on the host, for example `rosbags` in a venv under `work/`, is also fine.
-- **Target hardware:** the Jetson Orin Nano is **not available tonight**. Do not ssh anywhere. Design for it as the brief says (C++17, arm64-friendly dependencies, a modest CPU budget), and list what needs on-device verification in the handoff.
+- **Target hardware:** the Jetson Orin Nano is **not available during this run**. Do not ssh anywhere. Design for it as the brief says (C++17, arm64-friendly dependencies, a modest CPU budget), and list what needs on-device verification in the handoff.
 
 ## Hard rules: never break these
 
 1. **Don't touch other work.** Do not stop, remove, restart or exec into containers you did not start. `mlflow` and `wasp_sim` belong to other work. Never run `docker compose`, `docker stop/kill/rm/rmi/prune` on anything but your own `tm_*` containers. Never touch `/home/alex/SUIND/*` other than `TreeMapper`, and never touch `/media/alex/waspsim/*` other than `cloud_build_bundle/work`.
 2. **No network side effects.** No pushes, no uploads, no messages, no ssh. Downloading packages from pip or apt mirrors is fine.
 3. **Share resources.** Limit parallel jobs to 8 cores (`-j8`, `--cpus 8`). Stop if host free disk on `/` drops below 8 GB.
-4. **Never wait for a human.** Nobody will answer before morning. When something is ambiguous, choose the safest reasonable option, record it in `docs/DECISIONS.md` and continue.
+4. **Never wait for a human.** Nobody will answer before the run ends. When something is ambiguous, choose the safest reasonable option, record it in `docs/DECISIONS.md` and continue.
 
 ## Time box
 
-The run ends at **07:30 local time**. The driver will tell you when the wrap-up window starts. Plan so that **something usable exists early** and improves:
+The run is time-boxed to about **9 hours from launch**. Every resume prompt states the current time and the end time. The driver will tell you when the wrap-up window starts. Plan so that **something usable exists early** and improves:
 
-| By about | Milestone |
+| By (hours after launch) | Milestone |
 |---|---|
-| 00:30 | Interfaces and contract; bag readers; ground-truth and baseline extraction from the recorded sim mission; the scorer working on the **existing system's** recorded map (the baseline scorecard) |
-| 02:00 | Synthetic orchard generator and a simple baseline system, scored on synthetic and recorded data |
-| 05:00 | At least two candidate architectures, compared with the scorer; pick one |
-| 06:45 | Hardening, rule tests, ROS 1 wrappers built in the Noetic container, launch files for real-log and sim modes |
-| 07:30 | Handoff: README, results report, design doc, decision log; everything committed |
+| +2 h | Interfaces and contract; bag readers; ground-truth and baseline extraction from the recorded sim mission; the scorer working on the **existing system's** recorded map (the baseline scorecard) |
+| +3.5 h | Synthetic orchard generator and a simple baseline system, scored on synthetic and recorded data |
+| +6.5 h | At least two candidate architectures, compared with the scorer; pick one |
+| +8.2 h | Hardening, rule tests, ROS 1 wrappers built in the Noetic container, launch files for real-log and sim modes |
+| end | Handoff: README, results report, design doc, decision log; everything committed |
 
 If you fall behind, cut scope from the alternatives, never from the scorer, the safety-rule tests or the handoff.
 

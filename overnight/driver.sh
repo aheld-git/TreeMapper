@@ -5,7 +5,9 @@
 set -u
 P=/home/alex/SUIND/TreeMapper; O=$P/overnight
 ID=$(cat "$O/SESSION_ID")
-DEADLINE=$(date -d "2026-10-24 07:30" +%s)
+# End time: RUN_UNTIL (any `date -d` string) or 9 h after launch.
+DEADLINE=$(date -d "${RUN_UNTIL:-now + 9 hours}" +%s)
+END_HHMM=$(date -d @"$DEADLINE" +%H:%M)
 WRAP=$(( DEADLINE - 50*60 ))
 COMMON=(--model claude-fable-5-1 --fallback-model claude-opus-5-5 --permission-mode auto
         --add-dir /media/alex/waspsim/cloud_build_bundle --output-format stream-json --verbose)
@@ -29,9 +31,9 @@ while [ ! -f "$O/DONE" ] && [ "$(date +%s)" -lt "$DEADLINE" ]; do
   else
     now=$(date +%s)
     if [ "$now" -ge "$WRAP" ]; then
-      base="WRAP-UP WINDOW: it is $(date +%H:%M); the run ends at 07:30. Stop starting new work. Finish and commit the handoff deliverables from brief section 12 (README, results report with scorecards incl. the existing-system baseline, design doc, decision log), make sure the tree builds and tests pass, update PROGRESS.md, then write overnight/DONE."
+      base="WRAP-UP WINDOW: it is $(date +%H:%M); the run ends at $END_HHMM. Stop starting new work. Finish and commit the handoff deliverables from brief section 12 (README, results report with scorecards incl. the existing-system baseline, design doc, decision log), make sure the tree builds and tests pass, update PROGRESS.md, then write overnight/DONE."
     else
-      base="Continue the overnight build from where you left off (it is $(date +%H:%M); the run ends at 07:30). Re-read PROGRESS.md, then keep executing the plan. Remember the time box in docs/LOCAL_RUN.md."
+      base="Continue the overnight build from where you left off (it is $(date +%H:%M); the run ends at $END_HHMM). Re-read PROGRESS.md, then keep executing the plan. Remember the time box in docs/LOCAL_RUN.md."
     fi
     msg=""
     if [ -s "$O/INBOX.md" ]; then
