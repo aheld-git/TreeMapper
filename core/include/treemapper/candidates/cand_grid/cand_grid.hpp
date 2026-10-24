@@ -72,7 +72,7 @@ struct Config {
   // --- confirmation / publication (confidence model)
   double latch_weight{3.0};        ///< cell weight to latch
   double latch_rel_h{0.6};         ///< a cell latches only if its CHM >= this fraction of its tree's peak CHM
-  double latch_max_spread{1.5};    ///< m, cells whose frame medians spread more than this never latch
+  double latch_max_spread{1.0};    ///< m, cells whose frame medians spread more than this never latch
   int latch_min_frames{3};         ///< distinct frames a cell must have been seen in to latch
   int latch_confirm{2};            ///< consecutive extractions a cell must be assigned to the same tree
   int box_min_frames{2};           ///< frames with detector support for a cell to count as box-supported
