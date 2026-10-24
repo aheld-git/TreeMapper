@@ -1,0 +1,1222 @@
+{
+ "label": "cand_obj 960ccb7 with config/cand_obj_real.cfg",
+ "dataset": "/data/work/extracted/real_farm",
+ "replay": "/data/work/eval/m4c/build_89317b2/treemapper_replay",
+ "systems": {
+  "cand_obj_real": {
+   "final_t": 1768476442.433329,
+   "final_trees": 63,
+   "ids_ever_published": 68,
+   "final_area_m2_p10_p50_p90": [
+    21.94,
+    37.84,
+    47.3
+   ],
+   "final_area_total_m2": 2364.2,
+   "final_equiv_diameter_m_p10_p50_p90": [
+    5.28,
+    6.94,
+    7.76
+   ],
+   "final_height_world_z_p10_p50_p90": [
+    4.29,
+    5.55,
+    6.87
+   ],
+   "final_height_above_stereo_ground_p10_p50_p90": [
+    5.2,
+    6.61,
+    8.08
+   ],
+   "ids_vanished": 5,
+   "id_reappearances": 0,
+   "id_reuse": 0,
+   "geometry_retreats": 0,
+   "max_lost_fraction": 0.0,
+   "centre_jumps": 0,
+   "height_jumps": 0,
+   "max_centre_drift_from_first_m": 2.586,
+   "max_height_drift_from_first_m": 4.765,
+   "undefined_height_frames": 0,
+   "invalid_entry_frames": 0,
+   "duplicate_id_frames": 0,
+   "implausible_height_frames": 59,
+   "implausible_height_le0_frames": 0,
+   "implausible_height_above_drone_frames": 59,
+   "n_snapshots": 2559,
+   "new_trees_after_scan": null,
+   "locked_id_vanished": null,
+   "nontarget_changes_in_descent": null,
+   "sprayed_tree_changes": 0,
+   "new_tree_inside_sprayed": 0,
+   "cost_ms_per_frame": {
+    "chm": {
+     "mean": 0.967,
+     "p95": 1.213,
+     "max": 1.538
+    },
+    "instances": {
+     "mean": 0.08,
+     "p95": 0.16,
+     "max": 0.213
+    }
+   },
+   "run_seconds": 9.6,
+   "cmd": "/data/work/eval/m4c/build_960ccb7/treemapper_replay --frames /data/work/extracted/real_farm/frames.bin --out-map /data/work/eval/m4c/runs_final/cand_obj_real/map_raw.jsonl --out-targets /data/work/eval/m4c/runs_final/cand_obj_real/targets.json --out-counters /data/work/eval/m4c/runs_final/cand_obj_real/counters.json --system cand_obj --config min_prominence=1.0;min_basin_cells=8;match_radius=3.0;merge_centre_dist=2.5;min_publish_area=8.0;merge_overlap=0.3;seed_truncated=false;seed_overlap=0.1;match_reach=4.5",
+   "counters": {
+    "basins_merged_low_prominence": 49154,
+    "cells_dropped_outside_window": 410814,
+    "cells_dropped_too_far_from_centre": 620703,
+    "cells_dropped_too_few_points": 394826,
+    "cells_latched": 16704,
+    "centre_steps_clamped": 1936,
+    "crowns_dropped_too_low": 5005,
+    "crowns_dropped_too_small": 11650,
+    "crowns_dropped_truncated_seed": 292,
+    "crowns_dropped_unboxed": 7059,
+    "crowns_total": 20321,
+    "frame_noise_bucket_0": 7056,
+    "frames_downweighted_rotation": 96,
+    "frames_dropped_too_few_cells": 9,
+    "frames_ground_plane_fallback": 135,
+    "frames_heartbeat_only": 19,
+    "frames_quality_unknown_rate": 2,
+    "frames_total": 7164,
+    "frames_without_canopy": 263,
+    "height_cells_rejected_outlier": 57399,
+    "height_cells_reset": 12845,
+    "height_steps_clamped": 5514,
+    "instances_confirmed": 77,
+    "instances_created": 175,
+    "instances_expired_unconfirmed": 97,
+    "instances_merged": 15,
+    "merge_cells_dropped_outside_window": 4183,
+    "points_dropped_invalid": 6322008,
+    "points_dropped_range": 34272
+   },
+   "stereo_crowns_covered": [
+    60,
+    63
+   ],
+   "crown_correspondence": {
+    "peaks": 63,
+    "peaks_in_exactly_one": 57,
+    "peaks_in_none": 5,
+    "peaks_in_2plus": 1,
+    "outlines": 63,
+    "outlines_with_no_peak": 6,
+    "outlines_with_one_peak": 55,
+    "outlines_with_2plus_peaks": 2,
+    "nearest_centre_m_p10_p50": [
+     5.76,
+     7.46
+    ]
+   },
+   "system": "cand_obj",
+   "replay": "/data/work/eval/m4c/build_960ccb7/treemapper_replay",
+   "final_trees_list": [
+    {
+     "id": 0,
+     "centre": [
+      -5.51,
+      -6.57
+     ],
+     "area_m2": 43.6,
+     "height": 5.08
+    },
+    {
+     "id": 1,
+     "centre": [
+      5.6,
+      -4.54
+     ],
+     "area_m2": 36.96,
+     "height": 6.12
+    },
+    {
+     "id": 3,
+     "centre": [
+      -17.97,
+      -13.57
+     ],
+     "area_m2": 26.64,
+     "height": 3.71
+    },
+    {
+     "id": 6,
+     "centre": [
+      -26.6,
+      -21.29
+     ],
+     "area_m2": 35.52,
+     "height": 4.67
+    },
+    {
+     "id": 8,
+     "centre": [
+      -38.68,
+      -27.3
+     ],
+     "area_m2": 63.92,
+     "height": 3.58
+    },
+    {
+     "id": 10,
+     "centre": [
+      -46.19,
+      -26.77
+     ],
+     "area_m2": 48.24,
+     "height": 5.07
+    },
+    {
+     "id": 13,
+     "centre": [
+      -45.29,
+      -19.36
+     ],
+     "area_m2": 37.12,
+     "height": 6.1
+    },
+    {
+     "id": 14,
+     "centre": [
+      -35.8,
+      -19.82
+     ],
+     "area_m2": 33.04,
+     "height": 4.59
+    },
+    {
+     "id": 15,
+     "centre": [
+      -36.95,
+      -11.9
+     ],
+     "area_m2": 39.44,
+     "height": 4.36
+    },
+    {
+     "id": 16,
+     "centre": [
+      -43.32,
+      -8.76
+     ],
+     "area_m2": 47.44,
+     "height": 6.63
+    },
+    {
+     "id": 19,
+     "centre": [
+      -41.98,
+      -0.06
+     ],
+     "area_m2": 36.64,
+     "height": 5.16
+    },
+    {
+     "id": 22,
+     "centre": [
+      -41.19,
+      7.67
+     ],
+     "area_m2": 33.6,
+     "height": 4.83
+    },
+    {
+     "id": 24,
+     "centre": [
+      -33.58,
+      -2.27
+     ],
+     "area_m2": 37.44,
+     "height": 4.46
+    },
+    {
+     "id": 25,
+     "centre": [
+      -25.51,
+      -12.26
+     ],
+     "area_m2": 28.8,
+     "height": 4.46
+    },
+    {
+     "id": 27,
+     "centre": [
+      -18.03,
+      -21.7
+     ],
+     "area_m2": 40.48,
+     "height": 4.25
+    },
+    {
+     "id": 31,
+     "centre": [
+      -13.55,
+      -30.47
+     ],
+     "area_m2": 59.2,
+     "height": 6.54
+    },
+    {
+     "id": 34,
+     "centre": [
+      -9.94,
+      -41.91
+     ],
+     "area_m2": 46.0,
+     "height": 6.22
+    },
+    {
+     "id": 35,
+     "centre": [
+      -9.06,
+      -34.09
+     ],
+     "area_m2": 18.96,
+     "height": 4.73
+    },
+    {
+     "id": 44,
+     "centre": [
+      -50.78,
+      1.0
+     ],
+     "area_m2": 42.08,
+     "height": 5.13
+    },
+    {
+     "id": 49,
+     "centre": [
+      -53.65,
+      -17.18
+     ],
+     "area_m2": 40.0,
+     "height": 7.23
+    },
+    {
+     "id": 52,
+     "centre": [
+      -55.11,
+      -25.62
+     ],
+     "area_m2": 46.72,
+     "height": 5.72
+    },
+    {
+     "id": 54,
+     "centre": [
+      -9.95,
+      -11.86
+     ],
+     "area_m2": 47.6,
+     "height": 4.69
+    },
+    {
+     "id": 56,
+     "centre": [
+      1.54,
+      -12.5
+     ],
+     "area_m2": 71.44,
+     "height": 6.55
+    },
+    {
+     "id": 59,
+     "centre": [
+      -28.99,
+      -27.9
+     ],
+     "area_m2": 41.04,
+     "height": 4.01
+    },
+    {
+     "id": 61,
+     "centre": [
+      -49.38,
+      -34.64
+     ],
+     "area_m2": 24.16,
+     "height": 4.46
+    },
+    {
+     "id": 62,
+     "centre": [
+      -40.19,
+      -33.33
+     ],
+     "area_m2": 19.68,
+     "height": 5.55
+    },
+    {
+     "id": 67,
+     "centre": [
+      -52.76,
+      -6.3
+     ],
+     "area_m2": 41.04,
+     "height": 6.98
+    },
+    {
+     "id": 77,
+     "centre": [
+      -20.89,
+      -38.12
+     ],
+     "area_m2": 43.76,
+     "height": 6.55
+    },
+    {
+     "id": 78,
+     "centre": [
+      -4.06,
+      -42.23
+     ],
+     "area_m2": 53.52,
+     "height": 7.9
+    },
+    {
+     "id": 84,
+     "centre": [
+      -19.3,
+      -30.02
+     ],
+     "area_m2": 45.04,
+     "height": 4.85
+    },
+    {
+     "id": 86,
+     "centre": [
+      -13.77,
+      -38.06
+     ],
+     "area_m2": 21.04,
+     "height": 5.33
+    },
+    {
+     "id": 94,
+     "centre": [
+      -62.11,
+      -5.74
+     ],
+     "area_m2": 43.28,
+     "height": 6.11
+    },
+    {
+     "id": 96,
+     "centre": [
+      -59.93,
+      2.58
+     ],
+     "area_m2": 44.56,
+     "height": 5.26
+    },
+    {
+     "id": 102,
+     "centre": [
+      -49.46,
+      9.19
+     ],
+     "area_m2": 36.96,
+     "height": 5.0
+    },
+    {
+     "id": 104,
+     "centre": [
+      -57.9,
+      10.31
+     ],
+     "area_m2": 21.68,
+     "height": 5.54
+    },
+    {
+     "id": 108,
+     "centre": [
+      -62.38,
+      -15.65
+     ],
+     "area_m2": 40.08,
+     "height": 6.7
+    },
+    {
+     "id": 110,
+     "centre": [
+      -65.39,
+      -24.88
+     ],
+     "area_m2": 35.12,
+     "height": 6.46
+    },
+    {
+     "id": 111,
+     "centre": [
+      -68.11,
+      -34.58
+     ],
+     "area_m2": 45.52,
+     "height": 6.04
+    },
+    {
+     "id": 112,
+     "centre": [
+      -57.04,
+      -33.38
+     ],
+     "area_m2": 46.32,
+     "height": 6.02
+    },
+    {
+     "id": 127,
+     "centre": [
+      10.21,
+      -14.35
+     ],
+     "area_m2": 40.16,
+     "height": 6.78
+    },
+    {
+     "id": 132,
+     "centre": [
+      11.44,
+      -7.55
+     ],
+     "area_m2": 45.6,
+     "height": 6.31
+    },
+    {
+     "id": 136,
+     "centre": [
+      0.83,
+      -24.17
+     ],
+     "area_m2": 32.16,
+     "height": 6.33
+    },
+    {
+     "id": 137,
+     "centre": [
+      -1.11,
+      -32.73
+     ],
+     "area_m2": 40.96,
+     "height": 7.29
+    },
+    {
+     "id": 145,
+     "centre": [
+      -14.44,
+      -4.13
+     ],
+     "area_m2": 42.56,
+     "height": 4.58
+    },
+    {
+     "id": 146,
+     "centre": [
+      -10.45,
+      0.13
+     ],
+     "area_m2": 29.76,
+     "height": 3.84
+    },
+    {
+     "id": 147,
+     "centre": [
+      -12.54,
+      6.73
+     ],
+     "area_m2": 38.32,
+     "height": 4.47
+    },
+    {
+     "id": 148,
+     "centre": [
+      -3.98,
+      4.26
+     ],
+     "area_m2": 36.88,
+     "height": 5.17
+    },
+    {
+     "id": 149,
+     "centre": [
+      6.49,
+      4.1
+     ],
+     "area_m2": 35.04,
+     "height": 5.6
+    },
+    {
+     "id": 150,
+     "centre": [
+      13.62,
+      -0.75
+     ],
+     "area_m2": 30.96,
+     "height": 5.91
+    },
+    {
+     "id": 151,
+     "centre": [
+      -3.41,
+      -48.82
+     ],
+     "area_m2": 35.76,
+     "height": 6.89
+    },
+    {
+     "id": 152,
+     "centre": [
+      -13.55,
+      -48.5
+     ],
+     "area_m2": 27.2,
+     "height": 6.03
+    },
+    {
+     "id": 153,
+     "centre": [
+      -22.43,
+      -47.79
+     ],
+     "area_m2": 29.28,
+     "height": 6.4
+    },
+    {
+     "id": 154,
+     "centre": [
+      -29.84,
+      -37.61
+     ],
+     "area_m2": 38.48,
+     "height": 5.58
+    },
+    {
+     "id": 155,
+     "centre": [
+      -32.14,
+      -45.92
+     ],
+     "area_m2": 41.04,
+     "height": 5.0
+    },
+    {
+     "id": 157,
+     "centre": [
+      -22.68,
+      -3.28
+     ],
+     "area_m2": 37.2,
+     "height": 3.97
+    },
+    {
+     "id": 159,
+     "centre": [
+      -21.37,
+      7.15
+     ],
+     "area_m2": 44.64,
+     "height": 4.28
+    },
+    {
+     "id": 160,
+     "centre": [
+      -32.54,
+      8.45
+     ],
+     "area_m2": 37.84,
+     "height": 4.75
+    },
+    {
+     "id": 162,
+     "centre": [
+      13.27,
+      4.38
+     ],
+     "area_m2": 16.08,
+     "height": 5.8
+    },
+    {
+     "id": 163,
+     "centre": [
+      8.59,
+      -23.1
+     ],
+     "area_m2": 14.72,
+     "height": 6.68
+    },
+    {
+     "id": 164,
+     "centre": [
+      6.23,
+      -32.85
+     ],
+     "area_m2": 22.96,
+     "height": 7.25
+    },
+    {
+     "id": 165,
+     "centre": [
+      4.91,
+      -41.62
+     ],
+     "area_m2": 32.32,
+     "height": 7.38
+    },
+    {
+     "id": 168,
+     "centre": [
+      -39.1,
+      -45.0
+     ],
+     "area_m2": 17.28,
+     "height": 5.53
+    },
+    {
+     "id": 170,
+     "centre": [
+      -38.82,
+      -37.16
+     ],
+     "area_m2": 33.36,
+     "height": 6.0
+    }
+   ]
+  }
+ },
+ "stereo": {
+  "points": 12000000,
+  "cell_m": 0.5,
+  "crown_peaks_chm_gt_1.5m": 63,
+  "ground_z_p10_p50_p90": [
+   -2.32,
+   -1.26,
+   1.32
+  ],
+  "crown_peaks_chm_ge_2m": 63,
+  "crown_peak_height_p10_p50_p90": [
+   6.24,
+   8.27,
+   9.42
+  ],
+  "definition": "CHM = per 0.5 m cell p95 z minus the local ground (15th percentile over a 9 m window of the cell p5 z); peaks = local maxima >= 3 m apart, CHM > 1.5 m, >= 20 points per cell"
+ },
+ "agreement": {
+  "found_by_other": {},
+  "only_in": {
+   "cand_obj_real": [
+    {
+     "id": 0,
+     "centre": [
+      -5.5,
+      -6.6
+     ],
+     "area_m2": 43.6
+    },
+    {
+     "id": 1,
+     "centre": [
+      5.6,
+      -4.5
+     ],
+     "area_m2": 37.0
+    },
+    {
+     "id": 3,
+     "centre": [
+      -18.0,
+      -13.6
+     ],
+     "area_m2": 26.6
+    },
+    {
+     "id": 6,
+     "centre": [
+      -26.6,
+      -21.3
+     ],
+     "area_m2": 35.5
+    },
+    {
+     "id": 8,
+     "centre": [
+      -38.7,
+      -27.3
+     ],
+     "area_m2": 63.9
+    },
+    {
+     "id": 10,
+     "centre": [
+      -46.2,
+      -26.8
+     ],
+     "area_m2": 48.2
+    },
+    {
+     "id": 13,
+     "centre": [
+      -45.3,
+      -19.4
+     ],
+     "area_m2": 37.1
+    },
+    {
+     "id": 14,
+     "centre": [
+      -35.8,
+      -19.8
+     ],
+     "area_m2": 33.0
+    },
+    {
+     "id": 15,
+     "centre": [
+      -36.9,
+      -11.9
+     ],
+     "area_m2": 39.4
+    },
+    {
+     "id": 16,
+     "centre": [
+      -43.3,
+      -8.8
+     ],
+     "area_m2": 47.4
+    },
+    {
+     "id": 19,
+     "centre": [
+      -42.0,
+      -0.1
+     ],
+     "area_m2": 36.6
+    },
+    {
+     "id": 22,
+     "centre": [
+      -41.2,
+      7.7
+     ],
+     "area_m2": 33.6
+    },
+    {
+     "id": 24,
+     "centre": [
+      -33.6,
+      -2.3
+     ],
+     "area_m2": 37.4
+    },
+    {
+     "id": 25,
+     "centre": [
+      -25.5,
+      -12.3
+     ],
+     "area_m2": 28.8
+    },
+    {
+     "id": 27,
+     "centre": [
+      -18.0,
+      -21.7
+     ],
+     "area_m2": 40.5
+    },
+    {
+     "id": 31,
+     "centre": [
+      -13.6,
+      -30.5
+     ],
+     "area_m2": 59.2
+    },
+    {
+     "id": 34,
+     "centre": [
+      -9.9,
+      -41.9
+     ],
+     "area_m2": 46.0
+    },
+    {
+     "id": 35,
+     "centre": [
+      -9.1,
+      -34.1
+     ],
+     "area_m2": 19.0
+    },
+    {
+     "id": 44,
+     "centre": [
+      -50.8,
+      1.0
+     ],
+     "area_m2": 42.1
+    },
+    {
+     "id": 49,
+     "centre": [
+      -53.6,
+      -17.2
+     ],
+     "area_m2": 40.0
+    },
+    {
+     "id": 52,
+     "centre": [
+      -55.1,
+      -25.6
+     ],
+     "area_m2": 46.7
+    },
+    {
+     "id": 54,
+     "centre": [
+      -9.9,
+      -11.9
+     ],
+     "area_m2": 47.6
+    },
+    {
+     "id": 56,
+     "centre": [
+      1.5,
+      -12.5
+     ],
+     "area_m2": 71.4
+    },
+    {
+     "id": 59,
+     "centre": [
+      -29.0,
+      -27.9
+     ],
+     "area_m2": 41.0
+    },
+    {
+     "id": 61,
+     "centre": [
+      -49.4,
+      -34.6
+     ],
+     "area_m2": 24.2
+    },
+    {
+     "id": 62,
+     "centre": [
+      -40.2,
+      -33.3
+     ],
+     "area_m2": 19.7
+    },
+    {
+     "id": 67,
+     "centre": [
+      -52.8,
+      -6.3
+     ],
+     "area_m2": 41.0
+    },
+    {
+     "id": 77,
+     "centre": [
+      -20.9,
+      -38.1
+     ],
+     "area_m2": 43.8
+    },
+    {
+     "id": 78,
+     "centre": [
+      -4.1,
+      -42.2
+     ],
+     "area_m2": 53.5
+    },
+    {
+     "id": 84,
+     "centre": [
+      -19.3,
+      -30.0
+     ],
+     "area_m2": 45.0
+    },
+    {
+     "id": 86,
+     "centre": [
+      -13.8,
+      -38.1
+     ],
+     "area_m2": 21.0
+    },
+    {
+     "id": 94,
+     "centre": [
+      -62.1,
+      -5.7
+     ],
+     "area_m2": 43.3
+    },
+    {
+     "id": 96,
+     "centre": [
+      -59.9,
+      2.6
+     ],
+     "area_m2": 44.6
+    },
+    {
+     "id": 102,
+     "centre": [
+      -49.5,
+      9.2
+     ],
+     "area_m2": 37.0
+    },
+    {
+     "id": 104,
+     "centre": [
+      -57.9,
+      10.3
+     ],
+     "area_m2": 21.7
+    },
+    {
+     "id": 108,
+     "centre": [
+      -62.4,
+      -15.7
+     ],
+     "area_m2": 40.1
+    },
+    {
+     "id": 110,
+     "centre": [
+      -65.4,
+      -24.9
+     ],
+     "area_m2": 35.1
+    },
+    {
+     "id": 111,
+     "centre": [
+      -68.1,
+      -34.6
+     ],
+     "area_m2": 45.5
+    },
+    {
+     "id": 112,
+     "centre": [
+      -57.0,
+      -33.4
+     ],
+     "area_m2": 46.3
+    },
+    {
+     "id": 127,
+     "centre": [
+      10.2,
+      -14.4
+     ],
+     "area_m2": 40.2
+    },
+    {
+     "id": 132,
+     "centre": [
+      11.4,
+      -7.5
+     ],
+     "area_m2": 45.6
+    },
+    {
+     "id": 136,
+     "centre": [
+      0.8,
+      -24.2
+     ],
+     "area_m2": 32.2
+    },
+    {
+     "id": 137,
+     "centre": [
+      -1.1,
+      -32.7
+     ],
+     "area_m2": 41.0
+    },
+    {
+     "id": 145,
+     "centre": [
+      -14.4,
+      -4.1
+     ],
+     "area_m2": 42.6
+    },
+    {
+     "id": 146,
+     "centre": [
+      -10.5,
+      0.1
+     ],
+     "area_m2": 29.8
+    },
+    {
+     "id": 147,
+     "centre": [
+      -12.5,
+      6.7
+     ],
+     "area_m2": 38.3
+    },
+    {
+     "id": 148,
+     "centre": [
+      -4.0,
+      4.3
+     ],
+     "area_m2": 36.9
+    },
+    {
+     "id": 149,
+     "centre": [
+      6.5,
+      4.1
+     ],
+     "area_m2": 35.0
+    },
+    {
+     "id": 150,
+     "centre": [
+      13.6,
+      -0.8
+     ],
+     "area_m2": 31.0
+    },
+    {
+     "id": 151,
+     "centre": [
+      -3.4,
+      -48.8
+     ],
+     "area_m2": 35.8
+    },
+    {
+     "id": 152,
+     "centre": [
+      -13.5,
+      -48.5
+     ],
+     "area_m2": 27.2
+    },
+    {
+     "id": 153,
+     "centre": [
+      -22.4,
+      -47.8
+     ],
+     "area_m2": 29.3
+    },
+    {
+     "id": 154,
+     "centre": [
+      -29.8,
+      -37.6
+     ],
+     "area_m2": 38.5
+    },
+    {
+     "id": 155,
+     "centre": [
+      -32.1,
+      -45.9
+     ],
+     "area_m2": 41.0
+    },
+    {
+     "id": 157,
+     "centre": [
+      -22.7,
+      -3.3
+     ],
+     "area_m2": 37.2
+    },
+    {
+     "id": 159,
+     "centre": [
+      -21.4,
+      7.1
+     ],
+     "area_m2": 44.6
+    },
+    {
+     "id": 160,
+     "centre": [
+      -32.5,
+      8.4
+     ],
+     "area_m2": 37.8
+    },
+    {
+     "id": 162,
+     "centre": [
+      13.3,
+      4.4
+     ],
+     "area_m2": 16.1
+    },
+    {
+     "id": 163,
+     "centre": [
+      8.6,
+      -23.1
+     ],
+     "area_m2": 14.7
+    },
+    {
+     "id": 164,
+     "centre": [
+      6.2,
+      -32.9
+     ],
+     "area_m2": 23.0
+    },
+    {
+     "id": 165,
+     "centre": [
+      4.9,
+      -41.6
+     ],
+     "area_m2": 32.3
+    },
+    {
+     "id": 168,
+     "centre": [
+      -39.1,
+      -45.0
+     ],
+     "area_m2": 17.3
+    },
+    {
+     "id": 170,
+     "centre": [
+      -38.8,
+      -37.2
+     ],
+     "area_m2": 33.4
+    }
+   ]
+  },
+  "rule": "overlap >= 20 % of the smaller outline"
+ },
+ "plots": [
+  "/data/work/eval/m4c/plots_real_profile/final_cand_obj_real.png",
+  "/data/work/eval/m4c/plots_real_profile/final_overlay.png"
+ ],
+ "seconds": 56.2
+}
