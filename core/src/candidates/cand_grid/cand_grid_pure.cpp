@@ -19,7 +19,7 @@ namespace cand_grid {
   X(coarse) X(ground_quantile) X(ground_radius) X(ground_band) X(ground_smooth) X(ground_min_frames) X(ground_min_weight) X(extract_period) X(window_margin)                   \
   X(min_cell_weight) X(canopy_min_h) X(tree_min_h) X(merge_saddle) X(max_tree_radius) X(peak_radius) \
   X(max_open_fraction) X(latch_weight) X(latch_rel_h) X(latch_max_spread) X(latch_min_frames) X(latch_confirm) X(box_min_frames)        \
-  X(box_min_fraction) X(confirm_extractions) X(min_area) X(height_quantile) X(max_height_step)       \
+  X(box_min_fraction) X(confirm_extractions) X(min_area) X(height_quantile) X(max_height_rate)       \
   X(peak_match_dist) X(merge_confirm) X(frag_max_area_ratio) X(unconfirmed_timeout) X(target_margin) X(climb_release_m)
 
 namespace {
@@ -92,7 +92,7 @@ std::vector<std::string> validate(Config* c) {
   clampField("confirm_extractions", &c->confirm_extractions, 1, 1000, &m);
   clampField("min_area", &c->min_area, 0.0, 1e4, &m);
   clampField("height_quantile", &c->height_quantile, 0.0, 1.0, &m);
-  clampField("max_height_step", &c->max_height_step, 0.0, 100.0, &m);
+  clampField("max_height_rate", &c->max_height_rate, 0.0, 100.0, &m);
   clampField("peak_match_dist", &c->peak_match_dist, 0.0, 50.0, &m);
   clampField("merge_confirm", &c->merge_confirm, 1, 1000, &m);
   clampField("frag_max_area_ratio", &c->frag_max_area_ratio, 0.0, 1.0, &m);

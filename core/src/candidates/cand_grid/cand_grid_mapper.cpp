@@ -295,6 +295,9 @@ void CandGridMapper::rebuildOutline(Inst* in) {
 }
 
 void CandGridMapper::extract(double t, const PhasePolicy& pol, TreeId target) {
+  // height rate limit: the step allowed in this extraction (first extraction / long gaps: one period)
+  const double since = t - last_extract_t_;
+  const double max_step = cfg_.max_height_rate * std::min(std::max(since, 0.0), std::max(cfg_.extract_period, 1e-3) * 2.0);
   last_extract_t_ = t;
   const int m = static_cast<int>(std::ceil(cfg_.window_margin / cfg_.cell));
   Window win;
@@ -460,8 +463,8 @@ void CandGridMapper::extract(double t, const PhasePolicy& pol, TreeId target) {
     const double h = cellsHeight(T->cells);
     if (std::isfinite(h)) {
       const double d = h - T->height;
-      if (std::fabs(d) > cfg_.max_height_step) count("height_step_clamped");
-      T->height += std::max(-cfg_.max_height_step, std::min(cfg_.max_height_step, d));
+      if (std::fabs(d) > max_step) count("height_step_clamped");
+      T->height += std::max(-max_step, std::min(max_step, d));
     } else {
       count("height_update_undefined_kept_last");
     }

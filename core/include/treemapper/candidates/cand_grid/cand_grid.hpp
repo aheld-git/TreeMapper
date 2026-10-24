@@ -80,7 +80,7 @@ struct Config {
   int confirm_extractions{2};      ///< consecutive extractions before an instance is published
   double min_area{5.0};            ///< m^2, smaller instances are not published
   double height_quantile{0.97};    ///< published height = this quantile of the latched cells' surface z
-  double max_height_step{0.1};     ///< m per extraction a published height may move (no jumps)
+  double max_height_rate{0.5};     ///< m/s a published height may move (no jumps; independent of extract_period)
   double peak_match_dist{1.5};     ///< m, unpublished instance <-> segment peak association
   // --- persistent-instance merge (rule 4)
   int merge_confirm{3};            ///< consecutive extractions two instances share one basin
