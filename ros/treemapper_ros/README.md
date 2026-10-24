@@ -21,7 +21,7 @@ ros/treemapper_ros/
   scripts/treemapper_bag_to_jsonl.py  recorded ~map topic -> the scorer's map-stream JSONL (+ targets.json)
   scripts/compare_map_streams.py   two map streams of one mission: final trees/IDs matched + both scorecards
   scripts/ros_replay_check.sh      end-to-end: roscore + replay + live probes + convert + offline replay + compare
-  test/test_*.cpp                  gtest (27 cases): pairing, disparity, calibration, decoding, conversions, config
+  test/test_*.cpp                  gtest (28 cases): pairing, disparity, calibration, decoding, conversions, config
   test/replay_smoke.test           rostest: 60 s of the Isaac bag at rate 1.0, test/check_live.py asserts
   rviz/treemapper.rviz             top-down view of ~markers
 ```
@@ -101,6 +101,10 @@ All in `config/treemapper.yaml` (commented there); the launch files override the
 
 ## Launch
 
+The real launch defaults `mapper_config_file` to `config/core/cand_obj_real.cfg` (M4c's real-flight profile: on the
+farm log the shipped cand_obj profile over-fragments); the sim launch and `treemapper.yaml` use `cand_obj.cfg`.
+`test_config_agreement` checks that every launch default resolves inside `<repo>/config` and is accepted by the mapper.
+
 ```bash
 # drone / real flight log (all frames and topics are args)
 roslaunch treemapper_ros treemapper_real.launch                      # live: wall clock
@@ -160,7 +164,7 @@ ros_replay_check.sh /data/work/m4b/full 45 0 0.00390625               # full mis
 
 - **Build**: `catkin build` of treemapper_msgs + treemapper_ros (core built in-tree) with `-Wall -Wextra` on the
   package targets (the core keeps its own `-Wall -Wextra -Wpedantic`): 0 warnings.
-- **gtest** `test_treemapper_ros`: 27 cases pass (pairing incl. late / nearest / early-resolve / ordering / cache,
+- **gtest** `test_treemapper_ros`: 28 cases pass (pairing incl. late / nearest / early-resolve / ordering / cache,
   disparity sampling + malformed + resolution + offset + quantum, baseline conventions, calibration rejects,
   DetectionResult decoding, conversions, markers, per-tree diagnostics, config agreement, cfg reader).
 - **rostest** `replay_smoke.test` (60 s of the Isaac bag at rate 1.0): SUCCESS — heartbeat present, non-empty map,

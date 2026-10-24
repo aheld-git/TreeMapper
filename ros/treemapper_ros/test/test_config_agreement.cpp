@@ -120,3 +120,24 @@ TEST(CfgReader, CommentsBlankLinesAndErrors) {
   std::remove(p.c_str());
   EXPECT_THROW(readCfgFile("/nonexistent/x.cfg"), std::runtime_error);
 }
+
+// A launch file may redirect mapper_config_file (e.g. the real-flight profile config/cand_obj_real.cfg): the default
+// must resolve to a file in <repo>/config and be accepted by the yaml's mapper, so a profile cannot drift silently.
+TEST(ConfigAgreement, LaunchDefaultConfigFilesResolveAndAreAccepted) {
+  const std::string mapper = YAML::LoadFile(kPkg + "/config/treemapper.yaml")["mapper"].as<std::string>();
+  const std::string key = "name=\"mapper_config_file\" default=\"";
+  for (const char* f : {"treemapper_sim.launch", "treemapper_real.launch", "replay_isaac.launch"}) {
+    const std::string s = readFile(kPkg + "/launch/" + f);
+    const auto p = s.find(key);
+    if (p == std::string::npos) continue;
+    const auto b = p + key.size();
+    const std::string def = s.substr(b, s.find('"', b) - b);
+    if (def.empty()) continue;  // "" = the yaml's pointer, checked above
+    const std::string resolved = realPath(def[0] == '/' ? def : kPkg + "/" + def);
+    ASSERT_FALSE(resolved.empty()) << f << ": " << def << " does not resolve";
+    EXPECT_EQ(resolved.rfind(realPath(kRepo + "/config") + "/", 0), 0u) << f << ": " << resolved << " is outside <repo>/config";
+    treemapper::MapperConfig cfg;
+    ASSERT_NO_THROW(cfg = readCfgFile(resolved)) << resolved;
+    EXPECT_NO_THROW(treemapper::createMapper(mapper, cfg, someCalibration())) << f << ": " << resolved;
+  }
+}
