@@ -35,6 +35,7 @@
 #include "treemapper/frame.hpp"
 #include "treemapper/geometry.hpp"
 #include "treemapper/mapper.hpp"
+#include "treemapper/simple_mapper.hpp"  // PhasePolicy
 #include "treemapper/types.hpp"
 
 namespace treemapper {
@@ -68,11 +69,14 @@ struct Config {
   int min_basin_cells{4};           ///< smaller crowns are ignored
   double box_dilate{0.15};          ///< boxes grown by this fraction of their size before the peak test
   double peak_border_px{24.0};      ///< px, a crown whose top is this close to the image edge is truncated
-                                    ///< (its top may be outside the image): no seeding, no height sample
+                                    ///< (its top may be outside the image): see seed_truncated
   bool hull_cell_corners{false};    ///< outline from latched cell corners (true) or cell centres (false)
   // --- instances
   bool seed_truncated{true};        ///< a crown whose top is still outside the image may seed an instance (its
-                                    ///< cells start latching early; it cannot publish until real tops are sampled)
+                                    ///< cells start latching early). Whatever this says, an instance is confirmed
+                                    ///< only once min_height_cells latched cells carry a height sample from a
+                                    ///< NON-truncated crown: a tree seen only with its top outside the image never
+                                    ///< publishes (its height would be under-estimated: the unsafe direction)
   int window{28};                   ///< cells per side of an instance's evidence window (anchored at birth)
   double match_radius{2.0};         ///< m, a peak this close to an instance centre is that instance
   double match_overlap{0.5};        ///< a crown covering this fraction of an instance's latched cells is that instance,
@@ -85,7 +89,8 @@ struct Config {
   int latch_frames{5};              ///< positive (quality-weighted) frames before a cell latches
   double latch_ratio{0.75};         ///< ... and positive in at least this fraction of the judged frames
   int confirm_frames{3};            ///< frames with a matched crown before an instance may publish
-  int min_height_cells{3};          ///< latched cells with a fused height before an instance may publish
+  int min_height_cells{3};          ///< latched cells with a fused height (and as many sampled from non-truncated
+                                    ///< crowns) before an instance may publish
   double min_publish_area{3.0};     ///< m^2 of latched cells before an instance may publish
   double min_tree_height{1.5};      ///< m above ground, smaller crowns never seed an instance
   double tentative_timeout{1.5};    ///< s, unconfirmed instances unseen this long are deleted
@@ -170,6 +175,7 @@ class CandObj : public Mapper {
     std::vector<std::uint8_t> latched;
     std::vector<float> hz, hw;           ///< per cell: fused surface height, its saturating weight
     std::vector<std::uint8_t> hrej;      ///< per cell: consecutive rejected frame heights
+    std::vector<std::uint8_t> hgood;     ///< per cell: has an accepted height sample from a non-truncated crown
     int n_latched{0};
     double lat_sum_x{0.0}, lat_sum_y{0.0};  ///< sum of latched cell centres (world)
     double peak_sum_x{0.0}, peak_sum_y{0.0};
@@ -185,6 +191,7 @@ class CandObj : public Mapper {
     double height_target{0.0};    ///< quantile of the latched cells' fused heights (NaN until enough cells)
     double height_pub{0.0};       ///< published height: rate-limited toward `height_target`
     int n_height_cells{0};        ///< latched cells with a fused height
+    int n_good_height_cells{0};   ///< ... of which sampled at least once from a non-truncated crown (S8 guard)
     double last_step_t{0.0};      ///< time of the last rate-limit step
     double height() const { return height_pub; }
   };
@@ -193,9 +200,10 @@ class CandObj : public Mapper {
   void warnOnce(const std::string& key, const std::string& msg);
   int findInstanceForCrown(const Crown& c) const;
   bool insideSprayed(const Point2& p) const;
-  void creditCrown(Instance& in, const Crown& c, std::vector<int>& cell_owner, const FrameView& view);
-  void updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner, int self_index,
-                      double quality, double z_cap);
+  void creditCrown(Instance& in, const Crown& c, std::vector<int>& cell_owner, std::vector<std::uint8_t>& cell_trunc,
+                   const FrameView& view);
+  void updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner,
+                      const std::vector<std::uint8_t>& cell_trunc, int self_index, double quality, double z_cap);
   void refreshHull(Instance& in);
   void refreshHeight(Instance& in);
   void stepPublished(Instance& in, double t);
@@ -203,6 +211,8 @@ class CandObj : public Mapper {
   void absorb(Instance& keep, const Instance& lose);
   double latchedArea(const Instance& in) const { return in.n_latched * cfg_.cell * cfg_.cell; }
   bool publishable(const Instance& in) const;
+  /// phasePolicy() plus the sticky lock (see cand_obj.cpp): updates list_locked_.
+  PhasePolicy policyFor(MissionPhase phase, TreeId target);
 
   Config cfg_;
   StereoCalibration cal_;
@@ -210,6 +220,8 @@ class CandObj : public Mapper {
   TreeId next_id_{0};
   State state_{State::kAwake};
   bool hold_after_spray_{false};
+  bool list_locked_{false};   ///< the list was locked (PLANNING/HOPPING/SPRAYING) and no SCAN followed yet
+  bool sticky_frame_{false};  ///< the current integrate() runs under the sticky lock
   bool hover_known_{false};
   double hover_x_{0.0}, hover_y_{0.0};
   MissionPhase prev_phase_{MissionPhase::kUnknown};

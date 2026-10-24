@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <fstream>
+#include <limits>
 #include <set>
 #include <string>
 
@@ -188,7 +189,7 @@ TEST(CandObjRegistry, RegisteredAndBuildsThroughTheFactory) {
 TEST(CandObjRules, PublishesOnlyAfterConfirmationWithFiniteRobustHeight) {
   CandObj m;
   double t = 0;
-  // 2 frames: not yet confirmed (confirm_frames = 3, min_height_samples = 3)
+  // 2 frames: not yet confirmed (confirm_frames = 3, min_height_cells = 3)
   for (int i = 0; i < 2; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 4.0)});
   EXPECT_TRUE(m.publishedTrees().empty());
   // a frame whose height sample is NaN and one too close to the drone contribute nothing to the height:
@@ -631,4 +632,207 @@ TEST(CandObjM4, MergeNeverJumpsThePublishedValues) {
   EXPECT_LE(max_dh, 0.05 + 1e-6);
   EXPECT_LE(max_dc, 0.08 + 1e-6);
   EXPECT_NEAR(trees[0].height, 5.0, 0.05);  // converged to the taller measured surface, not stuck at 4.0
+}
+
+// ------------------------------------------------------------------------------- final review (S4, S6, S8, S12)
+
+namespace {
+std::set<TreeId> publishedIds(const CandObj& m) {
+  std::set<TreeId> s;
+  for (const auto& e : m.publishedTrees()) s.insert(e.id);
+  return s;
+}
+// An annulus of cells (r_in..r_out) around (cx, cy): its hull covers an interior it has no cells in.
+Crown ring(double cx, double cy, double r_in, double r_out, double z = 4.0) {
+  Crown c = disc(cx, cy, r_out, z);
+  std::vector<std::pair<int, int>> kept;
+  for (const auto& ij : c.cells) {
+    if (std::hypot((ij.first + 0.5) * kCell - cx, (ij.second + 0.5) * kCell - cy) >= r_in) kept.push_back(ij);
+  }
+  c.cells = kept;
+  return c;
+}
+}  // namespace
+
+// S4: once the list was locked (PLANNING / HOPPING / SPRAYING), ERROR, UNKNOWN and SCAN_APPROACH stay awake but
+// neither create nor merge, until SCAN is entered again explicitly.
+TEST(CandObjFinal, StickyLockAfterPlanningUntilScan) {
+  for (MissionPhase later : {MissionPhase::kError, MissionPhase::kUnknown, MissionPhase::kScanApproach}) {
+    CandObj m;
+    double t = 0;
+    for (int i = 0; i < 8; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0)});
+    for (int i = 0; i < 5; ++i) step(m, t, MissionPhase::kHopping, 0, {});
+    for (int i = 0; i < 10; ++i) step(m, t, later, kNoTree, {disc(15, 15, 2.0)});
+    EXPECT_EQ(m.publishedTrees().size(), 1u) << toString(later) << ": a new standalone tree appeared after the lock";
+    EXPECT_EQ(m.state(), State::kAwake);
+    EXPECT_GT(cnt(m, "frames_locked_after_planning"), 0u) << dump(m);
+    EXPECT_GT(cnt(m, "crowns_dropped_new_tree_locked_phase"), 0u) << dump(m);
+    // an explicit SCAN unlocks: the same crown now becomes a tree
+    for (int i = 0; i < 8; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(15, 15, 2.0)});
+    EXPECT_EQ(m.publishedTrees().size(), 2u) << toString(later);
+  }
+  {  // the lock also holds when it was entered through SPRAYING (asleep) and the mapper only sees ERROR afterwards
+    CandObj m;
+    double t = 0;
+    addTree(m, t, 0, 0);
+    FrameInput f;
+    f.phase = MissionPhase::kSpraying; f.pose = poseAt(0, 0); f.t = t += 0.1;
+    m.process(f);
+    for (int i = 0; i < 10; ++i) step(m, t, MissionPhase::kError, kNoTree, {disc(15, 15, 2.0)}, poseAt(20, 20));
+    EXPECT_EQ(m.publishedTrees().size(), 1u);
+  }
+  // no lock ever: ERROR / UNKNOWN stay permissive (fail open, brief section 6)
+  CandObj m;
+  double t = 0;
+  addTree(m, t, 0, 0);
+  for (int i = 0; i < 8; ++i) step(m, t, MissionPhase::kError, kNoTree, {disc(15, 15, 2.0)});
+  EXPECT_EQ(m.publishedTrees().size(), 2u);
+}
+
+// S4 + rule 4: two planned-against trees and a crown bridging both: while the list is locked (PLANNING, and ERROR
+// after a lock) no merge retires a planned ID. Control: the same frames in SCAN do merge (the merge is in reach).
+TEST(CandObjFinal, NoMergeWhileTheListIsLocked) {
+  for (MissionPhase later : {MissionPhase::kPlanning, MissionPhase::kError, MissionPhase::kScan}) {
+    CandObj m;
+    double t = 0;
+    for (int i = 0; i < 8; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0), disc(4.6, 0, 2.0)});
+    const auto before = publishedIds(m);
+    ASSERT_EQ(before.size(), 2u);
+    for (int i = 0; i < 5; ++i) step(m, t, MissionPhase::kPlanning, kNoTree, {});
+    for (int i = 0; i < 150; ++i) step(m, t, later, kNoTree, {disc(1.6, 0, 3.9)});
+    if (later == MissionPhase::kScan) {
+      EXPECT_GE(cnt(m, "instances_merged"), 1u) << "control: the bridging crown must merge the pair in SCAN " << dump(m);
+    } else {
+      EXPECT_EQ(publishedIds(m), before) << toString(later);
+      EXPECT_EQ(cnt(m, "instances_merged"), 0u) << toString(later) << " " << dump(m);
+    }
+  }
+}
+
+// S6 / rule 5 second half: an instance whose centre ends up inside a sprayed tree is never confirmed. The sprayed
+// tree is a ring, so its outline covers an interior none of its cells occupy; the new crown's top is outside the
+// sprayed outline (so it is not matched to the sprayed tree), but most of its cells fill that interior.
+TEST(CandObjFinal, NoNewTreeConfirmedInsideASprayedTree) {
+  CandObj m;
+  double t = 0;
+  for (int i = 0; i < 8; ++i) step(m, t, MissionPhase::kScan, kNoTree, {ring(0, 0, 1.5, 2.5)});
+  ASSERT_EQ(m.publishedTrees().size(), 1u) << dump(m);
+  const TreeId sprayed = m.publishedTrees()[0].id;
+  ASSERT_TRUE(m.markSprayed(sprayed));
+  Crown c = disc(0.2, 0, 1.2);  // the ring's empty interior ...
+  const Crown tail = disc(3.3, 0, 0.7);
+  c.cells.insert(c.cells.end(), tail.cells.begin(), tail.cells.end());  // ... plus a tail outside the ring
+  c.peak = {3.3, 0.0};  // top outside the sprayed outline and > match_radius from its centre
+  for (int i = 0; i < 12; ++i) step(m, t, MissionPhase::kScan, kNoTree, {c});
+  EXPECT_EQ(cnt(m, "instances_created"), 2u) << dump(m);
+  EXPECT_EQ(publishedIds(m), std::set<TreeId>{sprayed}) << dump(m);
+  EXPECT_GT(cnt(m, "instances_refused_confirm_inside_sprayed"), 0u) << dump(m);
+}
+
+// S6 / rule 5: a sprayed tree is excluded from merges (neither absorbed nor absorbing), even when another tree
+// grows right over it.
+TEST(CandObjFinal, SprayedTreeNeverMerges) {
+  CandObj m;
+  double t = 0;
+  addTree(m, t, 2.6, 0, 1.2, 4.0, 12);  // ID 0, the better established one
+  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(2.6, 0, 1.2, 4.0), disc(0, 0, 1.2, 4.0)});
+  auto trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 2u) << dump(m);
+  const TreeId a = 1;  // the newer tree at (0, 0)
+  ASSERT_TRUE(find(trees, a));
+  const TreeEntry a0 = *find(trees, a);
+  ASSERT_TRUE(m.markSprayed(a));
+  // tree 0 grows over the sprayed tree until its latched cells cover it completely
+  for (int i = 0; i < 90; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(1.6, 0, 2.4, 4.0)});
+  trees = m.publishedTrees();
+  const TreeEntry* a1 = find(trees, a);
+  ASSERT_TRUE(a1) << "the sprayed tree was merged away: " << dump(m);
+  EXPECT_TRUE(a1->sprayed);
+  EXPECT_NEAR(area(*a1), area(a0), 1e-9);
+  EXPECT_TRUE(find(trees, 0));
+  EXPECT_EQ(cnt(m, "instances_merged"), 0u) << dump(m);
+  EXPECT_GT(area(*find(trees, 0)), M_PI * 1.2 * 1.2 * 2.0);  // tree 0 did grow over it (the merge was in reach)
+}
+
+// S6 / rule 4: in a merge a confirmed (published) instance wins over a tentative one, even when the tentative one
+// is older and has been seen in more frames: a published ID never vanishes into an unpublished instance.
+TEST(CandObjFinal, MergeWinnerIsTheConfirmedInstance) {
+  CandObj m;
+  double t = 0;
+  // ID 0: tentative for good (no finite height ever), latched, seen 12 frames
+  for (int i = 0; i < 12; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 1.5, std::nan(""))});
+  ASSERT_TRUE(m.publishedTrees().empty());
+  // ID 1: born 3.1 m away (outside match reach), its cells reach over ID 0; it confirms after 5 frames, and its
+  // latched centroid lands within merge_centre_dist of ID 0
+  Crown c = disc(0.9, 0, 1.6, 4.0);  // every cell within max_cell_radius of the top: all credited to ID 1
+  c.peak = {3.1, 0.0};
+  for (int i = 0; i < 8; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 1.5, std::nan("")), c});
+  EXPECT_GE(cnt(m, "instances_merged"), 1u) << dump(m);
+  EXPECT_EQ(publishedIds(m), std::set<TreeId>{1}) << dump(m);
+}
+
+// S6 / brief section 6: cell heights are fused only in creation phases. A taller surface seen in PLANNING and while
+// hopping onto the tree must leave no trace: back in SCAN (the same 4 m surface again) the height is still 4 m.
+TEST(CandObjFinal, HeightsNotFusedInLockedPhases) {
+  CandObj m;
+  double t = 0;
+  addTree(m, t, 0, 0, 2.0, 4.0, 8);
+  const TreeId id = m.publishedTrees()[0].id;
+  ASSERT_NEAR(m.publishedTrees()[0].height, 4.0, 1e-9);
+  for (int i = 0; i < 30; ++i) step(m, t, MissionPhase::kPlanning, kNoTree, {disc(0, 0, 2.0, 5.5)});
+  for (int i = 0; i < 30; ++i) step(m, t, MissionPhase::kHopping, id, {disc(0, 0, 2.0, 5.5)});
+  EXPECT_NEAR(m.publishedTrees()[0].height, 4.0, 1e-9);
+  EXPECT_GT(cnt(m, "height_cells_skipped_locked_phase"), 0u) << dump(m);
+  for (int i = 0; i < 10; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 4.0)});
+  EXPECT_NEAR(m.publishedTrees()[0].height, 4.0, 1e-9) << "locked-phase surface samples leaked into the height";
+}
+
+// S6 / rule 5 + navigation API: markSprayed refuses an ID that is not published (tentative instance).
+TEST(CandObjFinal, MarkSprayedRefusesUnpublishedInstances) {
+  CandObj m;
+  double t = 0;
+  for (int i = 0; i < 2; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0)});
+  ASSERT_EQ(cnt(m, "instances_created"), 1u);
+  ASSERT_TRUE(m.publishedTrees().empty());
+  EXPECT_FALSE(m.markSprayed(0));  // ID 0 exists, tentative
+  EXPECT_EQ(cnt(m, "trees_marked_sprayed"), 0u);
+  EXPECT_EQ(cnt(m, "mark_sprayed_unknown_id"), 1u);
+  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0)});
+  ASSERT_EQ(m.publishedTrees().size(), 1u);
+  EXPECT_FALSE(m.publishedTrees()[0].sprayed);  // the refused call left no trace
+  EXPECT_TRUE(m.markSprayed(0));
+}
+
+// S8: a tree seen only with its crown top outside the image (truncated) never publishes: its height would be
+// under-estimated. Once real tops are sampled it publishes.
+TEST(CandObjFinal, TruncatedOnlyCrownNeverPublishes) {
+  CandObj m;
+  double t = 0;
+  for (int i = 0; i < 12; ++i) {
+    Crown c = disc(0, 0, 2.0, 3.0);
+    c.truncated = true;
+    step(m, t, MissionPhase::kScan, kNoTree, {c});
+  }
+  EXPECT_TRUE(m.publishedTrees().empty()) << dump(m);
+  EXPECT_GT(cnt(m, "instances_waiting_untruncated_height"), 0u) << dump(m);
+  EXPECT_EQ(cnt(m, "instances_seeded_from_truncated_crown"), 1u);
+  step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 5.0)});  // the top comes into view
+  const auto trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 1u) << dump(m);
+  EXPECT_TRUE(std::isfinite(trees[0].height));
+}
+
+// S12: non-finite values never reach the mapper (NaN passes every range comparison).
+TEST(CandObjFinal, NonFiniteConfigValuesAreRejected) {
+  for (const char* v : {"nan", "NaN", "inf", "-inf", "infinity"}) {
+    EXPECT_THROW(configFrom({{"height_quantile", v}}), std::invalid_argument) << v;
+    EXPECT_THROW(configFrom({{"latch_ratio", v}}), std::invalid_argument) << v;
+  }
+  Config c;
+  c.max_height_rate = std::nan("");
+  EXPECT_THROW(c.sanitized(nullptr), std::invalid_argument);
+  Config d;
+  d.height_quantile = std::numeric_limits<double>::infinity();
+  EXPECT_THROW(CandObj{d}, std::invalid_argument);
+  EXPECT_THROW(createMapper("cand_obj", {{"max_centre_rate", "nan"}}, StereoCalibration{}), std::invalid_argument);
 }

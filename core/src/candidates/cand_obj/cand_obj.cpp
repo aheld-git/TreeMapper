@@ -6,6 +6,7 @@
 #include <iostream>
 #include <limits>
 #include <numeric>
+#include <stdexcept>
 #include <unordered_map>
 
 #include "treemapper/simple_mapper.hpp"  // phasePolicy(): the shared pure phase-rule function
@@ -25,6 +26,11 @@ constexpr double kMaxStepDt = 0.5;  ///< s, the rate limiter never takes one ste
 
 template <typename T>
 T clampLog(const char* name, T v, T lo, T hi, const std::function<void(const std::string&)>& log) {
+  // NaN compares false with everything, so it would pass the range test below and reach casts and indices
+  // (height_quantile = nan -> an out-of-range nth_element index): reject it, and +-inf, outright
+  if (!std::isfinite(static_cast<double>(v))) {
+    throw std::invalid_argument("cand_obj config: " + std::string(name) + " = " + std::to_string(v) + " is not finite");
+  }
   if (v < lo || v > hi) {
     const T c = std::clamp(v, lo, hi);
     if (log) log("cand_obj config: " + std::string(name) + " = " + std::to_string(v) + " clamped to " + std::to_string(c));
@@ -170,9 +176,29 @@ void CandObj::warnOnce(const std::string& key, const std::string& msg) {
   if (log_) log_(msg);
 }
 
+PhasePolicy CandObj::policyFor(MissionPhase phase, TreeId target) {
+  // Sticky lock (final review S4): once the tree list has been locked (PLANNING / HOPPING / SPRAYING), only an
+  // explicit SCAN unlocks it again. ERROR, UNKNOWN and SCAN_APPROACH stay awake (phasePolicy) but neither create
+  // nor merge nor fuse heights, like PLANNING: a fault or a lost /mission_state after the list was planned
+  // against must not invent trees or retire IDs navigation holds.
+  if (phase == MissionPhase::kPlanning || phase == MissionPhase::kHopping || phase == MissionPhase::kSpraying) {
+    list_locked_ = true;
+  } else if (phase == MissionPhase::kScan) {
+    list_locked_ = false;
+  }
+  PhasePolicy p = phasePolicy(phase, target);
+  if (list_locked_ && p.awake && (phase == MissionPhase::kError || phase == MissionPhase::kUnknown ||
+                                  phase == MissionPhase::kScanApproach)) {
+    p.may_create = false;
+    p.may_merge = false;
+    sticky_frame_ = true;
+  }
+  return p;
+}
+
 void CandObj::process(const FrameInput& f) {
   count("frames_total");
-  const PhasePolicy pol = phasePolicy(f.phase, f.hop_target);
+  const PhasePolicy pol = policyFor(f.phase, f.hop_target);
   if (pol.warn_unknown) warnOnce("phase", "mission phase unknown/missing: behaving as SCAN (fail open)");
   // Post-spray climb: when SPRAYING ends the drone is still low over the sprayed tree. Keep every
   // non-target frozen until it has moved post_spray_hold_radius away (fail closed; brief section 6).
@@ -560,6 +586,11 @@ int CandObj::findInstanceForCrown(const Crown& c) const {
     for (std::size_t k = 0; k < instances_.size(); ++k) {
       const Instance& in = instances_[k];
       if (in.n_latched == 0) continue;
+      // the crown must contain the instance's known cells (fraction of the LATCHED set) and its top must
+      // be within the instance's own reach: a neighbour's crown touching the tree's edge cells, or a
+      // merged basin whose top is on the neighbour, is not credited to this tree. (Reach first: it is O(1),
+      // so the cell overlap is only counted for the few instances near the crown, S5.)
+      if (dist(in.centre, c.peak) > cfg_.match_reach) continue;
       int ov = 0;
       for (const auto& ij : c.cells) {
         const int li = ij.first - in.ai, lj = ij.second - in.aj;
@@ -567,10 +598,6 @@ int CandObj::findInstanceForCrown(const Crown& c) const {
         if (in.latched[static_cast<std::size_t>(lj * cfg_.window + li)]) ++ov;
       }
       if (ov == 0) continue;
-      // the crown must contain the instance's known cells (fraction of the LATCHED set) and its top must
-      // be within the instance's own reach: a neighbour's crown touching the tree's edge cells, or a
-      // merged basin whose top is on the neighbour, is not credited to this tree
-      if (dist(in.centre, c.peak) > cfg_.match_reach) continue;
       const double frac = static_cast<double>(ov) / static_cast<double>(in.n_latched);
       const double frac_crown = static_cast<double>(ov) / static_cast<double>(c.cells.size());
       if (frac >= cfg_.match_overlap) {
@@ -603,7 +630,8 @@ bool CandObj::insideSprayed(const Point2& p) const {
   return false;
 }
 
-void CandObj::creditCrown(Instance& in, const Crown& c, std::vector<int>& cell_owner, const FrameView& view) {
+void CandObj::creditCrown(Instance& in, const Crown& c, std::vector<int>& cell_owner, std::vector<std::uint8_t>& cell_trunc,
+                          const FrameView& view) {
   const int self = static_cast<int>(&in - instances_.data());
   const bool trim = cfg_.latch_rel_h > 0.0 && c.peak_hag > 0.0 && view.hag.size() == view.state.size();
   const float min_hag = static_cast<float>(cfg_.latch_rel_h * c.peak_hag);
@@ -619,11 +647,12 @@ void CandObj::creditCrown(Instance& in, const Crown& c, std::vector<int>& cell_o
     // unknown for this instance, so it can neither latch nor count against the tree
     if (trim && view.hag[static_cast<std::size_t>(vk)] < min_hag) { count("cells_skipped_low_relative_height"); continue; }
     cell_owner[static_cast<std::size_t>(vk)] = self;
+    cell_trunc[static_cast<std::size_t>(vk)] = c.truncated ? 1 : 0;
   }
 }
 
-void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner, int self,
-                             double quality, double z_cap) {
+void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner,
+                             const std::vector<std::uint8_t>& cell_trunc, int self, double quality, double z_cap) {
   const int li0 = std::max(in.ai, view.i0), lj0 = std::max(in.aj, view.j0);
   const int li1 = std::min(in.ai + cfg_.window, view.i0 + view.w), lj1 = std::min(in.aj + cfg_.window, view.j0 + view.h);
   const float q = static_cast<float>(std::clamp(quality, 0.0, 1.0));
@@ -651,6 +680,7 @@ void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vec
             count("height_cells_rejected_outlier");
             if (++in.hrej[lk] >= 3) {  // the established value was the outlier: start over
               in.hz[lk] = zc; in.hw[lk] = wf; in.hrej[lk] = 0;
+              in.hgood[lk] = cell_trunc[vk] ? 0 : 1;
               count("height_cells_reset");
             }
           } else {
@@ -658,6 +688,7 @@ void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vec
             in.hz[lk] = (in.hz[lk] * in.hw[lk] + zc * wf) / wn;
             in.hw[lk] = std::min(wn, cap);
             in.hrej[lk] = 0;
+            if (!cell_trunc[vk]) in.hgood[lk] = 1;
           }
         }
       } else if (st == 1 || owner >= 0) {
@@ -708,10 +739,15 @@ void CandObj::refreshHeight(Instance& in) {
   // pin it to the top of the visible slice, and no single cell (or frame) defines it
   hbuf_.clear();
   const std::size_t n = static_cast<std::size_t>(cfg_.window) * cfg_.window;
+  int good = 0;
   for (std::size_t k = 0; k < n; ++k) {
-    if (in.latched[k] && in.hw[k] > 0.0f && std::isfinite(in.hz[k])) hbuf_.push_back(in.hz[k]);
+    if (in.latched[k] && in.hw[k] > 0.0f && std::isfinite(in.hz[k])) {
+      hbuf_.push_back(in.hz[k]);
+      if (in.hgood[k]) ++good;
+    }
   }
   in.n_height_cells = static_cast<int>(hbuf_.size());
+  in.n_good_height_cells = good;
   if (in.n_height_cells < cfg_.min_height_cells) { in.height_target = kNaN; return; }
   const std::size_t i = static_cast<std::size_t>(std::floor(cfg_.height_quantile * static_cast<double>(hbuf_.size() - 1) + 0.5));
   std::nth_element(hbuf_.begin(), hbuf_.begin() + static_cast<long>(i), hbuf_.end());
@@ -761,6 +797,7 @@ void CandObj::absorb(Instance& keep, const Instance& lose) {
         const float wn = keep.hw[kk] + lose.hw[lk];
         keep.hz[kk] = (keep.hz[kk] * keep.hw[kk] + lose.hz[lk] * lose.hw[lk]) / wn;
         keep.hw[kk] = std::min(wn, cap);
+        if (lose.hgood[lk]) keep.hgood[kk] = 1;
       }
       if (lose.latched[lk] && !keep.latched[kk]) {
         keep.latched[kk] = 1;
@@ -779,18 +816,47 @@ void CandObj::absorb(Instance& keep, const Instance& lose) {
 
 void CandObj::mergeInstances(double t) {
   (void)t;
+  // Candidate pairs from a uniform grid on the instance centres (cell = the reach 2 x max_cell_radius), so a sweep
+  // costs O(N) instead of O(N^2) pair tests (S5: 17.9 ms/frame at 1600 trees before). The pairs are visited in
+  // exactly the old order (a ascending, then b ascending) and the first one that merges wins, so the result is
+  // identical to the full double loop: pairs farther apart than the reach were skipped there too. refreshHull()
+  // is a pure function of the latched cells, so refreshing every candidate up front changes nothing either.
+  const double reach = 2.0 * cfg_.max_cell_radius;
+  const double gcell = std::max(reach * 1.0001, 1e-3);  // a hair over the reach: no pair in reach is missed by rounding
+  std::unordered_map<std::int64_t, std::vector<std::size_t>> grid;
+  auto key = [](std::int64_t gi, std::int64_t gj) { return (gi << 32) ^ (gj & 0xffffffffLL); };
+  std::vector<std::size_t> cand;
   bool merged = true;
   while (merged) {
     merged = false;
+    grid.clear();
+    for (std::size_t k = 0; k < instances_.size(); ++k) {
+      Instance& in = instances_[k];
+      if (in.sprayed || in.n_latched == 0) continue;
+      refreshHull(in);
+      grid[key(static_cast<std::int64_t>(std::floor(in.centre.x / gcell)), static_cast<std::int64_t>(std::floor(in.centre.y / gcell)))]
+          .push_back(k);
+    }
     for (std::size_t a = 0; a < instances_.size() && !merged; ++a) {
-      for (std::size_t b = a + 1; b < instances_.size() && !merged; ++b) {
-        Instance& ea = instances_[a];
+      Instance& ea = instances_[a];
+      if (ea.sprayed || ea.n_latched == 0) continue;
+      const std::int64_t gi = static_cast<std::int64_t>(std::floor(ea.centre.x / gcell));
+      const std::int64_t gj = static_cast<std::int64_t>(std::floor(ea.centre.y / gcell));
+      cand.clear();
+      for (std::int64_t dj = -1; dj <= 1; ++dj) {
+        for (std::int64_t di = -1; di <= 1; ++di) {
+          auto it = grid.find(key(gi + di, gj + dj));
+          if (it == grid.end()) continue;
+          for (std::size_t b : it->second) if (b > a) cand.push_back(b);
+        }
+      }
+      std::sort(cand.begin(), cand.end());
+      for (std::size_t ci = 0; ci < cand.size() && !merged; ++ci) {
+        const std::size_t b = cand[ci];
         Instance& eb = instances_[b];
         if (ea.sprayed || eb.sprayed) continue;
         if (ea.n_latched == 0 || eb.n_latched == 0) continue;
-        refreshHull(ea);
-        refreshHull(eb);
-        if (dist(ea.centre, eb.centre) > 2.0 * cfg_.max_cell_radius) continue;  // cannot overlap
+        if (dist(ea.centre, eb.centre) > reach) continue;  // cannot overlap
         bool same = dist(ea.centre, eb.centre) < cfg_.merge_centre_dist;
         if (!same) {
           // latched overlap on the shared lattice
@@ -824,7 +890,13 @@ void CandObj::mergeInstances(double t) {
 
 void CandObj::integrate(double t, MissionPhase phase, TreeId target, const DronePose& pose, const FrameView& view,
                         std::vector<Crown>& crowns, double quality) {
-  PhasePolicy pol = phasePolicy(phase, target);
+  sticky_frame_ = false;
+  PhasePolicy pol = policyFor(phase, target);
+  if (sticky_frame_) {
+    count("frames_locked_after_planning");
+    warnOnce("sticky", std::string("phase ") + toString(phase) +
+                           " after the tree list was locked: no new trees, no merges until SCAN (sticky lock)");
+  }
   if (!pol.awake) { count("crowns_dropped_sleeping", crowns.size()); return; }
   // post-spray climb hold (see process()): freeze non-targets until the drone has left the hover point
   if (hold_after_spray_) {
@@ -846,6 +918,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
   }
   const double z_cap = pose.z - std::max(cfg_.above_drone_margin, cfg_.height_sample_clearance);
   std::vector<int> cell_owner(view.state.size(), -1);
+  std::vector<std::uint8_t> cell_trunc(view.state.size(), 0);  ///< the cell's crown top was truncated (S8)
   std::vector<char> seen(instances_.size(), 0);
   std::vector<char> updatable(instances_.size(), 0);
   for (std::size_t k = 0; k < instances_.size(); ++k) {
@@ -871,7 +944,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
       in.aj = floorDiv(c.peak.y, cfg_.cell) - cfg_.window / 2;
       const std::size_t n = static_cast<std::size_t>(cfg_.window) * cfg_.window;
       in.npos.assign(n, 0.0f); in.nneg.assign(n, 0.0f); in.latched.assign(n, 0);
-      in.hz.assign(n, 0.0f); in.hw.assign(n, 0.0f); in.hrej.assign(n, 0);
+      in.hz.assign(n, 0.0f); in.hw.assign(n, 0.0f); in.hrej.assign(n, 0); in.hgood.assign(n, 0);
       in.centre = in.centre_pub = c.peak;
       in.height_target = in.height_pub = kNaN;
       in.first_seen = in.last_seen = in.last_step_t = t;
@@ -888,7 +961,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
       continue;
     }
     seen[static_cast<std::size_t>(k)] = 1;
-    creditCrown(in, c, cell_owner, view);
+    creditCrown(in, c, cell_owner, cell_trunc, view);
     in.peak_sum_x += c.peak.x; in.peak_sum_y += c.peak.y; ++in.n_peaks;
   }
   // 2. evidence + height update for every updatable instance in view; rate-limited publication step
@@ -902,13 +975,16 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
       // the latched surface's heights are fused in creation phases only: once the list is locked the
       // descent reference must not drift (a close, oblique look at a shoulder during the approach would
       // re-measure cells the scan saw from above); outlines keep growing under the phase policy
-      updateEvidence(in, view, cell_owner, static_cast<int>(k), quality, pol.may_create ? z_cap : -std::numeric_limits<double>::infinity());
+      updateEvidence(in, view, cell_owner, cell_trunc, static_cast<int>(k), quality, pol.may_create ? z_cap : -std::numeric_limits<double>::infinity());
       refreshHull(in);
       if (pol.may_create) refreshHeight(in);
     }
     if (!in.confirmed && pol.may_create && in.frames_seen >= cfg_.confirm_frames && std::isfinite(in.height_target) &&
         latchedArea(in) >= cfg_.min_publish_area && in.hull.size() >= 3) {
       if (insideSprayed(in.centre)) { count("instances_refused_confirm_inside_sprayed"); continue; }
+      // S8: the height must rest on crowns whose top was inside the image; a tree seen only truncated (top
+      // outside the image) would publish an under-estimated height, which is the unsafe direction for a descent
+      if (in.n_good_height_cells < cfg_.min_height_cells) { count("instances_waiting_untruncated_height"); stepPublished(in, t); continue; }
       in.confirmed = true;
       in.height_pub = in.height_target;  // first publication: no previous value to rate-limit from
       in.centre_pub = in.centre;

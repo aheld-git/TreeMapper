@@ -12,6 +12,7 @@
 //  * Every dropped point / observation / frame is counted by reason in counters() (rule 7).
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -71,6 +72,7 @@ class ConfigReader {
     double v = 0.0;
     try { v = std::stod(*s, &used); } catch (const std::exception&) { used = 0; }
     if (used == 0 || used != s->size()) bad(key, *s, "a number");
+    if (!std::isfinite(v)) bad(key, *s, "a finite number");  // stod accepts "nan" / "inf"; no tunable wants them
     return v;
   }
   int getInt(const std::string& key, int def) {
