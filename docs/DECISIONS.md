@@ -491,3 +491,45 @@ crowns) because a stream without phases has no end of mission window; not a mapp
 `/object_fusion/fused_bboxes` median feature height of the same ID (the only height in the companion bag), so its heights
 are not comparable in absolute terms with our canopy tops; sprayed = false; frame world_nwu. Its own chain and
 configuration in the companion replay are unknown (presumably tf_static's 75 deg and the 4.918 px offset).
+
+**D53. A separate real-flight profile, `config/cand_obj_real.cfg`, chosen by a no-ground-truth sweep** (`results/real_flight_profile.md`,
+commits af11268 / ba18073). The sim profile over-fragments the farm flight (102 trees for ~63 stereo crowns, 39 outlines
+without a peak). The cand_obj source was frozen, so the fix is configuration only: 18 configurations in two rounds (M4a's
+suggested knobs, then instance-level knobs on the best), judged on outlines without a peak, merged outlines, missed peaks,
+neighbour spacing, fragment areas, stability, safety and agreement with the other systems. `min_basin_cells` had no effect;
+`min_prominence` alone left 16+ fragments and missed 6 crowns; the decisive key was `merge_overlap` 0.5 -> 0.3 (real crowns
+split into instances overlapping by 30-50 %). Chosen "P1.0_all" (9 keys: `min_prominence` 1.0, `min_basin_cells` 8,
+`seed_truncated` false, `match_radius` 3.0, `match_reach` 4.5, `seed_overlap` 0.1, `min_publish_area` 8.0, `merge_overlap`
+0.3, `merge_centre_dist` 2.5): 63 trees, 6 outlines without a peak, 5 peaks missed, 0 jumps. The equivalent "P_all"
+(prominence 1.5; 61 trees, 5 fragments) lost on its higher prominence (more missed small trees expected) and drift (3.2 vs
+2.6 m). `cell` 0.6 also helped (8 fragments) but was not taken: it changes the whole height model.
+
+**D54. Two profiles, selected by launch file, not one compromise** (`results/real_flight_profile.md`). The real profile
+regresses on the synthetic held-out suite (recall 0.930 -> 0.854, merged entries 1.20 -> 2.63, 20 safety frames on
+hard_s100, latency 1.89 -> 2.47 s) and costs ~2 s latency on Isaac (4.23 vs 2.32 s): at 4.5-5 m spacing its merge settings
+merge real neighbours. So `treemapper_real.launch` defaults `mapper_config_file` to `config/core/cand_obj_real.cfg` (a
+one-line launch change); the sim launch, the Isaac replay, `treemapper.yaml`, `scripts/evaluate.sh` and the built-in
+defaults keep `config/cand_obj.cfg`. `ConfigAgreement` (M4b, 9100ccb) checks that every launch-default config resolves in
+`config/`, parses and is accepted by the mapper. A spacing-aware merge rule could unify the profiles; left as a code change
+for later.
+
+## M5: handoff (2026-10-24, 20:15-; D55-D57)
+
+**D55. The shipped system's held-out comparison with `simple` is extracted from M4a's final runs, not re-run.** The
+held-out suite is run once per frozen configuration (D31, D39); M4a's final evaluation already ran simple, cand_obj and
+cand_grid with `--reference simple` (`/data/work/eval/m4a/final/holdout_*.md`), but `results/cand_obj_m4_holdout.md` kept
+only the comparisons with M3 and cand_grid. M5 copied the shipped system's per-level card (with the std over datasets =
+seed-to-seed spread) and the paired cand_obj vs simple tables verbatim into `results/final_holdout_vs_simple.md`, with the
+source JSON hashes. Re-running would give the same numbers (deterministic, D26) and would only add a second look at the
+held-out data.
+
+**D56. Verification before the handoff claims** (`results/REPORT.md` section 11). A fresh build directory for the core
+tests (`/data/work/build_m5`) and a fresh catkin workspace (`/data/work/catkin_m5`), the ROS gtests and the rostest smoke,
+and one re-run of `evaluate.sh cand_obj` on Isaac compared field by field (and the map stream byte by byte, without the
+wall-clock `stage_ms`) with M4a's committed run. All at <= 2 cores (`TM_JOBS=2`, `-j2`, `taskset -c 0,1`).
+
+**D57. What ships.** Mapper `cand_obj` (`ros/treemapper_ros/config/treemapper.yaml`: `mapper: cand_obj`,
+`mapper_config_file: config/core/cand_obj.cfg`). Sim / synthetic profile = `config/cand_obj.cfg` = built-in defaults; real
+stereo profile = `config/cand_obj_real.cfg`, the default of `treemapper_real.launch` (D54). `cand_grid` and `simple` stay registered and
+buildable as references for the evaluation, not for flight. The README parameter table is generated from the two `.cfg`
+files (`python3 -m treemapper_tools.param_table`; it fails if a key has no description).

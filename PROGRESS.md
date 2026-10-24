@@ -11,10 +11,50 @@ Autonomous, time-boxed build of the on-board tree mapper (see `docs/PROJECT_BRIE
 | M1 | 15:00–17:00 | Repo skeleton (core lib, tools package, msgs package, test runner); bag extraction; scorer; **baseline scorecard of the existing system** | **done** |
 | M2 | 17:00–18:30 | Synthetic orchard generator (hard noise, seeded, full missions) + a deliberately simple baseline system; both scored on synthetic and recorded data | **done** (15:20-16:15) |
 | M3 | 18:30–21:30 | >= 2 genuinely different architectures (e.g. per-object tracking+fusion vs spatial evidence grid), compared with the scorer over many seeds + noise floor; pick one | **done** — **cand_obj chosen** (D31, `results/m3_comparison.md`) |
-| M4 | next (19:00–23:10) | Hardening of the chosen design; a test per rule of brief section 7; single config file + defaults test; ROS 1 wrappers + launch files (real-log and sim modes) built in tm_dev | |
-| M5 | 23:10–00:00 | Handoff: README, results report, design doc (section 10 answers), decision log; everything committed | |
+| M4 | 19:00–20:30 | Hardening of the chosen design; a test per rule of brief section 7; single config file + defaults test; ROS 1 wrappers + launch files (real-log and sim modes) built in tm_dev | **done**, as four parallel parts: M4a cand_obj hardening (D32-D39), M4d generator fix + suite_v2 (D40), M4b ROS wrapper (D41-D47), M4c real flight (D48-D54); M4c added the real-flight profile `config/cand_obj_real.cfg`, the default of the real launch (D53, D54) |
+| M5 | 20:15–22:45 | Handoff: README, results report, design doc (section 10 answers), decision log; everything committed | **done** (D55-D57); independent review follows |
 
 If behind: cut alternatives, never the scorer, the safety-rule tests or the handoff.
+
+## Final state (M5, 2026-10-24)
+
+**Start here**: `README.md` (build, run, score, parameters, hardware checklist), `results/REPORT.md` (all results, with
+sources), `docs/DESIGN.md` (design, brief section 10 answers, rule-by-rule tests), `docs/DECISIONS.md` (D1-D57, R1-R14).
+
+| Deliverable (brief section 12) | Where | Status |
+|---|---|---|
+| 1 buildable ROS 1 workspace: core library, thin node, interface package, launch files real + sim | `core/`, `ros/treemapper_ros/`, `ros/treemapper_msgs/`, `ros/treemapper_ros/launch/` | done; built and tested in tm_dev (x86); **never built on the Orin** |
+| 2 synthetic world, scorer, one-command evaluation | `tools/treemapper_tools/{synth,score,evaluate}.py`, `scripts/evaluate.sh` | done |
+| 3 results report (vs simple, vs cand_grid, vs the existing system; worst cases, noise floor, weaknesses) | `results/REPORT.md` | done |
+| 4 design document answering section 10 | `docs/DESIGN.md` | done (map reuse: design only) |
+| 5 handoff README | `README.md` | done |
+| 6 decision log | `docs/DECISIONS.md` | done, consolidated and renumbered |
+
+**Verification at handoff** (M5, fresh build dirs, `results/REPORT.md` section 11): `scripts/run_tests.sh` ALL TESTS
+PASSED (63 gtest cases in `test_core`, 102 pytest); catkin build of both packages clean; `test_treemapper_ros` 28/28 (incl. M4b's launch-config test 9100ccb);
+`rostest replay_smoke.test` SUCCESS; `evaluate.sh cand_obj` on Isaac reproduces the committed scorecard exactly
+(byte-identical map stream without wall-clock timing).
+
+**Headline** (`results/cand_obj_m4_isaac.md`): on the recorded Isaac mission cand_obj finds 9/9 trees (existing 7/9),
+mean IoU 0.867 (0.629), centre RMSE 0.19 m (1.36), 0 safety violations (5), 0 centre/height jumps (8/19); scan latency
+2.32 s (1.19 s).
+
+### Open items
+
+1. **Hardware**: Orin build, timing next to the detector, live camera chain, navigation integration: all unverified
+   (README checklist, in priority order).
+2. **Two mapper profiles**: the real profile (63 trees on the farm flight) regresses on synthetic data (held-out recall 0.93 -> 0.85, 20 safety frames on hard_s100, +2 s latency on Isaac), so the real launch uses it and everything else the sim profile. It is tuned on one flight against a stereo-peak proxy, no ground truth. A spacing-aware merge rule could unify the two (code change, not done).
+3. **Latency** ~1.1 s behind the existing system on the recording; publication thresholds are the lever (README table).
+4. **Hard-level recall** 0.83 (M4 traded 0.02-0.04 recall for 0 jumps, D39).
+5. **Map reuse across flights** is a design only (`docs/DESIGN.md` section 2.5).
+6. **Stale parameter**: with `seed_truncated = true` (shipped), `peak_border_px` only feeds a counter; the comments in
+   `cand_obj.hpp` and `docs/candidates/cand_obj.md` sections 2 / 6 still describe the M3 meaning ("no height sample").
+   Harmless, but a reader tuning it will see no effect.
+7. Heights are world z and inherit any pose-z drift of the flight controller (unknown on the real flight).
+8. The Isaac truth heights are a constant fallback, so heights are validated on synthetic data only.
+
+The sections below are the milestone history, kept as written (earlier "next milestone" notes are superseded by this
+section).
 
 ## M1 delivered
 

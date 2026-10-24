@@ -67,7 +67,7 @@ Rejection happens **before** anything can reach a published outline, so nothing 
 |---|---|---|---|
 | point | impossible / unreliable points | invalid disparity; optical range outside [0.5, 30] m; above drone z - 0.5 m; whole frame when the median per-cell MAD exceeds 2 m (noise burst, turns) | `points_dropped_{invalid,range,above_drone,outside_grid_cap}`, `frames_dropped_*` |
 | cell | ground and grass | per-cell median z vs a per-frame ground plane fitted to the lowest 40 % of cells (inlier band 0.6 m, slope <= 0.3, else a flat fallback, counted); canopy only >= 1 m above it after smoothing | `cells_dropped_too_few_points`, `frames_ground_plane_fallback` |
-| crown | bushes, clutter, partial crowns | top >= `min_tree_height` 1.5 m above ground, >= 4 cells, top inside a detection box, top >= 24 px from the image border to seed or give a height | `crowns_dropped_{too_low,too_small,unboxed,truncated_seed}` |
+| crown | bushes, clutter, partial crowns | top >= `min_tree_height` 1.5 m above ground, >= 4 cells, top inside a detection box (a top within 24 px of the image border is flagged "truncated"; with the shipped `seed_truncated = true` the flag only feeds a counter) | `crowns_dropped_{too_low,too_small,unboxed,truncated_seed}` |
 | instance cell | **neighbours** and box corners | each canopy cell belongs to exactly one crown per frame, so a neighbour's crown is negative evidence for this tree's cells; cells > 4 m from the instance centre are never credited; a cell latches only when canopy-of-this-tree in >= 75 % of the (quality-weighted) frames it was judged, and in at least 5 of them | `cells_dropped_too_far_from_centre`, `cells_latched` |
 
 A detection box corner that lands on ground or on the neighbouring tree therefore does nothing: the ground there is not
@@ -226,15 +226,21 @@ post-spray hold:
 Two launch files (`treemapper_sim.launch`: `world`/`body`, verified nadir mount as a parameter; `treemapper_real.launch`:
 `world_nwu`/`body`, data-derived 82 deg mount and 4.30 px disparity offset as defaults) and, for the mapper, two
 configuration files: `config/cand_obj.cfg` (sim / synthetic profile, the one evaluated on every held-out suite) and the
-real-flight profile `config/cand_obj_real.cfg` (M4c, see `results/REPORT.md` section 6 for its status). The core code is
-identical in both modes.
+real-flight profile `config/cand_obj_real.cfg` (the default of `treemapper_real.launch`'s `mapper_config_file`). The core
+code is identical in both modes. The real profile changes 9 keys (README parameter table), mainly `merge_overlap` 0.5 -> 0.3,
+`min_prominence` 0.6 -> 1.0, `min_publish_area` 3 -> 8 m^2 and wider match / merge radii: real crowns are rough and split
+into instances that overlap by 30-50 %, while the trees stand ~8 m apart. On the tightly spaced synthetic orchards
+(4.5-5 m) the same settings merge real neighbours, so neither profile fits both (`results/REPORT.md` sections 5-6,
+`results/real_flight_profile.md`). The unifying fix would be a spacing-aware merge rule (merge threshold tied to the
+estimated crown radius and the local tree spacing); it is a code change and was not made.
 
 ## 7. Known weaknesses
 
 - **Real-flight over-fragmentation** with the sim profile: 102 final trees where the stereo shows about 60-63 crowns,
   39 outlines without a crown peak (`results/real_flight_scorecard.md`). The real crowns are rougher than the synthetic
-  domes, so a 0.6 m prominence splits one crown into several basins. The real profile addresses it by configuration;
-  see `results/REPORT.md`.
+  domes, so a 0.6 m prominence splits one crown into several basins. The real profile fixes it by configuration (63
+  trees, 6 outlines without a peak) but regresses on synthetic data (held-out recall 0.93 -> 0.85, 20 safety frames on one
+  hard mission, +2 s latency on Isaac): two profiles must be kept apart (section 6).
 - **Recall on the hard level** (0.83 held-out) and the crown-entry effect on touching neighbours; recall dropped
   slightly in M4 against M3 (-0.018 medium, -0.035 hard; `results/cand_obj_m4_holdout.md`).
 - **Latency**: 1.14 / 2.02 / 2.51 s held-out (easy / medium / hard) and 2.32 s on the recording, against the existing

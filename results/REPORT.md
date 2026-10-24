@@ -1,6 +1,6 @@
 # TreeMapper results report
 
-Shipped system: **`cand_obj`** (M4 build, `config/cand_obj.cfg`; real-flight profile `config/cand_obj_real.cfg`, section 6),
+Shipped system: **`cand_obj`** (M4 build, `config/cand_obj.cfg`; real-flight profile `config/cand_obj_real.cfg`, sections 5-6),
 in the ROS node `treemapper_node`. Every number below is copied from a committed results file, cited per table; nothing
 here comes from a run that is not committed. All timings are x86 (tm_dev, one core per process); nothing ran on the Orin.
 Definitions of every metric: `docs/SCORER.md` and `tools/treemapper_tools/score.py`. Design: `docs/DESIGN.md`.
@@ -16,7 +16,10 @@ Definitions of every metric: `docs/SCORER.md` and `tools/treemapper_tools/score.
   false trees -0.8). Safety 0 on all 30 missions. (`results/final_holdout_vs_simple.md`, `results/cand_obj_m4_holdout.md`)
 - **Real farm flight** (no ground truth): no retreats, no ID reuse, 0 undefined / invalid / duplicate entries, 0 centre and
   0 height jumps for cand_obj; but with the sim profile it **over-fragments** (102 trees where the stereo shows ~60-63
-  crowns and the other systems publish 54-59). The real profile is section 6. (`results/real_flight_scorecard.md`)
+  crowns and the other systems publish 54-59). **The real-flight profile gives 63 trees, 6 outlines without a crown
+  peak, 0 / 0 jumps**, but regresses on synthetic data (recall 0.93 -> 0.85, 20 safety frames on one hard mission), so
+  two profiles ship: real launch = real profile, everything else = sim profile. (`results/real_flight_scorecard.md`,
+  `results/real_flight_profile.md`)
 
 ## 2. Final scorecard against the existing system: recorded Isaac mission
 
@@ -153,10 +156,67 @@ cand_obj M4 = the shipped sim profile, core 960ccb7). The stereo shows about 60-
 - **Fragmentation is the one real-data failure** the synthetic and Isaac results did not predict: 6-9 m^2 pieces at crown
   edges and in the gaps between touching crowns. cand_obj has the tightest per-crown outlines and the fewest merged crowns, but
   ~40 surplus fragments. The cause is crown roughness: a real canopy has several local maxima more than 0.6 m above their
-  saddles. The fix is a real-stereo configuration profile (section 6).
+  saddles. The fix is a real-stereo configuration profile (sections 5-6).
 - The M3 cand_obj build behaves the same on this flight (100 trees, 37 fragment outlines) but jumps (42 centre / 39 height).
 
-<!-- REAL_PROFILE_SECTION -->
+## 5. The real-flight profile on the real flight
+
+Source: `results/real_flight_profile.md` (raw: `results/real_flight_profile_scorecard.json`, `results/real_flight_profile_sweep.json`,
+plot `results/real_flight_plots/final_cand_obj_real.png`). Same build as the shipped core (960ccb7; no core change since),
+configuration only: an 18-configuration no-ground-truth sweep judged against the 63 stereo crown peaks. Chosen row
+"P1.0_all" = `config/cand_obj_real.cfg`, 9 keys changed from the sim profile: `min_prominence` 1.0, `min_basin_cells` 8,
+`seed_truncated` false, `match_radius` 3.0, `match_reach` 4.5, `seed_overlap` 0.1, `min_publish_area` 8.0,
+`merge_overlap` 0.3, `merge_centre_dist` 2.5.
+
+| Real flight | cand_obj, sim profile | **cand_obj, real profile** | simple | cand_grid | existing |
+|---|---|---|---|---|---|
+| final trees (stereo: ~63 crowns) | 102 | **63** | 59 | 55 | 54 |
+| outlines with 0 / 2+ crown peaks | 39 / 2 | **6 / 2** (55 with exactly 1) | 1 / 5 | 6 / 7 | 4 / 8 |
+| crown peaks missed | 3 | 5 | 2 | 5 | 5 |
+| nearest-neighbour centre distance p10 / p50 m | 3.15 / 4.12 | 5.76 / 7.46 | 7.08 / 7.89 | 5.76 / 7.95 | 7.02 / 8.06 |
+| outline area p50 m^2 | 30.64 | 37.84 | 67.57 | 51.47 | 41.13 |
+| centre / height jumps | 0 / 0 | **0 / 0** | 58 / 6 | 34 / 2 | 75 / 296 |
+| IDs vanished | 13 | 5 | 8 | 25 | 23 |
+| undefined / invalid / duplicate frames | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+| final trees overlapping a tree of simple / cand_grid / existing | 101 / 99 / 92 of 102 | 63 / 62 / 62 of 63 | | | |
+
+(Columns other than the real profile: `results/real_flight_scorecard.md`.) The decisive key is `merge_overlap` 0.5 -> 0.3:
+real crowns split into two or three instances that overlap by 30-50 %. Raising `min_prominence` alone (round 1) cut the
+fragments to 16 at best while missing 6 crowns; `min_basin_cells` had no effect. Above-the-drone height frames stay at
+58-59 for every configuration (the landing artefact, D51). The 5 missed peaks were not checked by eye; the proxy is not
+truth.
+
+## 6. Why there are two profiles: the real profile on synthetic data and Isaac
+
+Source: `results/real_flight_profile.md` (same build, both profiles on the 30 held-out missions and the recording).
+
+| Held-out suite (30 missions), mean / worst | sim profile `cand_obj.cfg` | real profile `cand_obj_real.cfg` |
+|---|---|---|
+| recall (final) | 0.930 / 0.750 | 0.854 / 0.607 |
+| recall by level easy / medium / hard | 1.00 / 0.96 / 0.83 | 0.99 / 0.88 / 0.68 |
+| precision (final) | 0.994 / 0.938 | 1 / 1 |
+| mean IoU | 0.769 / 0.597 | 0.726 / 0.511 |
+| merged entries / neighbours swallowed | 1.20 / 1.27 | 2.63 / 2.77 |
+| centre RMSE m | 0.445 / 0.885 | 0.632 / 1.213 |
+| height RMSE m | 0.225 / 0.595 | 0.334 / 1.288 |
+| **safety violations** | **0 / 0** | 0.67 / **20** (hard_s100: 20 frames with a height 0.65 m above the truth top and above a 7.35 m hover) |
+| scan latency mean s | 1.89 / 4.60 | 2.47 / 7.52 |
+
+| Recorded Isaac mission | sim profile | real profile |
+|---|---|---|
+| recall / precision | 1 / 1 | 1 / 1 |
+| mean IoU / centre RMSE m | 0.867 / 0.19 | 0.855 / 0.21 |
+| safety violations | 0 | 0 |
+| scan latency s | 2.32 | 4.23 |
+
+On synthetic medium / hard the canopies touch at 4.5-5 m spacing, and the real profile's lower merge overlap and larger
+match / merge radii merge real neighbours; on the farm (~8 m spacing, rough crowns) the same settings repair fragments.
+**Neither profile is right for both worlds**, so the real launch uses the real profile and everything else the sim profile
+(README, "Real-flight profile"). Consequences for the handoff:
+- the real profile's synthetic safety count (20 frames on one hard mission) means it must not be used in simulation, and that
+  its descent heights on tightly spaced real trees are untested;
+- what separates the cases is tree spacing relative to crown roughness, so a spacing-aware merge rule (merge threshold tied
+  to the estimated crown radius) is the code change that could unify the profiles; not done (code frozen for M4c).
 
 ## 7. Safety counts (all must be 0)
 
@@ -166,6 +226,7 @@ cand_obj M4 = the shipped sim profile, core 960ccb7). The stereo shows about 60-
 | Held-out suite, 30 missions | **0** | n/a | 1670 frames (65 medium + 1605 hard, implausible heights) | 0 | `results/cand_obj_m4_holdout.md` |
 | Real flight (undefined / invalid / duplicate) | **0** | 0 | 0 | 0 | `results/real_flight_scorecard.md` |
 | Real flight, heights <= 0 | 0 | 3232 frames | 0 | 0 | same |
+| **Real profile** (`cand_obj_real.cfg`) on the held-out suite / Isaac / real flight | 20 frames on hard_s100 (mean 0.67 per mission) / 0 / 0 besides the landing artefact | | | | `results/real_flight_profile.md` |
 
 The descent, lock and spray rules can only be judged where phases exist (synthetic and Isaac); on the real flight they are n/a.
 
@@ -180,7 +241,7 @@ The descent, lock and spray rules can only be judged where phases exist (synthet
 | node total per frame (ROS, Isaac) | 0.84 mean, 1.5 p99, 6.7 max | | | | `results/ros_replay_isaac.md` |
 
 Latency is cand_obj's main price: a tree publishes only after 3 frames with a matched crown, 3 latched cells with a fused
-height and 3 m^2 of latched cells, each cell needing 5 consistent frames, with crown tops at least 24 px inside the image.
+height and 3 m^2 of latched cells, each cell needing 5 consistent frames.
 On the recording that is about 1.1 s later than the existing system (latency is an upper-bound measure, D15).
 Cost is about 1 ms per frame on x86, nearly all of it in the `chm` stage (`instances` ~0.01 ms on Isaac); the worst-snapshot maxima of ~20 ms on easy / medium are
 single snapshots (the mean stays ~1 ms). Assume several times that on the Orin (unmeasured); memory is bounded (~14 kB per
@@ -201,8 +262,10 @@ live instance, `docs/candidates/cand_obj.md` section 10.8).
 
 ## 10. Known weaknesses
 
-1. **Real-stereo fragmentation** with the sim profile (section 4); the real profile is tuned on one flight without ground
-   truth (section 6).
+1. **Two profiles instead of one** (sections 4-6): the sim profile over-fragments real crowns (102 trees for ~63), the real
+   profile merges tightly spaced synthetic neighbours (held-out recall 0.85, 20 safety frames on one hard mission) and
+   adds ~2 s latency on Isaac. The real profile is tuned on one flight, one orchard, against a stereo-peak proxy; its phase
+   rules (lock, descent freeze, spraying) were exercised only on the synthetic suite and Isaac (the real flight has none).
 2. **Latency** 2.32 s vs the existing system's 1.19 s on the recording; up to 4.6 s on the worst hard seed.
 3. **Recall on hard noise** 0.83 (worst 0.75); M4 lost 0.018 / 0.035 recall on medium / hard against M3 in exchange for 0
    jumps and frozen descent references (D39).
@@ -218,18 +281,22 @@ live instance, `docs/candidates/cand_obj.md` section 10.8).
 
 ## 11. Verification done for the handoff (M5)
 
-Run by M5 on 2026-10-24 in tm_dev (x86_64, Ubuntu 20.04, Noetic, g++ 9.4; at most 2 cores), core at commit 8dac005 (no
-core change since). Logs: `/data/work/m5/`.
+Run by M5 on 2026-10-24 in tm_dev (x86_64, Ubuntu 20.04, Noetic, g++ 9.4; at most 2 cores). Two passes: the first at
+commit 8dac005, the second after M4c's and M4b's last commits (3155ae4: real profile, real launch default, the 28th ROS
+gtest); the core is unchanged since 960ccb7 in both. Logs: `/data/work/m5/` (first pass) and `/data/work/m5/v2/` (second).
 
 | Check | Command | Result |
 |---|---|---|
-| all tests, fresh build, all candidates | `TM_BUILD=/data/work/build_m5 TM_JOBS=2 ./scripts/run_tests.sh` (empty build dir) | **ALL TESTS PASSED**: C++ build clean (no warnings printed), ctest 1/1 (`test_core`, 63 gtest cases), pytest 102 passed |
-| ROS package build | fresh catkin workspace `/data/work/catkin_m5` (symlinked `treemapper_msgs`, `treemapper_ros`), `catkin build -j2` + `--make-args tests` | all packages succeeded, no warnings in the log |
-| ROS gtests | `devel/lib/treemapper_ros/test_treemapper_ros` | **27 / 27 passed** |
-| ROS end-to-end smoke | `rostest treemapper_ros replay_smoke.test` (60 s of the Isaac bag at rate 1.0) | **SUCCESS** (1 test, 0 errors, 0 failures) |
+| all tests, fresh build, all candidates | `TM_BUILD=/data/work/build_m5{,b} TM_JOBS=2 ./scripts/run_tests.sh` (empty build dir) | both passes **ALL TESTS PASSED**: C++ build clean (no warnings printed), ctest 1/1 (`test_core`, 63 gtest cases), pytest 102 passed |
+| ROS package build | fresh catkin workspaces `/data/work/catkin_m5{,b}` (symlinked `treemapper_msgs`, `treemapper_ros`), `catkin build -j2` + `--make-args tests` | all packages succeeded, no warnings in the log |
+| ROS gtests | `devel/lib/treemapper_ros/test_treemapper_ros` | first pass 27 / 27; second pass (with 9100ccb) **28 / 28 passed** |
+| ROS end-to-end smoke | `rostest treemapper_ros replay_smoke.test` (60 s of the Isaac bag at rate 1.0) | **SUCCESS** (1 test, 0 errors, 0 failures) in both passes |
 | committed Isaac scorecard reproduces | `TM_BUILD=/data/work/build_m5 TM_OUT=/data/work/eval/m5_cand_obj TM_SKIP_SYNTH=1 ./scripts/evaluate.sh cand_obj` | every scorecard metric equal to M4a's committed run (`results/cand_obj_m4_isaac.md`, raw `/data/work/eval/m4a/final/isaac.json`); map stream (without `stage_ms`), `targets.json` and `counters.json` byte-identical; only wall-clock cost differs (chm 0.85 ms mean this run) |
 
-<!-- VERIFICATION_REAL -->
+| real profile reproduces | `treemapper_replay --system cand_obj --config "<config/cand_obj_real.cfg as k=v;...>"` on `/data/work/extracted/real_farm/frames.bin` (fresh build) | 63 trees in the final map, 68 IDs ever published: equal to `results/real_flight_profile_scorecard.json` (63 / 68) |
+
+Not re-verified by M5: the held-out suite and the real-flight scorecards of the other systems (taken from the committed
+M4a / M4c runs; the generator, replay and mappers are deterministic, D26), and anything on the Orin.
 
 ## 12. How the decision was reached
 
