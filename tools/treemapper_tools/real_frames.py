@@ -34,6 +34,17 @@ What differs from the Isaac reader (``bag_frames.py``), and why:
 * **Calibration**: rectified left ``P`` (fx = fy = 477.15, cx = 322.72, cy = 200.06) and the baseline
   from the right ``P[3] = -fx*B``. The real driver stores it in **millimetres** like Isaac's
   (-76633.363 / 477.152 = 160.6 -> 0.1606 m); ``baseline_from_P`` deduces the unit (plausible 0.01-1 m).
+* **Disparity offset**: the rectified principal points differ (left P cx = 322.72, right P cx = 317.80), so
+  the published disparity carries a constant offset: Z = fx*B / (d - off) (the Q-matrix term the existing
+  localizer applies with off = cx_l - cx_r = 4.918 px). The contract's Z = fx*B/d needs the corrected value,
+  so the reader writes ``d - off`` (``correct_disparity``; <= 0 -> invalid, counted). Isaac has off = 0.
+  Without it the depth scale is wrong by ~2.8x. **The data say off = 4.30 px, not 4.918**: a pose-z-free
+  motion test (features tracked between frames, predicted from depth + /tf poses) fits off = 4.2-4.3 at the
+  calibration's fx*B, and the ground stops sinking with altitude at off ~4.3-4.6; with 4.918 the depth is
+  7 % (at 9 m) to 16 % (at 18 m) too long. The images are NOT rectified (left/right rows differ by 8.8 px
+  raw, 1.0 px after rectifying with the published calibration), so the disparity node likely used a
+  slightly different rectification than camera_info. ``--disparity-offset`` (default 4.30; ``calib`` =
+  cx_l - cx_r). See results/real_flight_geometry.md.
 * **No mission phase.** The real flight has no ``/mission_state`` and no hop target: every frame carries
   the constant phase ``SCAN`` and target -1, ``mission.json`` has no phases or targets. The locked-phase
   and descent rules (no new trees after the scan, hop-target freeze, sprayed trees) are therefore NOT
@@ -64,6 +75,7 @@ TF, TFS = "/tf", "/tf_static"
 CAM_L, CAM_R = "/cam/bottom/left/half/camera_info", "/cam/bottom/right/half/camera_info"
 WORLD, BODY, MOUNT = "world_nwu", "body", "sensor_down"
 PHASE = "SCAN"  # constant: the real flight has no mission phase (module docstring)
+DISPARITY_OFFSET_PX = 4.30  # verified from the data; the calibration's cx_l - cx_r is 4.918
 MOUNT_PITCH_DEG = 82.0  # verified from the data, not tf_static's 75.0 (results/real_flight_geometry.md)
 
 # optical (x right, y down, z forward) -> ROS camera-body convention (x forward, y left, z up)
@@ -173,6 +185,8 @@ def main(argv=None):
     ap.add_argument("--heartbeat", type=float, default=0.2)
     ap.add_argument("--nearest-tol", type=float, default=0.02)
     ap.add_argument("--pose-max-gap", type=float, default=0.25)
+    ap.add_argument("--disparity-offset", default=str(DISPARITY_OFFSET_PX),
+                    help="px subtracted from the published disparity, or 'calib' for cx_left - cx_right")
     ap.add_argument("--mount-pitch-deg", default=str(MOUNT_PITCH_DEG),
                     help="mount rotation about body +y in deg (90 = nadir), or 'tf' for tf_static's rotation")
     ap.add_argument("--t-body-cam", type=float, nargs=7, default=None, help="override body->optical camera")
@@ -256,7 +270,8 @@ def main(argv=None):
 
     L, R = cams["left"], cams["right"]
     baseline, unit = baseline_from_P(R["P"])
-    dcx = disparity_offset(L["P"], R["P"])
+    dcx_calib = disparity_offset(L["P"], R["P"])
+    dcx = dcx_calib if a.disparity_offset == "calib" else float(a.disparity_offset)
     for k in list(disp):
         g = correct_disparity(disp[k], dcx)
         cnt["disparity_cells_invalid_after_offset"] += int((np.isfinite(disp[k]) & ~np.isfinite(g)).sum())
@@ -317,7 +332,7 @@ def main(argv=None):
     meta = {"source": os.path.abspath(a.bag), "companion": os.path.abspath(a.companion),
             "tf_static_body_sensor_down": T_static, "clock_offset_s": clock_offset,
             "tf_latency_s_p50_p99": [float(np.percentile(tf_lat, 50)), float(np.percentile(tf_lat, 99))],
-            "baseline_m": baseline, "baseline_unit_in_P": unit, "disparity_offset_px_subtracted": dcx, "camera_info_changes": dict(cam_changes),
+            "baseline_m": baseline, "baseline_unit_in_P": unit, "disparity_offset_px_subtracted": dcx, "disparity_offset_calib_px": dcx_calib, "camera_info_changes": dict(cam_changes),
             "off_nadir_deg": off_nadir_deg(T), "camera_chain": chain, "T_body_cam": T, "phase": PHASE, "t_start": t_lo, "t_end": t_hi,
             "counts": dict(cnt), "pose_invalid_frames": sum(1 for f in frames if not f.pose_valid)}
     w = FrameWriter(os.path.join(a.out, "frames.bin"), cal, meta)

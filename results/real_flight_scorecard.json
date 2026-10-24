@@ -1,0 +1,3967 @@
+{
+ "label": "cand_obj (M3) = core 89317b2 (cand_obj sources @1af8563); cand_obj_m4 = core 960ccb7 (M4a hardened); simple/cand_grid = core 89317b2",
+ "dataset": "/data/work/extracted/real_farm",
+ "replay": "/data/work/eval/m4c/build_89317b2/treemapper_replay",
+ "systems": {
+  "simple": {
+   "final_t": 1768476442.433329,
+   "final_trees": 59,
+   "ids_ever_published": 67,
+   "final_area_m2_p10_p50_p90": [
+    35.03,
+    67.57,
+    92.17
+   ],
+   "final_area_total_m2": 3851.4,
+   "final_equiv_diameter_m_p10_p50_p90": [
+    6.68,
+    9.28,
+    10.83
+   ],
+   "final_height_world_z_p10_p50_p90": [
+    4.19,
+    5.15,
+    6.39
+   ],
+   "final_height_above_stereo_ground_p10_p50_p90": [
+    5.26,
+    6.54,
+    7.45
+   ],
+   "ids_vanished": 8,
+   "id_reappearances": 0,
+   "id_reuse": 0,
+   "geometry_retreats": 0,
+   "max_lost_fraction": 0.0,
+   "centre_jumps": 58,
+   "height_jumps": 6,
+   "max_centre_drift_from_first_m": 4.319,
+   "max_height_drift_from_first_m": 2.629,
+   "undefined_height_frames": 0,
+   "invalid_entry_frames": 0,
+   "duplicate_id_frames": 0,
+   "implausible_height_frames": 56,
+   "implausible_height_le0_frames": 0,
+   "implausible_height_above_drone_frames": 57,
+   "n_snapshots": 2559,
+   "new_trees_after_scan": null,
+   "locked_id_vanished": null,
+   "nontarget_changes_in_descent": null,
+   "sprayed_tree_changes": 0,
+   "new_tree_inside_sprayed": 0,
+   "cost_ms_per_frame": {
+    "extract": {
+     "mean": 0.547,
+     "p95": 0.708,
+     "max": 10.618
+    },
+    "integrate": {
+     "mean": 0.33,
+     "p95": 0.704,
+     "max": 0.937
+    }
+   },
+   "run_seconds": 9.6,
+   "cmd": "/data/work/eval/m4c/build_89317b2/treemapper_replay --frames /data/work/extracted/real_farm/frames.bin --out-map /data/work/eval/m4c/runs_final/simple/map_raw.jsonl --out-targets /data/work/eval/m4c/runs_final/simple/targets.json --out-counters /data/work/eval/m4c/runs_final/simple/counters.json --system simple",
+   "counters": {
+    "entries_created": 76,
+    "entries_expired_unconfirmed": 6,
+    "entries_merged": 11,
+    "entries_published": 68,
+    "frames_heartbeat_only": 19,
+    "frames_total": 7164,
+    "obs_dropped_too_large": 20,
+    "points_dropped_ground": 1507492,
+    "points_dropped_invalid_or_range": 142898,
+    "points_kept": 26048481
+   },
+   "stereo_crowns_covered": [
+    61,
+    63
+   ],
+   "crown_correspondence": {
+    "peaks": 63,
+    "peaks_in_exactly_one": 59,
+    "peaks_in_none": 2,
+    "peaks_in_2plus": 2,
+    "outlines": 59,
+    "outlines_with_no_peak": 1,
+    "outlines_with_one_peak": 53,
+    "outlines_with_2plus_peaks": 5,
+    "nearest_centre_m_p10_p50": [
+     7.08,
+     7.89
+    ]
+   },
+   "system": "simple",
+   "replay": "/data/work/eval/m4c/build_89317b2/treemapper_replay",
+   "final_trees_list": [
+    {
+     "id": 0,
+     "centre": [
+      -6.05,
+      -5.32
+     ],
+     "area_m2": 68.76,
+     "height": 4.48
+    },
+    {
+     "id": 1,
+     "centre": [
+      5.69,
+      -5.2
+     ],
+     "area_m2": 50.66,
+     "height": 4.81
+    },
+    {
+     "id": 2,
+     "centre": [
+      -17.52,
+      -12.7
+     ],
+     "area_m2": 48.14,
+     "height": 4.99
+    },
+    {
+     "id": 4,
+     "centre": [
+      -26.04,
+      -20.81
+     ],
+     "area_m2": 103.86,
+     "height": 5.46
+    },
+    {
+     "id": 6,
+     "centre": [
+      -38.08,
+      -27.18
+     ],
+     "area_m2": 116.33,
+     "height": 4.18
+    },
+    {
+     "id": 7,
+     "centre": [
+      -46.46,
+      -26.76
+     ],
+     "area_m2": 89.07,
+     "height": 4.74
+    },
+    {
+     "id": 8,
+     "centre": [
+      -39.3,
+      -35.46
+     ],
+     "area_m2": 56.21,
+     "height": 5.2
+    },
+    {
+     "id": 9,
+     "centre": [
+      -44.06,
+      -19.67
+     ],
+     "area_m2": 108.11,
+     "height": 4.61
+    },
+    {
+     "id": 10,
+     "centre": [
+      -35.09,
+      -19.62
+     ],
+     "area_m2": 57.25,
+     "height": 5.02
+    },
+    {
+     "id": 11,
+     "centre": [
+      -34.73,
+      -9.61
+     ],
+     "area_m2": 71.95,
+     "height": 4.26
+    },
+    {
+     "id": 12,
+     "centre": [
+      -44.08,
+      -7.64
+     ],
+     "area_m2": 94.05,
+     "height": 4.97
+    },
+    {
+     "id": 13,
+     "centre": [
+      -34.1,
+      -1.58
+     ],
+     "area_m2": 85.99,
+     "height": 4.42
+    },
+    {
+     "id": 14,
+     "centre": [
+      -41.95,
+      -0.55
+     ],
+     "area_m2": 69.68,
+     "height": 4.57
+    },
+    {
+     "id": 15,
+     "centre": [
+      -50.57,
+      2.03
+     ],
+     "area_m2": 108.44,
+     "height": 4.53
+    },
+    {
+     "id": 16,
+     "centre": [
+      -42.39,
+      8.03
+     ],
+     "area_m2": 35.36,
+     "height": 3.98
+    },
+    {
+     "id": 17,
+     "centre": [
+      -25.3,
+      -11.38
+     ],
+     "area_m2": 73.88,
+     "height": 5.15
+    },
+    {
+     "id": 18,
+     "centre": [
+      -17.6,
+      -21.12
+     ],
+     "area_m2": 91.3,
+     "height": 4.88
+    },
+    {
+     "id": 20,
+     "centre": [
+      -19.32,
+      -30.01
+     ],
+     "area_m2": 81.27,
+     "height": 5.09
+    },
+    {
+     "id": 21,
+     "centre": [
+      -11.45,
+      -32.48
+     ],
+     "area_m2": 64.97,
+     "height": 5.0
+    },
+    {
+     "id": 23,
+     "centre": [
+      -11.07,
+      -40.83
+     ],
+     "area_m2": 72.61,
+     "height": 5.83
+    },
+    {
+     "id": 29,
+     "centre": [
+      -52.29,
+      -6.81
+     ],
+     "area_m2": 91.69,
+     "height": 4.91
+    },
+    {
+     "id": 30,
+     "centre": [
+      -53.46,
+      -16.72
+     ],
+     "area_m2": 64.95,
+     "height": 5.42
+    },
+    {
+     "id": 31,
+     "centre": [
+      -55.9,
+      -26.67
+     ],
+     "area_m2": 110.21,
+     "height": 5.65
+    },
+    {
+     "id": 33,
+     "centre": [
+      -8.36,
+      -12.32
+     ],
+     "area_m2": 73.42,
+     "height": 5.17
+    },
+    {
+     "id": 34,
+     "centre": [
+      1.81,
+      -14.7
+     ],
+     "area_m2": 74.14,
+     "height": 5.24
+    },
+    {
+     "id": 35,
+     "centre": [
+      -28.87,
+      -27.77
+     ],
+     "area_m2": 91.31,
+     "height": 4.23
+    },
+    {
+     "id": 36,
+     "centre": [
+      -49.4,
+      -34.29
+     ],
+     "area_m2": 47.67,
+     "height": 3.6
+    },
+    {
+     "id": 38,
+     "centre": [
+      -20.5,
+      -39.04
+     ],
+     "area_m2": 75.76,
+     "height": 5.64
+    },
+    {
+     "id": 39,
+     "centre": [
+      -3.42,
+      -41.9
+     ],
+     "area_m2": 83.26,
+     "height": 7.05
+    },
+    {
+     "id": 40,
+     "centre": [
+      -13.15,
+      -48.06
+     ],
+     "area_m2": 40.72,
+     "height": 5.69
+    },
+    {
+     "id": 41,
+     "centre": [
+      -4.03,
+      -49.45
+     ],
+     "area_m2": 67.57,
+     "height": 6.19
+    },
+    {
+     "id": 42,
+     "centre": [
+      -62.83,
+      -6.21
+     ],
+     "area_m2": 82.14,
+     "height": 5.15
+    },
+    {
+     "id": 43,
+     "centre": [
+      -59.94,
+      2.65
+     ],
+     "area_m2": 58.97,
+     "height": 4.09
+    },
+    {
+     "id": 44,
+     "centre": [
+      -50.0,
+      9.84
+     ],
+     "area_m2": 46.1,
+     "height": 4.64
+    },
+    {
+     "id": 45,
+     "centre": [
+      -57.45,
+      10.83
+     ],
+     "area_m2": 31.54,
+     "height": 5.34
+    },
+    {
+     "id": 46,
+     "centre": [
+      -63.29,
+      -15.36
+     ],
+     "area_m2": 62.36,
+     "height": 6.36
+    },
+    {
+     "id": 47,
+     "centre": [
+      -65.92,
+      -24.6
+     ],
+     "area_m2": 59.08,
+     "height": 5.83
+    },
+    {
+     "id": 48,
+     "centre": [
+      -67.15,
+      -35.22
+     ],
+     "area_m2": 81.94,
+     "height": 5.94
+    },
+    {
+     "id": 49,
+     "centre": [
+      -58.42,
+      -33.63
+     ],
+     "area_m2": 84.28,
+     "height": 6.48
+    },
+    {
+     "id": 50,
+     "centre": [
+      11.2,
+      -15.95
+     ],
+     "area_m2": 45.23,
+     "height": 6.08
+    },
+    {
+     "id": 51,
+     "centre": [
+      13.12,
+      -7.03
+     ],
+     "area_m2": 70.23,
+     "height": 5.87
+    },
+    {
+     "id": 52,
+     "centre": [
+      11.67,
+      -21.54
+     ],
+     "area_m2": 12.14,
+     "height": 4.03
+    },
+    {
+     "id": 54,
+     "centre": [
+      14.17,
+      2.05
+     ],
+     "area_m2": 47.38,
+     "height": 6.33
+    },
+    {
+     "id": 55,
+     "centre": [
+      0.9,
+      -24.11
+     ],
+     "area_m2": 42.72,
+     "height": 6.21
+    },
+    {
+     "id": 56,
+     "centre": [
+      -0.47,
+      -32.87
+     ],
+     "area_m2": 71.56,
+     "height": 6.93
+    },
+    {
+     "id": 58,
+     "centre": [
+      4.22,
+      -43.93
+     ],
+     "area_m2": 60.04,
+     "height": 6.54
+    },
+    {
+     "id": 60,
+     "centre": [
+      -14.41,
+      -3.79
+     ],
+     "area_m2": 57.95,
+     "height": 4.19
+    },
+    {
+     "id": 61,
+     "centre": [
+      -13.26,
+      6.79
+     ],
+     "area_m2": 45.11,
+     "height": 4.84
+    },
+    {
+     "id": 62,
+     "centre": [
+      -4.07,
+      4.56
+     ],
+     "area_m2": 57.42,
+     "height": 5.65
+    },
+    {
+     "id": 63,
+     "centre": [
+      6.17,
+      4.32
+     ],
+     "area_m2": 45.02,
+     "height": 5.57
+    },
+    {
+     "id": 64,
+     "centre": [
+      -22.44,
+      -47.33
+     ],
+     "area_m2": 33.75,
+     "height": 6.05
+    },
+    {
+     "id": 65,
+     "centre": [
+      -31.71,
+      -45.13
+     ],
+     "area_m2": 56.38,
+     "height": 4.54
+    },
+    {
+     "id": 66,
+     "centre": [
+      -29.93,
+      -37.88
+     ],
+     "area_m2": 70.33,
+     "height": 5.31
+    },
+    {
+     "id": 67,
+     "centre": [
+      -23.41,
+      -2.68
+     ],
+     "area_m2": 48.44,
+     "height": 4.14
+    },
+    {
+     "id": 68,
+     "centre": [
+      -33.63,
+      9.07
+     ],
+     "area_m2": 67.61,
+     "height": 4.87
+    },
+    {
+     "id": 69,
+     "centre": [
+      -23.71,
+      7.76
+     ],
+     "area_m2": 79.22,
+     "height": 4.77
+    },
+    {
+     "id": 70,
+     "centre": [
+      8.52,
+      -23.67
+     ],
+     "area_m2": 18.22,
+     "height": 6.93
+    },
+    {
+     "id": 71,
+     "centre": [
+      6.26,
+      -34.26
+     ],
+     "area_m2": 25.05,
+     "height": 7.46
+    },
+    {
+     "id": 74,
+     "centre": [
+      -38.77,
+      -44.58
+     ],
+     "area_m2": 22.63,
+     "height": 5.58
+    }
+   ]
+  },
+  "cand_obj": {
+   "final_t": 1768476442.433329,
+   "final_trees": 100,
+   "ids_ever_published": 115,
+   "final_area_m2_p10_p50_p90": [
+    6.49,
+    31.76,
+    45.74
+   ],
+   "final_area_total_m2": 2873.4,
+   "final_equiv_diameter_m_p10_p50_p90": [
+    2.87,
+    6.36,
+    7.63
+   ],
+   "final_height_world_z_p10_p50_p90": [
+    3.0,
+    4.94,
+    6.38
+   ],
+   "final_height_above_stereo_ground_p10_p50_p90": [
+    4.66,
+    6.24,
+    7.44
+   ],
+   "ids_vanished": 15,
+   "id_reappearances": 0,
+   "id_reuse": 0,
+   "geometry_retreats": 0,
+   "max_lost_fraction": 0.0,
+   "centre_jumps": 42,
+   "height_jumps": 39,
+   "max_centre_drift_from_first_m": 3.094,
+   "max_height_drift_from_first_m": 3.295,
+   "undefined_height_frames": 0,
+   "invalid_entry_frames": 0,
+   "duplicate_id_frames": 0,
+   "implausible_height_frames": 57,
+   "implausible_height_le0_frames": 0,
+   "implausible_height_above_drone_frames": 58,
+   "n_snapshots": 2559,
+   "new_trees_after_scan": null,
+   "locked_id_vanished": null,
+   "nontarget_changes_in_descent": null,
+   "sprayed_tree_changes": 0,
+   "new_tree_inside_sprayed": 0,
+   "cost_ms_per_frame": {
+    "chm": {
+     "mean": 0.932,
+     "p95": 1.192,
+     "max": 1.371
+    },
+    "instances": {
+     "mean": 0.112,
+     "p95": 0.209,
+     "max": 0.367
+    }
+   },
+   "run_seconds": 10.6,
+   "cmd": "/data/work/eval/m4c/build_89317b2/treemapper_replay --frames /data/work/extracted/real_farm/frames.bin --out-map /data/work/eval/m4c/runs_final/cand_obj/map_raw.jsonl --out-targets /data/work/eval/m4c/runs_final/cand_obj/targets.json --out-counters /data/work/eval/m4c/runs_final/cand_obj/counters.json --system cand_obj",
+   "counters": {
+    "basins_merged_low_prominence": 46579,
+    "cells_dropped_outside_window": 319925,
+    "cells_dropped_too_far_from_centre": 569094,
+    "cells_dropped_too_few_points": 394826,
+    "cells_latched": 26382,
+    "crowns_dropped_too_low": 5005,
+    "crowns_dropped_too_small": 10353,
+    "crowns_dropped_unboxed": 9177,
+    "crowns_total": 24193,
+    "frame_noise_bucket_0": 7056,
+    "frames_dropped_too_few_cells": 9,
+    "frames_ground_plane_fallback": 135,
+    "frames_heartbeat_only": 19,
+    "frames_total": 7164,
+    "frames_without_canopy": 263,
+    "height_samples_skipped_truncated_crown": 5410,
+    "instances_confirmed": 153,
+    "instances_created": 502,
+    "instances_expired_unconfirmed": 285,
+    "instances_merged": 117,
+    "instances_seeded_from_truncated_crown": 260,
+    "merge_cells_dropped_outside_window": 10987,
+    "points_dropped_invalid": 6322008,
+    "points_dropped_range": 34272
+   },
+   "stereo_crowns_covered": [
+    60,
+    63
+   ],
+   "crown_correspondence": {
+    "peaks": 63,
+    "peaks_in_exactly_one": 53,
+    "peaks_in_none": 4,
+    "peaks_in_2plus": 6,
+    "outlines": 100,
+    "outlines_with_no_peak": 37,
+    "outlines_with_one_peak": 61,
+    "outlines_with_2plus_peaks": 2,
+    "nearest_centre_m_p10_p50": [
+     2.75,
+     3.89
+    ]
+   },
+   "system": "cand_obj",
+   "replay": "/data/work/eval/m4c/build_89317b2/treemapper_replay",
+   "final_trees_list": [
+    {
+     "id": 0,
+     "centre": [
+      -5.71,
+      -6.01
+     ],
+     "area_m2": 42.48,
+     "height": 3.35
+    },
+    {
+     "id": 10,
+     "centre": [
+      -17.16,
+      -12.9
+     ],
+     "area_m2": 41.12,
+     "height": 5.17
+    },
+    {
+     "id": 16,
+     "centre": [
+      -24.98,
+      -13.37
+     ],
+     "area_m2": 13.36,
+     "height": 6.54
+    },
+    {
+     "id": 21,
+     "centre": [
+      -38.54,
+      -28.01
+     ],
+     "area_m2": 53.2,
+     "height": 5.06
+    },
+    {
+     "id": 26,
+     "centre": [
+      -45.91,
+      -26.84
+     ],
+     "area_m2": 50.48,
+     "height": 3.51
+    },
+    {
+     "id": 30,
+     "centre": [
+      -45.0,
+      -18.7
+     ],
+     "area_m2": 33.68,
+     "height": 4.65
+    },
+    {
+     "id": 31,
+     "centre": [
+      -36.26,
+      -18.21
+     ],
+     "area_m2": 34.48,
+     "height": 4.21
+    },
+    {
+     "id": 40,
+     "centre": [
+      -37.27,
+      -12.0
+     ],
+     "area_m2": 32.4,
+     "height": 3.3
+    },
+    {
+     "id": 41,
+     "centre": [
+      -43.69,
+      -8.89
+     ],
+     "area_m2": 53.52,
+     "height": 4.84
+    },
+    {
+     "id": 50,
+     "centre": [
+      -41.78,
+      -0.07
+     ],
+     "area_m2": 39.68,
+     "height": 4.9
+    },
+    {
+     "id": 52,
+     "centre": [
+      -36.34,
+      -7.21
+     ],
+     "area_m2": 3.44,
+     "height": 1.98
+    },
+    {
+     "id": 58,
+     "centre": [
+      -40.61,
+      7.65
+     ],
+     "area_m2": 28.08,
+     "height": 4.58
+    },
+    {
+     "id": 66,
+     "centre": [
+      -33.91,
+      -2.34
+     ],
+     "area_m2": 36.16,
+     "height": 4.71
+    },
+    {
+     "id": 72,
+     "centre": [
+      -25.72,
+      -10.0
+     ],
+     "area_m2": 29.68,
+     "height": 5.02
+    },
+    {
+     "id": 74,
+     "centre": [
+      -18.41,
+      -22.47
+     ],
+     "area_m2": 34.32,
+     "height": 6.02
+    },
+    {
+     "id": 80,
+     "centre": [
+      -19.09,
+      -30.34
+     ],
+     "area_m2": 41.44,
+     "height": 4.88
+    },
+    {
+     "id": 83,
+     "centre": [
+      -13.4,
+      -30.73
+     ],
+     "area_m2": 47.76,
+     "height": 6.13
+    },
+    {
+     "id": 90,
+     "centre": [
+      -10.82,
+      -41.3
+     ],
+     "area_m2": 42.32,
+     "height": 4.95
+    },
+    {
+     "id": 92,
+     "centre": [
+      -10.12,
+      -33.03
+     ],
+     "area_m2": 42.24,
+     "height": 4.66
+    },
+    {
+     "id": 100,
+     "centre": [
+      -25.17,
+      -20.77
+     ],
+     "area_m2": 40.56,
+     "height": 4.47
+    },
+    {
+     "id": 106,
+     "centre": [
+      -22.58,
+      -23.52
+     ],
+     "area_m2": 9.2,
+     "height": 3.46
+    },
+    {
+     "id": 109,
+     "centre": [
+      -34.81,
+      -10.65
+     ],
+     "area_m2": 36.16,
+     "height": 5.32
+    },
+    {
+     "id": 110,
+     "centre": [
+      -48.88,
+      -0.49
+     ],
+     "area_m2": 34.64,
+     "height": 4.81
+    },
+    {
+     "id": 116,
+     "centre": [
+      -51.51,
+      1.78
+     ],
+     "area_m2": 31.84,
+     "height": 4.37
+    },
+    {
+     "id": 119,
+     "centre": [
+      -51.84,
+      -7.54
+     ],
+     "area_m2": 43.92,
+     "height": 5.44
+    },
+    {
+     "id": 122,
+     "centre": [
+      -53.94,
+      -17.26
+     ],
+     "area_m2": 38.72,
+     "height": 6.99
+    },
+    {
+     "id": 126,
+     "centre": [
+      -55.05,
+      -25.86
+     ],
+     "area_m2": 42.32,
+     "height": 6.45
+    },
+    {
+     "id": 135,
+     "centre": [
+      -29.78,
+      -20.21
+     ],
+     "area_m2": 14.48,
+     "height": 5.44
+    },
+    {
+     "id": 137,
+     "centre": [
+      -19.82,
+      -17.91
+     ],
+     "area_m2": 23.68,
+     "height": 3.99
+    },
+    {
+     "id": 138,
+     "centre": [
+      -15.99,
+      -18.5
+     ],
+     "area_m2": 33.04,
+     "height": 4.59
+    },
+    {
+     "id": 141,
+     "centre": [
+      -10.59,
+      -13.11
+     ],
+     "area_m2": 25.76,
+     "height": 5.43
+    },
+    {
+     "id": 142,
+     "centre": [
+      -7.09,
+      -11.95
+     ],
+     "area_m2": 46.32,
+     "height": 5.39
+    },
+    {
+     "id": 145,
+     "centre": [
+      1.68,
+      -13.22
+     ],
+     "area_m2": 64.72,
+     "height": 4.91
+    },
+    {
+     "id": 159,
+     "centre": [
+      -12.27,
+      -20.41
+     ],
+     "area_m2": 8.8,
+     "height": 4.11
+    },
+    {
+     "id": 162,
+     "centre": [
+      -26.49,
+      -17.09
+     ],
+     "area_m2": 21.2,
+     "height": 6.02
+    },
+    {
+     "id": 165,
+     "centre": [
+      -49.44,
+      -34.72
+     ],
+     "area_m2": 22.24,
+     "height": 4.07
+    },
+    {
+     "id": 167,
+     "centre": [
+      -40.26,
+      -33.46
+     ],
+     "area_m2": 18.48,
+     "height": 3.96
+    },
+    {
+     "id": 176,
+     "centre": [
+      -39.33,
+      -23.27
+     ],
+     "area_m2": 30.72,
+     "height": 1.71
+    },
+    {
+     "id": 177,
+     "centre": [
+      -41.42,
+      -18.11
+     ],
+     "area_m2": 14.72,
+     "height": 5.4
+    },
+    {
+     "id": 182,
+     "centre": [
+      -52.76,
+      -3.6
+     ],
+     "area_m2": 9.84,
+     "height": 2.29
+    },
+    {
+     "id": 195,
+     "centre": [
+      -48.92,
+      5.69
+     ],
+     "area_m2": 6.64,
+     "height": 4.55
+    },
+    {
+     "id": 199,
+     "centre": [
+      -33.93,
+      -19.55
+     ],
+     "area_m2": 25.92,
+     "height": 5.15
+    },
+    {
+     "id": 210,
+     "centre": [
+      -10.19,
+      -46.61
+     ],
+     "area_m2": 15.36,
+     "height": 4.27
+    },
+    {
+     "id": 211,
+     "centre": [
+      -3.84,
+      -41.65
+     ],
+     "area_m2": 53.2,
+     "height": 6.32
+    },
+    {
+     "id": 212,
+     "centre": [
+      -20.3,
+      -38.82
+     ],
+     "area_m2": 58.64,
+     "height": 5.09
+    },
+    {
+     "id": 218,
+     "centre": [
+      -5.75,
+      -48.1
+     ],
+     "area_m2": 17.04,
+     "height": 5.83
+    },
+    {
+     "id": 227,
+     "centre": [
+      -25.35,
+      -29.51
+     ],
+     "area_m2": 7.12,
+     "height": 4.63
+    },
+    {
+     "id": 228,
+     "centre": [
+      -28.43,
+      -27.36
+     ],
+     "area_m2": 43.84,
+     "height": 4.93
+    },
+    {
+     "id": 231,
+     "centre": [
+      -14.25,
+      -36.99
+     ],
+     "area_m2": 13.04,
+     "height": 4.77
+    },
+    {
+     "id": 237,
+     "centre": [
+      -34.11,
+      -26.81
+     ],
+     "area_m2": 15.36,
+     "height": 2.93
+    },
+    {
+     "id": 254,
+     "centre": [
+      -62.01,
+      -6.34
+     ],
+     "area_m2": 43.76,
+     "height": 5.39
+    },
+    {
+     "id": 255,
+     "centre": [
+      -59.63,
+      2.6
+     ],
+     "area_m2": 45.04,
+     "height": 2.98
+    },
+    {
+     "id": 265,
+     "centre": [
+      -63.94,
+      4.71
+     ],
+     "area_m2": 5.84,
+     "height": 2.12
+    },
+    {
+     "id": 266,
+     "centre": [
+      -49.65,
+      9.39
+     ],
+     "area_m2": 38.24,
+     "height": 4.95
+    },
+    {
+     "id": 269,
+     "centre": [
+      -50.67,
+      -4.15
+     ],
+     "area_m2": 5.36,
+     "height": 4.94
+    },
+    {
+     "id": 280,
+     "centre": [
+      -60.51,
+      -14.81
+     ],
+     "area_m2": 5.2,
+     "height": 5.21
+    },
+    {
+     "id": 283,
+     "centre": [
+      -63.7,
+      -15.42
+     ],
+     "area_m2": 36.16,
+     "height": 6.9
+    },
+    {
+     "id": 286,
+     "centre": [
+      -65.51,
+      -25.01
+     ],
+     "area_m2": 36.08,
+     "height": 6.59
+    },
+    {
+     "id": 291,
+     "centre": [
+      -57.37,
+      -33.33
+     ],
+     "area_m2": 44.56,
+     "height": 6.77
+    },
+    {
+     "id": 293,
+     "centre": [
+      -67.93,
+      -34.66
+     ],
+     "area_m2": 45.68,
+     "height": 5.98
+    },
+    {
+     "id": 302,
+     "centre": [
+      -52.82,
+      -34.18
+     ],
+     "area_m2": 5.84,
+     "height": 4.51
+    },
+    {
+     "id": 311,
+     "centre": [
+      -47.65,
+      -33.25
+     ],
+     "area_m2": 2.96,
+     "height": 2.59
+    },
+    {
+     "id": 324,
+     "centre": [
+      -21.11,
+      -26.07
+     ],
+     "area_m2": 2.48,
+     "height": 1.67
+    },
+    {
+     "id": 338,
+     "centre": [
+      5.03,
+      -5.4
+     ],
+     "area_m2": 44.72,
+     "height": 4.24
+    },
+    {
+     "id": 343,
+     "centre": [
+      10.42,
+      -14.49
+     ],
+     "area_m2": 39.76,
+     "height": 5.69
+    },
+    {
+     "id": 351,
+     "centre": [
+      11.94,
+      -7.77
+     ],
+     "area_m2": 59.12,
+     "height": 6.09
+    },
+    {
+     "id": 362,
+     "centre": [
+      8.3,
+      -5.04
+     ],
+     "area_m2": 11.52,
+     "height": 5.11
+    },
+    {
+     "id": 365,
+     "centre": [
+      -2.59,
+      -4.09
+     ],
+     "area_m2": 31.68,
+     "height": 3.01
+    },
+    {
+     "id": 366,
+     "centre": [
+      6.87,
+      -2.56
+     ],
+     "area_m2": 6.56,
+     "height": 3.81
+    },
+    {
+     "id": 369,
+     "centre": [
+      13.34,
+      -0.59
+     ],
+     "area_m2": 9.6,
+     "height": 5.52
+    },
+    {
+     "id": 375,
+     "centre": [
+      0.63,
+      -24.39
+     ],
+     "area_m2": 29.92,
+     "height": 6.29
+    },
+    {
+     "id": 377,
+     "centre": [
+      -1.08,
+      -32.74
+     ],
+     "area_m2": 41.68,
+     "height": 7.56
+    },
+    {
+     "id": 379,
+     "centre": [
+      2.73,
+      -40.75
+     ],
+     "area_m2": 2.8,
+     "height": 4.69
+    },
+    {
+     "id": 389,
+     "centre": [
+      -13.84,
+      -4.22
+     ],
+     "area_m2": 47.28,
+     "height": 4.53
+    },
+    {
+     "id": 394,
+     "centre": [
+      -12.37,
+      6.63
+     ],
+     "area_m2": 40.24,
+     "height": 4.61
+    },
+    {
+     "id": 396,
+     "centre": [
+      -4.09,
+      4.3
+     ],
+     "area_m2": 35.04,
+     "height": 5.22
+    },
+    {
+     "id": 399,
+     "centre": [
+      6.56,
+      4.07
+     ],
+     "area_m2": 36.0,
+     "height": 5.47
+    },
+    {
+     "id": 400,
+     "centre": [
+      13.22,
+      4.07
+     ],
+     "area_m2": 20.32,
+     "height": 5.62
+    },
+    {
+     "id": 405,
+     "centre": [
+      -2.59,
+      -49.16
+     ],
+     "area_m2": 41.36,
+     "height": 6.24
+    },
+    {
+     "id": 409,
+     "centre": [
+      -13.69,
+      -48.59
+     ],
+     "area_m2": 26.64,
+     "height": 6.04
+    },
+    {
+     "id": 414,
+     "centre": [
+      -22.47,
+      -47.82
+     ],
+     "area_m2": 29.6,
+     "height": 6.38
+    },
+    {
+     "id": 415,
+     "centre": [
+      -32.06,
+      -46.03
+     ],
+     "area_m2": 41.84,
+     "height": 5.35
+    },
+    {
+     "id": 416,
+     "centre": [
+      -29.74,
+      -37.73
+     ],
+     "area_m2": 38.4,
+     "height": 5.4
+    },
+    {
+     "id": 428,
+     "centre": [
+      -22.35,
+      -29.36
+     ],
+     "area_m2": 19.92,
+     "height": 3.06
+    },
+    {
+     "id": 437,
+     "centre": [
+      -22.88,
+      -2.92
+     ],
+     "area_m2": 36.56,
+     "height": 4.08
+    },
+    {
+     "id": 439,
+     "centre": [
+      -32.56,
+      8.54
+     ],
+     "area_m2": 37.92,
+     "height": 4.76
+    },
+    {
+     "id": 440,
+     "centre": [
+      -21.94,
+      7.45
+     ],
+     "area_m2": 39.04,
+     "height": 5.13
+    },
+    {
+     "id": 443,
+     "centre": [
+      -18.51,
+      4.78
+     ],
+     "area_m2": 16.64,
+     "height": 4.5
+    },
+    {
+     "id": 447,
+     "centre": [
+      -3.78,
+      7.37
+     ],
+     "area_m2": 14.48,
+     "height": 6.29
+    },
+    {
+     "id": 451,
+     "centre": [
+      11.51,
+      1.14
+     ],
+     "area_m2": 3.44,
+     "height": 5.48
+    },
+    {
+     "id": 453,
+     "centre": [
+      11.36,
+      -2.51
+     ],
+     "area_m2": 14.48,
+     "height": 5.03
+    },
+    {
+     "id": 456,
+     "centre": [
+      8.64,
+      -23.11
+     ],
+     "area_m2": 15.2,
+     "height": 6.58
+    },
+    {
+     "id": 458,
+     "centre": [
+      6.18,
+      -32.95
+     ],
+     "area_m2": 22.0,
+     "height": 7.33
+    },
+    {
+     "id": 460,
+     "centre": [
+      4.64,
+      -42.13
+     ],
+     "area_m2": 26.8,
+     "height": 6.92
+    },
+    {
+     "id": 474,
+     "centre": [
+      -39.14,
+      -45.17
+     ],
+     "area_m2": 20.32,
+     "height": 5.58
+    },
+    {
+     "id": 475,
+     "centre": [
+      -25.02,
+      -42.27
+     ],
+     "area_m2": 9.92,
+     "height": 4.77
+    },
+    {
+     "id": 476,
+     "centre": [
+      -38.89,
+      -36.62
+     ],
+     "area_m2": 37.6,
+     "height": 5.54
+    },
+    {
+     "id": 488,
+     "centre": [
+      -20.24,
+      -7.3
+     ],
+     "area_m2": 8.4,
+     "height": 2.62
+    },
+    {
+     "id": 492,
+     "centre": [
+      -33.61,
+      1.89
+     ],
+     "area_m2": 5.68,
+     "height": 2.96
+    },
+    {
+     "id": 499,
+     "centre": [
+      -0.48,
+      6.27
+     ],
+     "area_m2": 26.32,
+     "height": 4.77
+    }
+   ]
+  },
+  "cand_obj_m4": {
+   "final_t": 1768476442.433329,
+   "final_trees": 102,
+   "ids_ever_published": 115,
+   "final_area_m2_p10_p50_p90": [
+    8.88,
+    30.64,
+    44.86
+   ],
+   "final_area_total_m2": 2882.6,
+   "final_equiv_diameter_m_p10_p50_p90": [
+    3.36,
+    6.25,
+    7.56
+   ],
+   "final_height_world_z_p10_p50_p90": [
+    3.51,
+    5.13,
+    6.8
+   ],
+   "final_height_above_stereo_ground_p10_p50_p90": [
+    4.85,
+    6.39,
+    8.08
+   ],
+   "ids_vanished": 13,
+   "id_reappearances": 0,
+   "id_reuse": 0,
+   "geometry_retreats": 0,
+   "max_lost_fraction": 0.0,
+   "centre_jumps": 0,
+   "height_jumps": 0,
+   "max_centre_drift_from_first_m": 3.342,
+   "max_height_drift_from_first_m": 4.37,
+   "undefined_height_frames": 0,
+   "invalid_entry_frames": 0,
+   "duplicate_id_frames": 0,
+   "implausible_height_frames": 59,
+   "implausible_height_le0_frames": 0,
+   "implausible_height_above_drone_frames": 59,
+   "n_snapshots": 2559,
+   "new_trees_after_scan": null,
+   "locked_id_vanished": null,
+   "nontarget_changes_in_descent": null,
+   "sprayed_tree_changes": 0,
+   "new_tree_inside_sprayed": 0,
+   "cost_ms_per_frame": {
+    "chm": {
+     "mean": 0.981,
+     "p95": 1.215,
+     "max": 1.828
+    },
+    "instances": {
+     "mean": 0.15,
+     "p95": 0.287,
+     "max": 0.437
+    }
+   },
+   "run_seconds": 11.1,
+   "cmd": "/data/work/eval/m4c/build_960ccb7/treemapper_replay --frames /data/work/extracted/real_farm/frames.bin --out-map /data/work/eval/m4c/runs_final/cand_obj_m4/map_raw.jsonl --out-targets /data/work/eval/m4c/runs_final/cand_obj_m4/targets.json --out-counters /data/work/eval/m4c/runs_final/cand_obj_m4/counters.json --system cand_obj",
+   "counters": {
+    "basins_merged_low_prominence": 46579,
+    "cells_dropped_outside_window": 346086,
+    "cells_dropped_too_far_from_centre": 530005,
+    "cells_dropped_too_few_points": 394826,
+    "cells_latched": 20301,
+    "centre_steps_clamped": 2819,
+    "crowns_dropped_too_low": 5005,
+    "crowns_dropped_too_small": 10353,
+    "crowns_dropped_unboxed": 9177,
+    "crowns_total": 24193,
+    "frame_noise_bucket_0": 7056,
+    "frames_downweighted_rotation": 96,
+    "frames_dropped_too_few_cells": 9,
+    "frames_ground_plane_fallback": 135,
+    "frames_heartbeat_only": 19,
+    "frames_quality_unknown_rate": 2,
+    "frames_total": 7164,
+    "frames_without_canopy": 263,
+    "height_cells_rejected_outlier": 61460,
+    "height_cells_reset": 13557,
+    "height_steps_clamped": 7312,
+    "instances_confirmed": 141,
+    "instances_created": 468,
+    "instances_expired_unconfirmed": 321,
+    "instances_merged": 45,
+    "instances_seeded_from_truncated_crown": 221,
+    "merge_cells_dropped_outside_window": 7096,
+    "points_dropped_invalid": 6322008,
+    "points_dropped_range": 34272
+   },
+   "stereo_crowns_covered": [
+    62,
+    63
+   ],
+   "crown_correspondence": {
+    "peaks": 63,
+    "peaks_in_exactly_one": 55,
+    "peaks_in_none": 3,
+    "peaks_in_2plus": 5,
+    "outlines": 102,
+    "outlines_with_no_peak": 39,
+    "outlines_with_one_peak": 61,
+    "outlines_with_2plus_peaks": 2,
+    "nearest_centre_m_p10_p50": [
+     3.15,
+     4.12
+    ]
+   },
+   "system": "cand_obj",
+   "replay": "/data/work/eval/m4c/build_960ccb7/treemapper_replay",
+   "final_trees_list": [
+    {
+     "id": 0,
+     "centre": [
+      -5.76,
+      -6.33
+     ],
+     "area_m2": 40.64,
+     "height": 5.09
+    },
+    {
+     "id": 1,
+     "centre": [
+      5.26,
+      -3.91
+     ],
+     "area_m2": 31.84,
+     "height": 5.88
+    },
+    {
+     "id": 6,
+     "centre": [
+      -17.96,
+      -13.55
+     ],
+     "area_m2": 26.24,
+     "height": 3.71
+    },
+    {
+     "id": 17,
+     "centre": [
+      -38.62,
+      -27.82
+     ],
+     "area_m2": 54.88,
+     "height": 3.86
+    },
+    {
+     "id": 19,
+     "centre": [
+      -45.94,
+      -26.76
+     ],
+     "area_m2": 48.48,
+     "height": 5.09
+    },
+    {
+     "id": 23,
+     "centre": [
+      -45.11,
+      -19.01
+     ],
+     "area_m2": 33.28,
+     "height": 6.17
+    },
+    {
+     "id": 24,
+     "centre": [
+      -36.21,
+      -18.31
+     ],
+     "area_m2": 33.84,
+     "height": 4.64
+    },
+    {
+     "id": 29,
+     "centre": [
+      -37.23,
+      -12.02
+     ],
+     "area_m2": 31.28,
+     "height": 5.02
+    },
+    {
+     "id": 30,
+     "centre": [
+      -44.05,
+      -8.84
+     ],
+     "area_m2": 48.32,
+     "height": 6.63
+    },
+    {
+     "id": 38,
+     "centre": [
+      -41.83,
+      -0.05
+     ],
+     "area_m2": 39.52,
+     "height": 5.06
+    },
+    {
+     "id": 40,
+     "centre": [
+      -36.36,
+      -7.15
+     ],
+     "area_m2": 3.28,
+     "height": 2.45
+    },
+    {
+     "id": 41,
+     "centre": [
+      -34.14,
+      -2.96
+     ],
+     "area_m2": 36.48,
+     "height": 4.77
+    },
+    {
+     "id": 46,
+     "centre": [
+      -40.67,
+      7.68
+     ],
+     "area_m2": 28.4,
+     "height": 4.83
+    },
+    {
+     "id": 58,
+     "centre": [
+      -25.72,
+      -12.29
+     ],
+     "area_m2": 22.64,
+     "height": 5.01
+    },
+    {
+     "id": 60,
+     "centre": [
+      -18.5,
+      -22.35
+     ],
+     "area_m2": 30.56,
+     "height": 4.39
+    },
+    {
+     "id": 64,
+     "centre": [
+      -19.41,
+      -30.44
+     ],
+     "area_m2": 38.72,
+     "height": 4.82
+    },
+    {
+     "id": 68,
+     "centre": [
+      -13.24,
+      -30.78
+     ],
+     "area_m2": 46.72,
+     "height": 4.39
+    },
+    {
+     "id": 72,
+     "centre": [
+      -10.39,
+      -41.86
+     ],
+     "area_m2": 40.16,
+     "height": 6.23
+    },
+    {
+     "id": 74,
+     "centre": [
+      -10.12,
+      -33.02
+     ],
+     "area_m2": 41.68,
+     "height": 5.32
+    },
+    {
+     "id": 80,
+     "centre": [
+      -15.89,
+      -35.2
+     ],
+     "area_m2": 9.28,
+     "height": 3.3
+    },
+    {
+     "id": 81,
+     "centre": [
+      -25.56,
+      -20.9
+     ],
+     "area_m2": 35.36,
+     "height": 4.85
+    },
+    {
+     "id": 85,
+     "centre": [
+      -22.58,
+      -23.52
+     ],
+     "area_m2": 9.2,
+     "height": 3.28
+    },
+    {
+     "id": 86,
+     "centre": [
+      -26.09,
+      -28.18
+     ],
+     "area_m2": 35.68,
+     "height": 4.45
+    },
+    {
+     "id": 87,
+     "centre": [
+      -34.79,
+      -10.64
+     ],
+     "area_m2": 35.2,
+     "height": 4.07
+    },
+    {
+     "id": 88,
+     "centre": [
+      -49.42,
+      0.47
+     ],
+     "area_m2": 53.12,
+     "height": 5.18
+    },
+    {
+     "id": 101,
+     "centre": [
+      -53.72,
+      -17.11
+     ],
+     "area_m2": 37.44,
+     "height": 7.29
+    },
+    {
+     "id": 105,
+     "centre": [
+      -55.56,
+      -25.66
+     ],
+     "area_m2": 44.64,
+     "height": 5.8
+    },
+    {
+     "id": 111,
+     "centre": [
+      -28.56,
+      -19.99
+     ],
+     "area_m2": 23.2,
+     "height": 6.82
+    },
+    {
+     "id": 113,
+     "centre": [
+      -18.48,
+      -18.43
+     ],
+     "area_m2": 35.84,
+     "height": 4.17
+    },
+    {
+     "id": 117,
+     "centre": [
+      -8.81,
+      -12.38
+     ],
+     "area_m2": 48.64,
+     "height": 4.66
+    },
+    {
+     "id": 121,
+     "centre": [
+      0.41,
+      -12.34
+     ],
+     "area_m2": 44.64,
+     "height": 5.8
+    },
+    {
+     "id": 136,
+     "centre": [
+      -29.34,
+      -27.17
+     ],
+     "area_m2": 38.24,
+     "height": 5.08
+    },
+    {
+     "id": 141,
+     "centre": [
+      -49.4,
+      -34.62
+     ],
+     "area_m2": 23.6,
+     "height": 4.46
+    },
+    {
+     "id": 143,
+     "centre": [
+      -40.15,
+      -33.31
+     ],
+     "area_m2": 20.0,
+     "height": 5.55
+    },
+    {
+     "id": 149,
+     "centre": [
+      -39.3,
+      -23.2
+     ],
+     "area_m2": 25.2,
+     "height": 4.13
+    },
+    {
+     "id": 154,
+     "centre": [
+      -43.19,
+      -16.07
+     ],
+     "area_m2": 15.76,
+     "height": 5.91
+    },
+    {
+     "id": 155,
+     "centre": [
+      -53.1,
+      -7.32
+     ],
+     "area_m2": 36.56,
+     "height": 7.04
+    },
+    {
+     "id": 156,
+     "centre": [
+      -52.62,
+      -3.51
+     ],
+     "area_m2": 7.2,
+     "height": 7.09
+    },
+    {
+     "id": 166,
+     "centre": [
+      -50.17,
+      9.99
+     ],
+     "area_m2": 34.72,
+     "height": 4.96
+    },
+    {
+     "id": 167,
+     "centre": [
+      -50.02,
+      5.5
+     ],
+     "area_m2": 13.04,
+     "height": 4.47
+    },
+    {
+     "id": 184,
+     "centre": [
+      -10.33,
+      -47.31
+     ],
+     "area_m2": 20.32,
+     "height": 5.44
+    },
+    {
+     "id": 186,
+     "centre": [
+      -20.34,
+      -38.87
+     ],
+     "area_m2": 59.92,
+     "height": 6.55
+    },
+    {
+     "id": 191,
+     "centre": [
+      -5.93,
+      -48.12
+     ],
+     "area_m2": 15.84,
+     "height": 5.73
+    },
+    {
+     "id": 207,
+     "centre": [
+      -34.21,
+      -27.04
+     ],
+     "area_m2": 19.2,
+     "height": 2.99
+    },
+    {
+     "id": 212,
+     "centre": [
+      -31.8,
+      -20.1
+     ],
+     "area_m2": 21.36,
+     "height": 4.96
+    },
+    {
+     "id": 217,
+     "centre": [
+      -50.23,
+      -17.4
+     ],
+     "area_m2": 5.12,
+     "height": 3.51
+    },
+    {
+     "id": 229,
+     "centre": [
+      -62.02,
+      -6.32
+     ],
+     "area_m2": 43.6,
+     "height": 6.11
+    },
+    {
+     "id": 230,
+     "centre": [
+      -59.8,
+      2.54
+     ],
+     "area_m2": 43.04,
+     "height": 5.27
+    },
+    {
+     "id": 232,
+     "centre": [
+      -47.96,
+      -6.29
+     ],
+     "area_m2": 24.08,
+     "height": 5.18
+    },
+    {
+     "id": 241,
+     "centre": [
+      -64.01,
+      4.72
+     ],
+     "area_m2": 5.36,
+     "height": 4.4
+    },
+    {
+     "id": 245,
+     "centre": [
+      -57.94,
+      10.55
+     ],
+     "area_m2": 22.16,
+     "height": 5.53
+    },
+    {
+     "id": 255,
+     "centre": [
+      -62.23,
+      -15.73
+     ],
+     "area_m2": 40.16,
+     "height": 6.72
+    },
+    {
+     "id": 258,
+     "centre": [
+      -65.48,
+      -24.96
+     ],
+     "area_m2": 34.88,
+     "height": 6.46
+    },
+    {
+     "id": 261,
+     "centre": [
+      -68.46,
+      -34.56
+     ],
+     "area_m2": 45.44,
+     "height": 6.04
+    },
+    {
+     "id": 263,
+     "centre": [
+      -57.37,
+      -33.25
+     ],
+     "area_m2": 44.88,
+     "height": 5.86
+    },
+    {
+     "id": 279,
+     "centre": [
+      -49.18,
+      -29.08
+     ],
+     "area_m2": 16.64,
+     "height": 5.02
+    },
+    {
+     "id": 298,
+     "centre": [
+      -11.42,
+      -20.93
+     ],
+     "area_m2": 9.28,
+     "height": 2.78
+    },
+    {
+     "id": 302,
+     "centre": [
+      -21.11,
+      -26.07
+     ],
+     "area_m2": 2.48,
+     "height": 3.11
+    },
+    {
+     "id": 306,
+     "centre": [
+      -15.16,
+      -17.98
+     ],
+     "area_m2": 15.84,
+     "height": 3.81
+    },
+    {
+     "id": 320,
+     "centre": [
+      2.97,
+      -14.78
+     ],
+     "area_m2": 44.64,
+     "height": 6.59
+    },
+    {
+     "id": 323,
+     "centre": [
+      8.73,
+      -13.32
+     ],
+     "area_m2": 14.0,
+     "height": 5.75
+    },
+    {
+     "id": 326,
+     "centre": [
+      11.76,
+      -15.19
+     ],
+     "area_m2": 37.12,
+     "height": 6.8
+    },
+    {
+     "id": 333,
+     "centre": [
+      11.71,
+      -7.78
+     ],
+     "area_m2": 57.76,
+     "height": 6.31
+    },
+    {
+     "id": 342,
+     "centre": [
+      8.94,
+      -4.43
+     ],
+     "area_m2": 6.48,
+     "height": 5.25
+    },
+    {
+     "id": 344,
+     "centre": [
+      -2.63,
+      -4.18
+     ],
+     "area_m2": 33.76,
+     "height": 4.06
+    },
+    {
+     "id": 348,
+     "centre": [
+      4.26,
+      -7.87
+     ],
+     "area_m2": 10.4,
+     "height": 6.6
+    },
+    {
+     "id": 349,
+     "centre": [
+      13.23,
+      -0.72
+     ],
+     "area_m2": 8.96,
+     "height": 5.52
+    },
+    {
+     "id": 352,
+     "centre": [
+      0.67,
+      -24.3
+     ],
+     "area_m2": 28.72,
+     "height": 6.32
+    },
+    {
+     "id": 356,
+     "centre": [
+      -1.12,
+      -32.73
+     ],
+     "area_m2": 41.04,
+     "height": 7.29
+    },
+    {
+     "id": 357,
+     "centre": [
+      -3.99,
+      -41.05
+     ],
+     "area_m2": 44.0,
+     "height": 7.9
+    },
+    {
+     "id": 360,
+     "centre": [
+      -13.57,
+      -38.61
+     ],
+     "area_m2": 18.4,
+     "height": 5.17
+    },
+    {
+     "id": 364,
+     "centre": [
+      -16.47,
+      -26.17
+     ],
+     "area_m2": 21.04,
+     "height": 3.78
+    },
+    {
+     "id": 368,
+     "centre": [
+      -13.13,
+      -12.41
+     ],
+     "area_m2": 6.56,
+     "height": 2.16
+    },
+    {
+     "id": 369,
+     "centre": [
+      -23.8,
+      -9.75
+     ],
+     "area_m2": 11.84,
+     "height": 4.71
+    },
+    {
+     "id": 370,
+     "centre": [
+      -16.31,
+      -10.6
+     ],
+     "area_m2": 7.76,
+     "height": 3.51
+    },
+    {
+     "id": 371,
+     "centre": [
+      -13.89,
+      -4.17
+     ],
+     "area_m2": 46.0,
+     "height": 4.55
+    },
+    {
+     "id": 375,
+     "centre": [
+      -11.8,
+      6.13
+     ],
+     "area_m2": 40.24,
+     "height": 4.45
+    },
+    {
+     "id": 376,
+     "centre": [
+      -4.01,
+      4.28
+     ],
+     "area_m2": 36.64,
+     "height": 5.17
+    },
+    {
+     "id": 378,
+     "centre": [
+      6.49,
+      4.1
+     ],
+     "area_m2": 35.04,
+     "height": 5.6
+    },
+    {
+     "id": 384,
+     "centre": [
+      -3.47,
+      -49.05
+     ],
+     "area_m2": 31.2,
+     "height": 6.89
+    },
+    {
+     "id": 387,
+     "centre": [
+      -3.48,
+      -44.52
+     ],
+     "area_m2": 16.64,
+     "height": 6.8
+    },
+    {
+     "id": 388,
+     "centre": [
+      -13.58,
+      -48.48
+     ],
+     "area_m2": 30.72,
+     "height": 6.03
+    },
+    {
+     "id": 392,
+     "centre": [
+      -22.43,
+      -47.79
+     ],
+     "area_m2": 29.28,
+     "height": 6.4
+    },
+    {
+     "id": 393,
+     "centre": [
+      -32.11,
+      -46.0
+     ],
+     "area_m2": 40.8,
+     "height": 5.0
+    },
+    {
+     "id": 396,
+     "centre": [
+      -29.7,
+      -37.61
+     ],
+     "area_m2": 42.72,
+     "height": 5.49
+    },
+    {
+     "id": 401,
+     "centre": [
+      -23.71,
+      -17.08
+     ],
+     "area_m2": 27.52,
+     "height": 4.59
+    },
+    {
+     "id": 405,
+     "centre": [
+      -22.89,
+      -2.94
+     ],
+     "area_m2": 35.84,
+     "height": 3.89
+    },
+    {
+     "id": 408,
+     "centre": [
+      -32.49,
+      8.52
+     ],
+     "area_m2": 36.96,
+     "height": 4.75
+    },
+    {
+     "id": 409,
+     "centre": [
+      -21.38,
+      7.14
+     ],
+     "area_m2": 44.48,
+     "height": 4.28
+    },
+    {
+     "id": 420,
+     "centre": [
+      13.42,
+      2.8
+     ],
+     "area_m2": 12.0,
+     "height": 5.96
+    },
+    {
+     "id": 423,
+     "centre": [
+      11.31,
+      -2.71
+     ],
+     "area_m2": 16.48,
+     "height": 6.06
+    },
+    {
+     "id": 425,
+     "centre": [
+      8.59,
+      -23.14
+     ],
+     "area_m2": 15.12,
+     "height": 6.68
+    },
+    {
+     "id": 428,
+     "centre": [
+      6.04,
+      -33.3
+     ],
+     "area_m2": 20.48,
+     "height": 7.25
+    },
+    {
+     "id": 429,
+     "centre": [
+      4.74,
+      -41.97
+     ],
+     "area_m2": 27.52,
+     "height": 7.38
+    },
+    {
+     "id": 431,
+     "centre": [
+      5.09,
+      -47.49
+     ],
+     "area_m2": 8.88,
+     "height": 7.02
+    },
+    {
+     "id": 439,
+     "centre": [
+      -39.04,
+      -44.98
+     ],
+     "area_m2": 17.68,
+     "height": 5.48
+    },
+    {
+     "id": 440,
+     "centre": [
+      -25.06,
+      -42.28
+     ],
+     "area_m2": 8.88,
+     "height": 4.78
+    },
+    {
+     "id": 441,
+     "centre": [
+      -38.82,
+      -37.16
+     ],
+     "area_m2": 33.36,
+     "height": 6.0
+    },
+    {
+     "id": 446,
+     "centre": [
+      -24.4,
+      -32.29
+     ],
+     "area_m2": 5.12,
+     "height": 2.9
+    },
+    {
+     "id": 448,
+     "centre": [
+      -20.23,
+      -6.73
+     ],
+     "area_m2": 5.28,
+     "height": 2.49
+    },
+    {
+     "id": 451,
+     "centre": [
+      -33.03,
+      1.09
+     ],
+     "area_m2": 11.44,
+     "height": 2.67
+    },
+    {
+     "id": 461,
+     "centre": [
+      -0.59,
+      5.9
+     ],
+     "area_m2": 20.64,
+     "height": 4.67
+    }
+   ]
+  },
+  "cand_grid": {
+   "final_t": 1768476442.433329,
+   "final_trees": 55,
+   "ids_ever_published": 80,
+   "final_area_m2_p10_p50_p90": [
+    24.31,
+    51.47,
+    110.56
+   ],
+   "final_area_total_m2": 3662.7,
+   "final_equiv_diameter_m_p10_p50_p90": [
+    5.56,
+    8.1,
+    11.85
+   ],
+   "final_height_world_z_p10_p50_p90": [
+    3.56,
+    5.33,
+    7.11
+   ],
+   "final_height_above_stereo_ground_p10_p50_p90": [
+    4.87,
+    6.57,
+    8.14
+   ],
+   "ids_vanished": 25,
+   "id_reappearances": 0,
+   "id_reuse": 0,
+   "geometry_retreats": 0,
+   "max_lost_fraction": 0.0,
+   "centre_jumps": 34,
+   "height_jumps": 2,
+   "max_centre_drift_from_first_m": 4.269,
+   "max_height_drift_from_first_m": 5.134,
+   "undefined_height_frames": 0,
+   "invalid_entry_frames": 0,
+   "duplicate_id_frames": 0,
+   "implausible_height_frames": 58,
+   "implausible_height_le0_frames": 0,
+   "implausible_height_above_drone_frames": 59,
+   "n_snapshots": 2559,
+   "new_trees_after_scan": null,
+   "locked_id_vanished": null,
+   "nontarget_changes_in_descent": null,
+   "sprayed_tree_changes": 0,
+   "new_tree_inside_sprayed": 0,
+   "cost_ms_per_frame": {
+    "extract": {
+     "mean": 0.846,
+     "p95": 1.816,
+     "max": 3.843
+    },
+    "integrate": {
+     "mean": 0.668,
+     "p95": 0.741,
+     "max": 1.041
+    }
+   },
+   "run_seconds": 13.1,
+   "cmd": "/data/work/eval/m4c/build_89317b2/treemapper_replay --frames /data/work/extracted/real_farm/frames.bin --out-map /data/work/eval/m4c/runs_final/cand_grid/map_raw.jsonl --out-targets /data/work/eval/m4c/runs_final/cand_grid/targets.json --out-counters /data/work/eval/m4c/runs_final/cand_grid/counters.json --system cand_grid",
+   "counters": {
+    "cell_updates": 17962405,
+    "cells_latched": 43950,
+    "cells_reset_after_disagreement": 151873,
+    "extractions": 3527,
+    "frames_downweighted_rotation": 1256,
+    "frames_heartbeat_only": 19,
+    "frames_quality_unknown_rate": 2,
+    "frames_total": 7164,
+    "gauge_grid_bytes": 3440640,
+    "gauge_grid_tiles": 120,
+    "growth_skipped_open_segment": 20521,
+    "height_step_clamped": 2942,
+    "instances_created": 1160,
+    "instances_expired_unconfirmed": 1052,
+    "instances_merged": 53,
+    "instances_published": 81,
+    "merge_blocked_size": 109,
+    "points_dropped_above_drone": 0,
+    "points_dropped_invalid_disparity": 6322008,
+    "points_dropped_range": 110445,
+    "points_integrated": 107887547,
+    "points_rejected_cell_outlier": 2383027,
+    "points_weight_capped_per_cell": 32665396,
+    "publish_blocked_no_box_support": 94,
+    "publish_blocked_no_height": 90,
+    "publish_blocked_not_confirmed": 105,
+    "publish_blocked_open": 15243,
+    "publish_blocked_too_small": 700,
+    "segments_rejected_too_low": 46183,
+    "segments_skipped_window_border": 20004
+   },
+   "stereo_crowns_covered": [
+    60,
+    63
+   ],
+   "crown_correspondence": {
+    "peaks": 63,
+    "peaks_in_exactly_one": 56,
+    "peaks_in_none": 5,
+    "peaks_in_2plus": 2,
+    "outlines": 55,
+    "outlines_with_no_peak": 6,
+    "outlines_with_one_peak": 42,
+    "outlines_with_2plus_peaks": 7,
+    "nearest_centre_m_p10_p50": [
+     5.76,
+     7.95
+    ]
+   },
+   "system": "cand_grid",
+   "replay": "/data/work/eval/m4c/build_89317b2/treemapper_replay",
+   "final_trees_list": [
+    {
+     "id": 1,
+     "centre": [
+      0.86,
+      -5.8
+     ],
+     "area_m2": 506.47,
+     "height": 5.55
+    },
+    {
+     "id": 3,
+     "centre": [
+      -17.08,
+      -12.44
+     ],
+     "area_m2": 47.38,
+     "height": 3.7
+    },
+    {
+     "id": 7,
+     "centre": [
+      -37.68,
+      -26.8
+     ],
+     "area_m2": 96.22,
+     "height": 3.41
+    },
+    {
+     "id": 8,
+     "centre": [
+      -36.42,
+      -18.97
+     ],
+     "area_m2": 58.12,
+     "height": 3.66
+    },
+    {
+     "id": 9,
+     "centre": [
+      -46.64,
+      -26.58
+     ],
+     "area_m2": 67.97,
+     "height": 4.97
+    },
+    {
+     "id": 10,
+     "centre": [
+      -44.81,
+      -18.23
+     ],
+     "area_m2": 67.41,
+     "height": 5.83
+    },
+    {
+     "id": 13,
+     "centre": [
+      -43.26,
+      -8.55
+     ],
+     "area_m2": 63.22,
+     "height": 6.19
+    },
+    {
+     "id": 14,
+     "centre": [
+      -34.44,
+      -5.81
+     ],
+     "area_m2": 132.94,
+     "height": 3.49
+    },
+    {
+     "id": 15,
+     "centre": [
+      -41.96,
+      0.03
+     ],
+     "area_m2": 48.91,
+     "height": 4.36
+    },
+    {
+     "id": 16,
+     "centre": [
+      -41.55,
+      8.18
+     ],
+     "area_m2": 27.91,
+     "height": 4.83
+    },
+    {
+     "id": 17,
+     "centre": [
+      -24.55,
+      -11.4
+     ],
+     "area_m2": 62.78,
+     "height": 4.33
+    },
+    {
+     "id": 18,
+     "centre": [
+      -17.25,
+      -20.66
+     ],
+     "area_m2": 83.16,
+     "height": 3.91
+    },
+    {
+     "id": 19,
+     "centre": [
+      -14.99,
+      -30.89
+     ],
+     "area_m2": 163.97,
+     "height": 4.83
+    },
+    {
+     "id": 21,
+     "centre": [
+      -11.22,
+      -40.61
+     ],
+     "area_m2": 70.03,
+     "height": 6.2
+    },
+    {
+     "id": 22,
+     "centre": [
+      -28.08,
+      -20.48
+     ],
+     "area_m2": 119.38,
+     "height": 4.21
+    },
+    {
+     "id": 24,
+     "centre": [
+      -49.54,
+      1.09
+     ],
+     "area_m2": 74.69,
+     "height": 5.8
+    },
+    {
+     "id": 25,
+     "centre": [
+      -52.1,
+      -7.65
+     ],
+     "area_m2": 58.5,
+     "height": 7.48
+    },
+    {
+     "id": 26,
+     "centre": [
+      -53.24,
+      -17.05
+     ],
+     "area_m2": 51.47,
+     "height": 7.52
+    },
+    {
+     "id": 29,
+     "centre": [
+      -54.85,
+      -26.44
+     ],
+     "area_m2": 80.06,
+     "height": 5.93
+    },
+    {
+     "id": 35,
+     "centre": [
+      3.51,
+      -13.83
+     ],
+     "area_m2": 152.5,
+     "height": 6.55
+    },
+    {
+     "id": 37,
+     "centre": [
+      -28.04,
+      -27.74
+     ],
+     "area_m2": 61.94,
+     "height": 3.85
+    },
+    {
+     "id": 38,
+     "centre": [
+      -49.05,
+      -34.07
+     ],
+     "area_m2": 33.75,
+     "height": 4.42
+    },
+    {
+     "id": 39,
+     "centre": [
+      -20.62,
+      -39.04
+     ],
+     "area_m2": 83.59,
+     "height": 6.53
+    },
+    {
+     "id": 40,
+     "centre": [
+      -3.28,
+      -41.31
+     ],
+     "area_m2": 64.38,
+     "height": 7.75
+    },
+    {
+     "id": 41,
+     "centre": [
+      -12.87,
+      -47.23
+     ],
+     "area_m2": 56.19,
+     "height": 6.58
+    },
+    {
+     "id": 42,
+     "centre": [
+      -29.34,
+      -36.99
+     ],
+     "area_m2": 120.38,
+     "height": 4.93
+    },
+    {
+     "id": 43,
+     "centre": [
+      -60.41,
+      2.58
+     ],
+     "area_m2": 41.0,
+     "height": 5.63
+    },
+    {
+     "id": 44,
+     "centre": [
+      -58.62,
+      10.54
+     ],
+     "area_m2": 24.97,
+     "height": 5.33
+    },
+    {
+     "id": 45,
+     "centre": [
+      -48.95,
+      9.68
+     ],
+     "area_m2": 23.88,
+     "height": 5.09
+    },
+    {
+     "id": 46,
+     "centre": [
+      -62.51,
+      -6.67
+     ],
+     "area_m2": 50.25,
+     "height": 6.64
+    },
+    {
+     "id": 47,
+     "centre": [
+      -62.39,
+      -15.88
+     ],
+     "area_m2": 38.5,
+     "height": 6.89
+    },
+    {
+     "id": 48,
+     "centre": [
+      -65.41,
+      -24.9
+     ],
+     "area_m2": 34.06,
+     "height": 6.6
+    },
+    {
+     "id": 49,
+     "centre": [
+      -57.95,
+      -33.9
+     ],
+     "area_m2": 47.25,
+     "height": 5.44
+    },
+    {
+     "id": 50,
+     "centre": [
+      -68.46,
+      -34.27
+     ],
+     "area_m2": 43.56,
+     "height": 6.0
+    },
+    {
+     "id": 53,
+     "centre": [
+      11.72,
+      -15.71
+     ],
+     "area_m2": 42.34,
+     "height": 6.58
+    },
+    {
+     "id": 55,
+     "centre": [
+      12.27,
+      2.64
+     ],
+     "area_m2": 82.25,
+     "height": 5.31
+    },
+    {
+     "id": 57,
+     "centre": [
+      0.57,
+      -23.72
+     ],
+     "area_m2": 97.34,
+     "height": 6.39
+    },
+    {
+     "id": 59,
+     "centre": [
+      0.11,
+      -32.27
+     ],
+     "area_m2": 77.69,
+     "height": 7.21
+    },
+    {
+     "id": 61,
+     "centre": [
+      -15.15,
+      -5.49
+     ],
+     "area_m2": 13.38,
+     "height": 3.38
+    },
+    {
+     "id": 62,
+     "centre": [
+      -12.09,
+      -1.84
+     ],
+     "area_m2": 49.91,
+     "height": 4.27
+    },
+    {
+     "id": 64,
+     "centre": [
+      -13.1,
+      5.61
+     ],
+     "area_m2": 54.78,
+     "height": 4.27
+    },
+    {
+     "id": 65,
+     "centre": [
+      -4.52,
+      4.67
+     ],
+     "area_m2": 52.47,
+     "height": 5.2
+    },
+    {
+     "id": 66,
+     "centre": [
+      -22.14,
+      -47.33
+     ],
+     "area_m2": 29.16,
+     "height": 6.79
+    },
+    {
+     "id": 67,
+     "centre": [
+      -32.86,
+      -42.84
+     ],
+     "area_m2": 34.91,
+     "height": 4.78
+    },
+    {
+     "id": 68,
+     "centre": [
+      -31.38,
+      -46.67
+     ],
+     "area_m2": 32.94,
+     "height": 5.01
+    },
+    {
+     "id": 69,
+     "centre": [
+      -22.65,
+      -28.04
+     ],
+     "area_m2": 15.97,
+     "height": 2.91
+    },
+    {
+     "id": 70,
+     "centre": [
+      -22.74,
+      -2.58
+     ],
+     "area_m2": 39.03,
+     "height": 3.44
+    },
+    {
+     "id": 71,
+     "centre": [
+      -32.36,
+      8.58
+     ],
+     "area_m2": 44.94,
+     "height": 4.7
+    },
+    {
+     "id": 72,
+     "centre": [
+      -21.56,
+      6.66
+     ],
+     "area_m2": 68.97,
+     "height": 4.39
+    },
+    {
+     "id": 74,
+     "centre": [
+      8.5,
+      -23.21
+     ],
+     "area_m2": 20.34,
+     "height": 6.76
+    },
+    {
+     "id": 75,
+     "centre": [
+      6.22,
+      -33.83
+     ],
+     "area_m2": 16.12,
+     "height": 7.33
+    },
+    {
+     "id": 76,
+     "centre": [
+      -6.18,
+      -27.43
+     ],
+     "area_m2": 17.69,
+     "height": 3.47
+    },
+    {
+     "id": 77,
+     "centre": [
+      4.91,
+      -43.65
+     ],
+     "area_m2": 30.06,
+     "height": 7.12
+    },
+    {
+     "id": 78,
+     "centre": [
+      -3.39,
+      -48.94
+     ],
+     "area_m2": 34.31,
+     "height": 7.09
+    },
+    {
+     "id": 79,
+     "centre": [
+      -38.54,
+      -36.68
+     ],
+     "area_m2": 51.34,
+     "height": 5.4
+    }
+   ]
+  },
+  "existing": {
+   "final_t": 1768476424.317145,
+   "final_trees": 54,
+   "ids_ever_published": 77,
+   "final_area_m2_p10_p50_p90": [
+    20.63,
+    41.13,
+    73.02
+   ],
+   "final_area_total_m2": 2629.3,
+   "final_equiv_diameter_m_p10_p50_p90": [
+    5.12,
+    7.24,
+    9.64
+   ],
+   "final_height_world_z_p10_p50_p90": [
+    1.66,
+    3.57,
+    5.27
+   ],
+   "final_height_above_stereo_ground_p10_p50_p90": [
+    2.34,
+    4.52,
+    6.32
+   ],
+   "ids_vanished": 23,
+   "id_reappearances": 0,
+   "id_reuse": 0,
+   "geometry_retreats": 0,
+   "max_lost_fraction": 0.0,
+   "centre_jumps": 75,
+   "height_jumps": 296,
+   "max_centre_drift_from_first_m": 7.174,
+   "max_height_drift_from_first_m": 5.754,
+   "undefined_height_frames": 0,
+   "invalid_entry_frames": 0,
+   "duplicate_id_frames": 0,
+   "implausible_height_frames": 3232,
+   "implausible_height_le0_frames": 3232,
+   "implausible_height_above_drone_frames": 0,
+   "n_snapshots": 6056,
+   "new_trees_after_scan": null,
+   "locked_id_vanished": null,
+   "nontarget_changes_in_descent": null,
+   "sprayed_tree_changes": 0,
+   "new_tree_inside_sprayed": 0,
+   "cost_ms_per_frame": null,
+   "stereo_crowns_covered": [
+    60,
+    63
+   ],
+   "crown_correspondence": {
+    "peaks": 63,
+    "peaks_in_exactly_one": 57,
+    "peaks_in_none": 5,
+    "peaks_in_2plus": 1,
+    "outlines": 54,
+    "outlines_with_no_peak": 4,
+    "outlines_with_one_peak": 42,
+    "outlines_with_2plus_peaks": 8,
+    "nearest_centre_m_p10_p50": [
+     7.02,
+     8.06
+    ]
+   },
+   "system": "existing",
+   "replay": null,
+   "final_trees_list": [
+    {
+     "id": 219,
+     "centre": [
+      -39.63,
+      -46.59
+     ],
+     "area_m2": 18.41,
+     "height": 4.22
+    },
+    {
+     "id": 165,
+     "centre": [
+      -4.15,
+      3.26
+     ],
+     "area_m2": 42.12,
+     "height": 3.51
+    },
+    {
+     "id": 163,
+     "centre": [
+      -14.77,
+      -4.43
+     ],
+     "area_m2": 33.12,
+     "height": 3.24
+    },
+    {
+     "id": 154,
+     "centre": [
+      -29.34,
+      -39.26
+     ],
+     "area_m2": 55.83,
+     "height": 4.15
+    },
+    {
+     "id": 136,
+     "centre": [
+      10.7,
+      -16.95
+     ],
+     "area_m2": 19.28,
+     "height": 5.86
+    },
+    {
+     "id": 117,
+     "centre": [
+      -66.84,
+      -35.91
+     ],
+     "area_m2": 39.92,
+     "height": 3.66
+    },
+    {
+     "id": 116,
+     "centre": [
+      -65.74,
+      -26.56
+     ],
+     "area_m2": 39.32,
+     "height": 1.71
+    },
+    {
+     "id": 114,
+     "centre": [
+      -63.2,
+      -16.91
+     ],
+     "area_m2": 44.33,
+     "height": 4.29
+    },
+    {
+     "id": 103,
+     "centre": [
+      -63.93,
+      -8.25
+     ],
+     "area_m2": 37.5,
+     "height": 5.44
+    },
+    {
+     "id": 93,
+     "centre": [
+      -3.79,
+      -50.84
+     ],
+     "area_m2": 49.28,
+     "height": 3.07
+    },
+    {
+     "id": 150,
+     "centre": [
+      4.25,
+      -45.96
+     ],
+     "area_m2": 71.97,
+     "height": 5.28
+    },
+    {
+     "id": 91,
+     "centre": [
+      -21.04,
+      -40.42
+     ],
+     "area_m2": 52.88,
+     "height": 4.18
+    },
+    {
+     "id": 71,
+     "centre": [
+      -56.59,
+      -34.98
+     ],
+     "area_m2": 52.99,
+     "height": 4.4
+    },
+    {
+     "id": 10,
+     "centre": [
+      -39.53,
+      -37.19
+     ],
+     "area_m2": 37.63,
+     "height": 3.0
+    },
+    {
+     "id": 67,
+     "centre": [
+      -49.11,
+      -36.37
+     ],
+     "area_m2": 26.54,
+     "height": 1.25
+    },
+    {
+     "id": 8,
+     "centre": [
+      -42.65,
+      -25.22
+     ],
+     "area_m2": 223.34,
+     "height": -0.41
+    },
+    {
+     "id": 7,
+     "centre": [
+      -35.49,
+      -20.53
+     ],
+     "area_m2": 25.29,
+     "height": 2.25
+    },
+    {
+     "id": 183,
+     "centre": [
+      -31.91,
+      -47.74
+     ],
+     "area_m2": 55.29,
+     "height": 3.22
+    },
+    {
+     "id": 6,
+     "centre": [
+      -26.19,
+      -21.99
+     ],
+     "area_m2": 60.64,
+     "height": 3.22
+    },
+    {
+     "id": 64,
+     "centre": [
+      -27.89,
+      -26.94
+     ],
+     "area_m2": 106.72,
+     "height": 3.01
+    },
+    {
+     "id": 5,
+     "centre": [
+      -24.78,
+      -12.24
+     ],
+     "area_m2": 40.19,
+     "height": 1.86
+    },
+    {
+     "id": 194,
+     "centre": [
+      -26.85,
+      6.45
+     ],
+     "area_m2": 103.31,
+     "height": 2.84
+    },
+    {
+     "id": 164,
+     "centre": [
+      -13.11,
+      4.84
+     ],
+     "area_m2": 40.1,
+     "height": 2.78
+    },
+    {
+     "id": 105,
+     "centre": [
+      -61.11,
+      1.24
+     ],
+     "area_m2": 31.56,
+     "height": 3.62
+    },
+    {
+     "id": 181,
+     "centre": [
+      -22.39,
+      -48.63
+     ],
+     "area_m2": 24.78,
+     "height": 4.8
+    },
+    {
+     "id": 4,
+     "centre": [
+      -16.84,
+      -13.67
+     ],
+     "area_m2": 28.72,
+     "height": 2.69
+    },
+    {
+     "id": 92,
+     "centre": [
+      -3.88,
+      -42.87
+     ],
+     "area_m2": 65.04,
+     "height": 3.65
+    },
+    {
+     "id": 33,
+     "centre": [
+      -4.12,
+      -36.86
+     ],
+     "area_m2": 1.04,
+     "height": 0.61
+    },
+    {
+     "id": 15,
+     "centre": [
+      -44.29,
+      -9.12
+     ],
+     "area_m2": 65.76,
+     "height": 4.63
+    },
+    {
+     "id": 179,
+     "centre": [
+      -13.77,
+      -49.53
+     ],
+     "area_m2": 28.84,
+     "height": 5.06
+    },
+    {
+     "id": 2,
+     "centre": [
+      5.52,
+      -6.6
+     ],
+     "area_m2": 38.48,
+     "height": 4.37
+    },
+    {
+     "id": 208,
+     "centre": [
+      6.14,
+      -35.32
+     ],
+     "area_m2": 17.39,
+     "height": 5.29
+    },
+    {
+     "id": 31,
+     "centre": [
+      -12.02,
+      -41.84
+     ],
+     "area_m2": 44.71,
+     "height": 4.14
+    },
+    {
+     "id": 191,
+     "centre": [
+      -23.12,
+      -3.83
+     ],
+     "area_m2": 25.75,
+     "height": 2.31
+    },
+    {
+     "id": 14,
+     "centre": [
+      -35.08,
+      -7.12
+     ],
+     "area_m2": 111.86,
+     "height": 1.71
+    },
+    {
+     "id": 60,
+     "centre": [
+      1.87,
+      -16.23
+     ],
+     "area_m2": 46.75,
+     "height": 5.15
+    },
+    {
+     "id": 1,
+     "centre": [
+      -5.8,
+      -5.97
+     ],
+     "area_m2": 37.52,
+     "height": 3.7
+    },
+    {
+     "id": 148,
+     "centre": [
+      -0.69,
+      -33.99
+     ],
+     "area_m2": 56.34,
+     "height": 3.84
+    },
+    {
+     "id": 30,
+     "centre": [
+      -12.23,
+      -32.93
+     ],
+     "area_m2": 50.31,
+     "height": 2.72
+    },
+    {
+     "id": 59,
+     "centre": [
+      -7.53,
+      -14.15
+     ],
+     "area_m2": 48.32,
+     "height": 4.06
+    },
+    {
+     "id": 137,
+     "centre": [
+      12.43,
+      -8.41
+     ],
+     "area_m2": 43.24,
+     "height": 5.25
+    },
+    {
+     "id": 19,
+     "centre": [
+      -42.23,
+      -1.65
+     ],
+     "area_m2": 47.32,
+     "height": 0.58
+    },
+    {
+     "id": 166,
+     "centre": [
+      6.03,
+      2.52
+     ],
+     "area_m2": 30.44,
+     "height": 4.05
+    },
+    {
+     "id": 107,
+     "centre": [
+      -59.55,
+      9.03
+     ],
+     "area_m2": 5.75,
+     "height": 3.5
+    },
+    {
+     "id": 48,
+     "centre": [
+      -53.76,
+      -18.52
+     ],
+     "area_m2": 42.07,
+     "height": 5.68
+    },
+    {
+     "id": 20,
+     "centre": [
+      -52.13,
+      -4.14
+     ],
+     "area_m2": 147.58,
+     "height": 2.99
+    },
+    {
+     "id": 21,
+     "centre": [
+      -42.65,
+      7.09
+     ],
+     "area_m2": 23.77,
+     "height": 1.64
+    },
+    {
+     "id": 109,
+     "centre": [
+      -50.74,
+      8.05
+     ],
+     "area_m2": 24.2,
+     "height": -0.18
+    },
+    {
+     "id": 50,
+     "centre": [
+      -55.63,
+      -27.75
+     ],
+     "area_m2": 73.47,
+     "height": 2.6
+    },
+    {
+     "id": 143,
+     "centre": [
+      13.44,
+      0.58
+     ],
+     "area_m2": 26.71,
+     "height": 4.78
+    },
+    {
+     "id": 27,
+     "centre": [
+      -17.41,
+      -21.94
+     ],
+     "area_m2": 65.83,
+     "height": 2.68
+    },
+    {
+     "id": 206,
+     "centre": [
+      8.46,
+      -25.3
+     ],
+     "area_m2": 10.53,
+     "height": 5.73
+    },
+    {
+     "id": 147,
+     "centre": [
+      0.75,
+      -24.96
+     ],
+     "area_m2": 35.27,
+     "height": 5.01
+    },
+    {
+     "id": 29,
+     "centre": [
+      -19.69,
+      -30.98
+     ],
+     "area_m2": 53.93,
+     "height": 2.88
+    }
+   ]
+  }
+ },
+ "stereo": {
+  "points": 12000000,
+  "cell_m": 0.5,
+  "crown_peaks_chm_gt_1.5m": 63,
+  "ground_z_p10_p50_p90": [
+   -2.32,
+   -1.26,
+   1.32
+  ],
+  "crown_peaks_chm_ge_2m": 63,
+  "crown_peak_height_p10_p50_p90": [
+   6.24,
+   8.27,
+   9.42
+  ],
+  "definition": "CHM = per 0.5 m cell p95 z minus the local ground (15th percentile over a 9 m window of the cell p5 z); peaks = local maxima >= 3 m apart, CHM > 1.5 m, >= 20 points per cell"
+ },
+ "agreement": {
+  "found_by_other": {
+   "simple_in_cand_obj": [
+    58,
+    59
+   ],
+   "simple_in_cand_obj_m4": [
+    59,
+    59
+   ],
+   "simple_in_cand_grid": [
+    57,
+    59
+   ],
+   "simple_in_existing": [
+    58,
+    59
+   ],
+   "cand_obj_in_simple": [
+    99,
+    100
+   ],
+   "cand_obj_in_cand_obj_m4": [
+    100,
+    100
+   ],
+   "cand_obj_in_cand_grid": [
+    96,
+    100
+   ],
+   "cand_obj_in_existing": [
+    93,
+    100
+   ],
+   "cand_obj_m4_in_simple": [
+    101,
+    102
+   ],
+   "cand_obj_m4_in_cand_obj": [
+    98,
+    102
+   ],
+   "cand_obj_m4_in_cand_grid": [
+    99,
+    102
+   ],
+   "cand_obj_m4_in_existing": [
+    92,
+    102
+   ],
+   "cand_grid_in_simple": [
+    54,
+    55
+   ],
+   "cand_grid_in_cand_obj": [
+    53,
+    55
+   ],
+   "cand_grid_in_cand_obj_m4": [
+    54,
+    55
+   ],
+   "cand_grid_in_existing": [
+    54,
+    55
+   ],
+   "existing_in_simple": [
+    54,
+    54
+   ],
+   "existing_in_cand_obj": [
+    53,
+    54
+   ],
+   "existing_in_cand_obj_m4": [
+    53,
+    54
+   ],
+   "existing_in_cand_grid": [
+    53,
+    54
+   ]
+  },
+  "only_in": {
+   "simple": [],
+   "cand_obj": [],
+   "cand_obj_m4": [],
+   "cand_grid": [
+    {
+     "id": 76,
+     "centre": [
+      -6.2,
+      -27.4
+     ],
+     "area_m2": 17.7
+    }
+   ],
+   "existing": []
+  },
+  "rule": "overlap >= 20 % of the smaller outline"
+ },
+ "plots": [
+  "/ws/results/real_flight_plots/final_simple.png",
+  "/ws/results/real_flight_plots/final_cand_obj.png",
+  "/ws/results/real_flight_plots/final_cand_obj_m4.png",
+  "/ws/results/real_flight_plots/final_cand_grid.png",
+  "/ws/results/real_flight_plots/final_existing.png",
+  "/ws/results/real_flight_plots/final_overlay.png"
+ ],
+ "seconds": 330.8
+}

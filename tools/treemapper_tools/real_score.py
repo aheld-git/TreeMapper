@@ -16,8 +16,8 @@ Scored (``score.score(gt=None)``): stability, safety, cost. Added here, because 
 * the ``implausible_height`` count split into ``height <= 0`` and ``above the drone`` (the real flight's
   world_nwu z origin is the take-off point, not the ground, so ``<= 0`` is not automatically wrong there);
 * canopy height above the local stereo ground (``CHM``: per 0.5 m cell the p95 of all stereo points
-  minus a local ground = the p5 low envelope, min-filtered over 7 m), at each published tree;
-* "stereo crowns": local maxima of the CHM (> 1.5 m, >= 2.5 m apart) as an independent tree count;
+  minus a local ground = 15th percentile over a 9 m window of the cell p5 z), at each published tree;
+* "stereo crowns": local maxima of the CHM (> 1.5 m, >= 3 m apart) as an independent tree count;
 * cross-system agreement: a final tree of system A is "found" by B if a final B outline overlaps it
   (intersection >= 20 % of the smaller outline).
 """
@@ -116,13 +116,17 @@ class StereoSurface:
                 cnt[k] = e0 - s0
         self.top = top.reshape(self.shape)
         low = low.reshape(self.shape)
-        # local ground: min of the low envelope over a 7 m window (canopy cells see no ground)
+        # local ground: a low percentile (15th) of the cell lows (p5) in a 9 m window. Canopy cells see no
+        # ground, gap cells do; a plain min would lock onto the deep far-range stereo outliers.
         from numpy.lib.stride_tricks import sliding_window_view
-        w = int(round(3.5 / cell))
-        pad = np.pad(np.where(np.isfinite(low), low, np.inf), w, constant_values=np.inf)
-        g = sliding_window_view(pad, (2 * w + 1, 2 * w + 1)).min(axis=(2, 3))
-        # robustify against single deep outliers: a 2nd pass takes the median of the window's 10 % lowest
-        self.ground = np.where(np.isfinite(g), g, np.nan)
+        w = int(round(4.5 / cell))
+        win = sliding_window_view(np.pad(low, w, constant_values=np.nan), (2 * w + 1, 2 * w + 1))
+        with np.errstate(all="ignore"):
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                g = np.nanpercentile(win.reshape(win.shape[0], win.shape[1], -1), 15, axis=2)
+        self.ground = g
         self.chm = self.top - self.ground
         self.count = cnt.reshape(self.shape)
         self.n_points = int(len(P))
@@ -137,7 +141,7 @@ class StereoSurface:
         sub = sub[np.isfinite(sub)]
         return float(np.median(sub)) if len(sub) else math.nan
 
-    def crowns(self, min_h=1.5, sep=2.5):
+    def crowns(self, min_h=1.5, sep=3.0):
         from numpy.lib.stride_tricks import sliding_window_view
         c = np.where(np.isfinite(self.chm) & (self.count >= 20), self.chm, -1)
         w = int(round(sep / self.cell))
@@ -148,16 +152,21 @@ class StereoSurface:
 
 # ----------------------------------------------------------------------------- summary
 
-def summarise(res: dict, snaps, surf: "StereoSurface") -> dict:
+def summarise(res: dict, snaps, surf: "StereoSurface", pose=None) -> dict:
     st, sf = res["stability"], res["safety"]
     fin = snaps[-1].trees if snaps else []
     areas = [poly_area(t.outline) for t in fin]
+    # the scorer lists at most 50 events: recount both causes over every snapshot (pose = mission series)
     le0 = above = 0
-    for ev in sf.get("implausible_height_events", []):
-        if any(e["height"] is not None and e["height"] <= 0 for e in ev["entries"]):
+    pt = np.array([p[0] for p in pose]) if pose else None
+    for sn in snaps:
+        hs = [t.height for t in sn.trees if t.height is not None and math.isfinite(t.height)]
+        if any(h <= 0 for h in hs):
             le0 += 1
-        if any(e["height"] is not None and e["height"] > ev.get("drone_z", math.inf) for e in ev["entries"]):
-            above += 1
+        if pt is not None and len(pt) and pt[0] <= sn.t <= pt[-1]:
+            z = pose[min(int(np.searchsorted(pt, sn.t)), len(pt) - 1)][3]
+            if any(h > z for h in hs):
+                above += 1
     agl = [t.height - surf.ground_at(*t.centre) for t in fin if t.height is not None] if surf else []
     out = {
         "final_t": res["final"]["t"], "final_trees": len(fin), "ids_ever_published": len(res["ids_ever_published"]),
@@ -223,6 +232,27 @@ def agreement(finals: Dict[str, list], min_frac=0.2) -> dict:
     return {"found_by_other": found, "only_in": only, "rule": "overlap >= %.0f %% of the smaller outline" % (100 * min_frac)}
 
 
+def crown_correspondence(crowns, final) -> dict:
+    """Stereo crown peaks as a stand-in for truth (no GT): per peak, how many outlines contain it; per
+    outline, how many peaks it contains (0 = fragment / false tree, >= 2 = merged crowns)."""
+    from shapely.geometry import Point, Polygon
+    polys = [Polygon(t.outline).buffer(0) for t in final if len(t.outline) >= 3]
+    pts = [Point(c[0], c[1]) for c in crowns]
+    per_peak = [sum(1 for p in polys if p.contains(q)) for q in pts]
+    per_poly = [sum(1 for q in pts if p.contains(q)) for p in polys]
+    cen = np.array([t.centre for t in final]) if final else np.zeros((0, 2))
+    nn = []
+    for i in range(len(cen)):
+        d = np.hypot(*(cen - cen[i]).T); d[i] = np.inf
+        nn.append(float(d.min()))
+    return {"peaks": len(pts), "peaks_in_exactly_one": sum(1 for k in per_peak if k == 1),
+            "peaks_in_none": sum(1 for k in per_peak if k == 0), "peaks_in_2plus": sum(1 for k in per_peak if k >= 2),
+            "outlines": len(polys), "outlines_with_no_peak": sum(1 for k in per_poly if k == 0),
+            "outlines_with_one_peak": sum(1 for k in per_poly if k == 1),
+            "outlines_with_2plus_peaks": sum(1 for k in per_poly if k >= 2),
+            "nearest_centre_m_p10_p50": pq(nn, (10, 50))}
+
+
 def crowns_covered(crowns, final, min_h=2.0) -> list:
     from shapely.geometry import Point, Polygon
     polys = [Polygon(t.outline).buffer(0) for t in final if len(t.outline) >= 3]
@@ -239,11 +269,12 @@ def plot_all(surf: StereoSurface, finals: Dict[str, list], crowns, path_dir: str
     import matplotlib.pyplot as plt
     os.makedirs(path_dir, exist_ok=True)
     ext = surf.extent()
-    colours = {"existing": "tab:red", "simple": "tab:orange", "cand_obj": "tab:blue", "cand_grid": "tab:green"}
+    colours = {"existing": "tab:red", "simple": "tab:orange", "cand_obj": "tab:blue", "cand_grid": "tab:green",
+               "cand_obj_m4": "tab:purple"}
     files = []
 
     def base(ax, title):
-        im = ax.imshow(np.clip(surf.chm, 0, 6).T, origin="lower", extent=ext, cmap="Greys", vmin=0, vmax=6,
+        im = ax.imshow(np.clip(surf.chm, 0, 7).T, origin="lower", extent=ext, cmap="YlGn", vmin=0, vmax=7,
                        interpolation="nearest")
         if pose is not None:
             ax.plot(pose[:, 1], pose[:, 2], "-", color="tab:purple", lw=0.4, alpha=0.5)
@@ -258,7 +289,7 @@ def plot_all(surf: StereoSurface, finals: Dict[str, list], crowns, path_dir: str
         lim = ext
     for name, fin in finals.items():
         fig, ax = plt.subplots(figsize=(9, 9))
-        im = base(ax, "%s: %d final trees on the stereo canopy height (grey, 0-6 m)" % (name, len(fin)))
+        im = base(ax, "%s: %d final trees on the stereo canopy height (0-7 m)" % (name, len(fin)))
         for t in fin:
             if len(t.outline) >= 3:
                 P = np.array(t.outline + [t.outline[0]])
@@ -298,6 +329,10 @@ def to_md(card: dict) -> str:
         ("height (world z) p10/p50/p90", "final_height_world_z_p10_p50_p90"),
         ("height above stereo ground p10/p50/p90", "final_height_above_stereo_ground_p10_p50_p90"),
         ("stereo crowns (>= 2 m) inside an outline", "stereo_crowns_covered"),
+        ("crown peaks in exactly 1 / no / 2+ outlines", ("cc_peaks_in_exactly_one", "cc_peaks_in_none", "cc_peaks_in_2plus")),
+        ("outlines with 0 peaks (fragment/false) / 1 / 2+ (merged)",
+         ("cc_outlines_with_no_peak", "cc_outlines_with_one_peak", "cc_outlines_with_2plus_peaks")),
+        ("nearest-neighbour centre distance m p10/p50", "cc_nearest_centre_m_p10_p50"),
         ("IDs vanished", "ids_vanished"), ("ID reappearances / reuse", ("id_reappearances", "id_reuse")),
         ("geometry retreats / max lost fraction", ("geometry_retreats", "max_lost_fraction")),
         ("centre jumps / height jumps (> 1 m)", ("centre_jumps", "height_jumps")),
@@ -323,6 +358,9 @@ def to_md(card: dict) -> str:
             return " / ".join(fmt(x) for x in v)
         return str(v)
 
+    for n in names:
+        for k, v in (S[n].get("crown_correspondence") or {}).items():
+            S[n]["cc_" + k] = v
     L = ["| metric | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
     for lab, key in rows:
         vals = []
@@ -343,6 +381,7 @@ def main(argv=None):
     ap.add_argument("--runs", required=True)
     ap.add_argument("--label", default="", help="free text, e.g. the commit the binary was built from")
     ap.add_argument("--set", action="append", default=[], help="SYSTEM.key=value (repeatable)")
+    ap.add_argument("--reuse", action="store_true", help="re-score an existing run directory, no replay")
     ap.add_argument("--out-json")
     ap.add_argument("--out-md-table", help="write just the scorecard table (markdown)")
     ap.add_argument("--plots")
@@ -358,31 +397,44 @@ def main(argv=None):
     surf = StereoSurface(os.path.join(ds, "frames.bin"))
     crowns = surf.crowns()
     card = {"label": a.label, "dataset": ds, "replay": a.replay, "systems": {}, "stereo": {
-        "points": surf.n_points, "cell_m": surf.cell, "crown_peaks_chm_gt_1.5m": len(crowns),
+        "points": surf.n_points, "cell_m": surf.cell, "crown_peaks_chm_gt_1.5m": len(crowns), "ground_z_p10_p50_p90": pq(surf.ground[np.isfinite(surf.ground)].ravel()),
         "crown_peaks_chm_ge_2m": sum(1 for c in crowns if c[2] >= 2.0),
         "crown_peak_height_p10_p50_p90": pq([c[2] for c in crowns]),
-        "definition": "CHM = per 0.5 m cell p95 z minus the local ground (min over 7 m of the cell p5 z); "
-                      "peaks = local maxima >= 2.5 m apart, >= 20 points per cell"}}
+        "definition": "CHM = per 0.5 m cell p95 z minus the local ground (15th percentile over a 9 m window of the "
+                      "cell p5 z); peaks = local maxima >= 3 m apart, CHM > 1.5 m, >= 20 points per cell"}}
     finals = {}
-    for s in [x for x in a.systems.split(",") if x]:
+    for spec in [x for x in a.systems.split(",") if x]:
+        # "label=system@/path/to/treemapper_replay" scores a system from another build under its own label
+        s, system, replay = spec, spec, a.replay
+        if "=" in spec:
+            s, rest = spec.split("=", 1)
+            system, replay = (rest.split("@", 1) + [a.replay])[:2] if "@" in rest else (rest, a.replay)
         rd = os.path.join(a.runs, s)
         os.makedirs(rd, exist_ok=True)
         info = {}
-        if s == "existing":
+        if system == "existing":
+            replay = None
             mp = os.path.join(ds, "map_existing.jsonl")
         else:
-            info = run_replay(a.replay, ds, s, rd, ";".join(cfg.get(s, [])))
             mp = os.path.join(rd, "map.jsonl")
+            if a.reuse and os.path.exists(mp):
+                info = json.load(open(os.path.join(rd, "run_info.json")))
+            else:
+                info = run_replay(replay, ds, system, rd, ";".join(cfg.get(s, [])))
+                with open(os.path.join(rd, "run_info.json"), "w") as f:
+                    json.dump(info, f)
         snaps = read_snapshots(mp)
         res = scoring.score(snaps, None, mission, camera)
         with open(os.path.join(rd, "score.json"), "w") as f:
             json.dump(res, f, indent=1, default=str)
-        sm = summarise(res, snaps, surf)
+        sm = summarise(res, snaps, surf, mission.pose)
         sm.update(info)
         if os.path.exists(os.path.join(rd, "counters.json")):
             sm["counters"] = json.load(open(os.path.join(rd, "counters.json")))
         fin = snaps[-1].trees if snaps else []
         sm["stereo_crowns_covered"] = crowns_covered(crowns, fin)
+        sm["crown_correspondence"] = crown_correspondence(crowns, fin)
+        sm["system"], sm["replay"] = system, replay
         sm["final_trees_list"] = [{"id": t.id, "centre": [round(t.centre[0], 2), round(t.centre[1], 2)],
                                    "area_m2": round(poly_area(t.outline), 2),
                                    "height": None if t.height is None else round(t.height, 2)} for t in fin]

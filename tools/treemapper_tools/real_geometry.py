@@ -60,12 +60,16 @@ def mount(pitch_deg: float, roll_deg: float = 0.0, lever=(0.3, 0.08, -0.2), swap
     return list(lever) + rot_to_quat(R)
 
 
-def hypotheses(dcx: float = 0.0, reader_T=None) -> Dict[str, Tuple[List[float], float]]:
-    """name -> (T_body_cam, disparity added back before triangulation). F undoes the reader's
-    principal-point disparity correction (raw disparity, Z = fx*B/d)."""
+def hypotheses(dcx: float = 0.0, reader_T=None, dcx_calib: float = None) -> Dict[str, Tuple[List[float], float]]:
+    """name -> (T_body_cam, disparity added back before triangulation). ``dcx`` = the offset the reader
+    subtracted, ``dcx_calib`` = cx_l - cx_r of the calibration. F = the calibration's offset instead of the
+    data-verified one; G = no offset at all (raw disparity, Z = fx*B/d)."""
     h = {"T_tf_static_75deg": (mount(75.0), 0.0), "B_nadir_90deg": (mount(90.0), 0.0),
          "C_60deg": (mount(60.0), 0.0), "D_82deg_no_lever_arm": (mount(82.0, lever=(0, 0, 0)), 0.0),
-         "E_no_axis_swap": (mount(75.0, swap=False), 0.0), "F_82deg_no_disparity_offset": (mount(82.0), dcx)}
+         "E_no_axis_swap": (mount(75.0, swap=False), 0.0)}
+    if dcx_calib is not None:
+        h["F_82deg_calib_offset"] = (mount(82.0), dcx - dcx_calib)
+    h["G_82deg_raw_disparity"] = (mount(82.0), dcx)
     if reader_T is not None:
         h = dict([("A_reader_chain", (list(reader_T), 0.0))] + list(h.items()))
     return h
@@ -200,8 +204,7 @@ def analyse(frames, cal: Calibration, T: Sequence[float], rng, add: float = 0.0)
     ground, obs = [], []
     for f in frames:
         p, u, v = cam_points(cal, f.disparity, add)
-        z_ok = cal.fx * cal.baseline / f.disparity[np.isfinite(f.disparity) & (f.disparity > 0)]
-        rk = z_ok < 1.5 * max(f.pose[2], 2.0)  # beyond: the far, quantisation-dominated fan (ground at <= 1.3 alt)
+        rk = p[:, 2] < 1.5 * max(f.pose[2], 2.0)  # beyond: the far, quantisation-dominated fan (ground at <= 1.3 alt)
         p, u, v = p[rk], u[rk], v[rk]
         if len(p) < 200:
             continue
@@ -362,7 +365,7 @@ def main(argv=None):
            "frames_analysed": len(sel), "calibration": cal.to_json(),
            "reader_T_body_cam": cal.T_body_cam,
            "disparity_offset_px": meta.get("disparity_offset_px_subtracted", 0.0), "hypotheses": {}}
-    hyp = hypotheses(out["disparity_offset_px"], cal.T_body_cam)
+    hyp = hypotheses(out["disparity_offset_px"], cal.T_body_cam, meta.get("disparity_offset_calib_px"))
     for pitch in a.extra_pitch:
         hyp["P_pitch_%g" % pitch] = (mount(pitch), 0.0)
     for name, (T, add) in hyp.items():
