@@ -39,7 +39,8 @@ treemapper::StereoCalibration someCalibration() {
   return c;
 }
 const std::string kPkg = TM_ROS_PKG_DIR;
-const std::string kRepo = realPath(std::string(TM_CORE_DIR) + "/..");
+// the repository this package lives in (the core under test may be a snapshot elsewhere: TM_CORE_DIR)
+const std::string kRepo = realPath(kPkg + "/../..");
 }  // namespace
 
 TEST(ConfigAgreement, YamlPointsAtTheCoreConfigOfARegisteredMapper) {

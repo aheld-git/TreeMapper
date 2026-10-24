@@ -158,6 +158,8 @@ std::vector<SyncedFrame> FrameSync::addDisparity(double t, StampNs stamp, Dispar
     disp_.erase(disp_order_.front());
     disp_order_.pop_front();
   }
+  if (!have_disp_ || stamp > newest_disp_) newest_disp_ = stamp;
+  have_disp_ = true;
   for (auto& p : pending_) {
     if (!p.done && p.stamp == stamp) {
       p.frame.stamp = stamp;
@@ -166,6 +168,15 @@ std::vector<SyncedFrame> FrameSync::addDisparity(double t, StampNs stamp, Dispar
       p.frame.disparity = slot;
       p.done = true;
       ++counters_["frames_paired_late"];
+    }
+  }
+  if (p_.early_resolve) {
+    const StampNs tol = fromSec(p_.nearest_tol_s);
+    for (auto& p : pending_) {
+      if (!p.done && newest_disp_ > p.stamp + tol) {
+        resolveWaiting(p);
+        ++counters_["frames_resolved_early"];
+      }
     }
   }
   auto out = release();

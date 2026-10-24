@@ -216,7 +216,9 @@ TEST(FrameSync, AfterTheWaitNearestWithinToleranceElseNoDisparity) {
 }
 
 TEST(FrameSync, ReleasesFramesInDetectionReceiveOrder) {
-  FrameSync s;
+  FrameSync::Params p;
+  p.early_resolve = false;  // this stream delivers disparity out of stamp order
+  FrameSync s(p);
   EXPECT_TRUE(s.addDetections(1.00, 100 * kMs, oneBox(), "SCAN", -1).empty());   // waits for its disparity
   s.addDisparity(1.01, 150 * kMs, grid1(1.f));
   EXPECT_TRUE(s.addDetections(1.02, 150 * kMs, oneBox(), "SCAN", -1).empty());   // complete, but held behind #1
@@ -241,4 +243,25 @@ TEST(FrameSync, CacheIsBoundedAndFlushResolvesEverything) {
   auto ex = s.addDetections(1.0, 900 * kMs, oneBox(), "", -1);
   ASSERT_EQ(ex.size(), 1u);
   EXPECT_FLOAT_EQ(ex[0].disparity.data[0], 9.f);
+}
+
+TEST(FrameSync, EarlyResolveOnceANewerDisparityArrivedSameResultNoStall) {
+  for (bool early : {false, true}) {
+    FrameSync::Params p;
+    p.early_resolve = early;
+    FrameSync s(p);
+    s.addDisparity(1.00, 1000 * kMs, grid1(5.f));
+    EXPECT_TRUE(s.addDetections(1.01, 1015 * kMs, oneBox(), "SCAN", -1).empty());  // exact one never comes
+    auto out = s.addDisparity(1.05, 1030 * kMs, grid1(6.f));                         // within tol: could be nearer
+    EXPECT_TRUE(out.empty());
+    out = s.addDisparity(1.08, 1060 * kMs, grid1(7.f));                              // > 1015 + 20 ms
+    if (!early) {
+      EXPECT_TRUE(out.empty());
+      out = s.poll(1.6);
+    }
+    ASSERT_EQ(out.size(), 1u) << early;
+    EXPECT_EQ(out[0].pairing, SyncedFrame::Pairing::kNearest);
+    EXPECT_EQ(out[0].stamp, 1000 * kMs);  // tie (15 ms each side) -> the older one, like numpy argmin over arrival order
+    EXPECT_FLOAT_EQ(out[0].disparity.data[0], 5.f);
+  }
 }

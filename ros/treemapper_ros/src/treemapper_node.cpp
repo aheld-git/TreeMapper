@@ -116,6 +116,7 @@ class TreemapperNode {
     int cache = 400;
     pnh_.param<int>("disparity_cache", cache, 400);
     sp.cache = static_cast<std::size_t>(std::max(1, cache));
+    pnh_.param<bool>("sync_early_resolve", sp.early_resolve, true);
     sync_ = FrameSync(sp);
     pnh_.param<double>("heartbeat_frame_period", heartbeat_frame_period_, 0.2);
     pnh_.param<double>("health_rate", health_rate_, 2.0);
@@ -171,7 +172,8 @@ class TreemapperNode {
 
     timer_frames_ = nh_.createTimer(ros::Duration(0.05), &TreemapperNode::onFrameTimer, this);
     timer_map_ = nh_.createTimer(ros::Duration(1.0 / std::max(0.1, map_rate_)), &TreemapperNode::onMapTimer, this);
-    timer_health_ = nh_.createTimer(ros::Duration(1.0 / std::max(0.1, health_rate_)), &TreemapperNode::onHealthTimer, this);
+    // wall clock: the heartbeat must not stop when a simulated /clock pauses or ends
+    timer_health_ = nh_.createWallTimer(ros::WallDuration(1.0 / std::max(0.1, health_rate_)), &TreemapperNode::onHealthTimer, this);
     timer_counters_ = nh_.createTimer(ros::Duration(1.0), &TreemapperNode::onCountersTimer, this);
     ROS_INFO("treemapper_node: mapper '%s' (config %s, %zu keys), world '%s', body '%s', pose from %s, mount from %s",
              mapper_name_.c_str(), config_file_.c_str(), mapper_config_.size(), world_frame_.c_str(),
@@ -434,7 +436,7 @@ class TreemapperNode {
   }
   void onMapTimer(const ros::TimerEvent&) { publishMap(nowSec()); }
 
-  void onHealthTimer(const ros::TimerEvent&) {
+  void onHealthTimer(const ros::WallTimerEvent&) {
     const double t = nowSec();
     treemapper_msgs::Health h;
     h.header.stamp = ros::Time::now();
@@ -567,7 +569,8 @@ class TreemapperNode {
   ros::Publisher pub_map_, pub_markers_, pub_health_, pub_counters_, pub_timing_;
   ros::ServiceServer srv_get_, srv_spray_;
   ros::Subscriber sub_left_, sub_right_, sub_disp_, sub_det_, sub_phase_, sub_target_, sub_pose_;
-  ros::Timer timer_frames_, timer_map_, timer_health_, timer_counters_;
+  ros::Timer timer_frames_, timer_map_, timer_counters_;
+  ros::WallTimer timer_health_;
 };
 
 }  // namespace treemapper_ros

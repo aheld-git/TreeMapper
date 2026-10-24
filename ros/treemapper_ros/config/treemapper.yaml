@@ -39,6 +39,7 @@ detection_scale: 1.0          # detector pixels -> calibrated image pixels
 sync_wait: 0.5                # s, a detection waits this long for the disparity with its exact stamp
 sync_nearest_tol: 0.02        # s, then pairs with the nearest cached disparity within this tolerance
 disparity_cache: 400          # disparity frames kept for pairing
+sync_early_resolve: true      # resolve a waiting detection as soon as a newer disparity (> stamp + tol) arrived
 
 # --- cadence
 heartbeat_frame_period: 0.2   # s, empty frame fed to the mapper when no detection frame came for this long

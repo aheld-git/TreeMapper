@@ -109,6 +109,11 @@ class FrameSync {
     double wait_s{0.5};          ///< how long a detection waits for its exact-stamp disparity
     double nearest_tol_s{0.02};  ///< fallback pairing tolerance
     std::size_t cache{400};      ///< disparity frames kept (by stamp, oldest evicted)
+    /// Disparity stamps arrive in increasing order (one publisher): once a disparity newer than a waiting
+    /// detection's stamp + nearest_tol_s has arrived, neither its exact match nor a closer neighbour can still
+    /// come, so it is resolved at once instead of after wait_s. Same pairing result as the offline reader,
+    /// without stalling every later frame for wait_s (frames are released in order).
+    bool early_resolve{true};
   };
   FrameSync() : FrameSync(Params{}) {}
   explicit FrameSync(Params p) : p_(p) {}
@@ -143,6 +148,8 @@ class FrameSync {
   Params p_;
   std::map<StampNs, DisparityGrid> disp_;   ///< cache by stamp
   std::deque<StampNs> disp_order_;          ///< insertion order for eviction
+  StampNs newest_disp_{0};
+  bool have_disp_{false};
   std::deque<Pending> pending_;             ///< in detection-receive order (released in that order)
   std::map<std::string, std::uint64_t> counters_;
 };
