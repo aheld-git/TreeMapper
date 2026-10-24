@@ -1,0 +1,162 @@
+{
+ "frames_file": "/data/work/frames/isaac_full.bin",
+ "frames_used": 546,
+ "frames_by_phase": {
+  "SCAN": 102,
+  "HOPPING": 444
+ },
+ "altitude_range_m": [
+  6.95,
+  15.07
+ ],
+ "results": {
+  "A derived: inv(world->body at spawn) * tf_static (reader default)": {
+   "T_body_cam": [
+    0.15,
+    0.08,
+    -0.0,
+    -0.70711,
+    0.70711,
+    0.0,
+    0.0
+   ],
+   "ground_slope_deg_median": 0.01,
+   "ground_slope_deg_p90": 0.06,
+   "ground_z_median_m": 0.013,
+   "ground_z_p10_p90_m": [
+    0.01,
+    0.018
+   ],
+   "canopy_points_inside_true_canopy": 0.996,
+   "canopy_points_mean_dist_outside_m": 0.0,
+   "per_tree_accumulated_canopy_centroid_offset_m": {
+    "trees": 9,
+    "mean": 0.345,
+    "max": 0.725,
+    "mean_xy": [
+     -0.02,
+     -0.014
+    ]
+   },
+   "boxes": 1113,
+   "box_top_xy_to_true_centre_median_m": 0.747,
+   "box_top_xy_to_true_centre_p90_m": 1.936,
+   "in_canopy_z_minus_truth_height_low_range_p50_p90_p99_m": [
+    -0.16,
+    1.35,
+    1.88
+   ]
+  },
+  "B derived rotation, zero lever arm": {
+   "T_body_cam": [
+    0.0,
+    0.0,
+    0.0,
+    -0.70711,
+    0.70711,
+    0.0,
+    0.0
+   ],
+   "ground_slope_deg_median": 0.01,
+   "ground_slope_deg_p90": 0.06,
+   "ground_z_median_m": 0.012,
+   "ground_z_p10_p90_m": [
+    0.006,
+    0.034
+   ],
+   "canopy_points_inside_true_canopy": 0.99,
+   "canopy_points_mean_dist_outside_m": 0.001,
+   "per_tree_accumulated_canopy_centroid_offset_m": {
+    "trees": 9,
+    "mean": 0.369,
+    "max": 0.751,
+    "mean_xy": [
+     -0.038,
+     0.015
+    ]
+   },
+   "boxes": 1113,
+   "box_top_xy_to_true_centre_median_m": 0.716,
+   "box_top_xy_to_true_centre_p90_m": 1.976,
+   "in_canopy_z_minus_truth_height_low_range_p50_p90_p99_m": [
+    -0.15,
+    1.35,
+    1.88
+   ]
+  },
+  "C M1 guess: tf_static used directly as body->camera": {
+   "T_body_cam": [
+    0.14595,
+    0.08003,
+    0.07056,
+    0.70702,
+    -0.70658,
+    0.02077,
+    -0.02077
+   ],
+   "ground_slope_deg_median": 3.37,
+   "ground_slope_deg_p90": 3.38,
+   "ground_z_median_m": 0.131,
+   "ground_z_p10_p90_m": [
+    -0.028,
+    0.281
+   ],
+   "canopy_points_inside_true_canopy": 0.955,
+   "canopy_points_mean_dist_outside_m": 0.008,
+   "per_tree_accumulated_canopy_centroid_offset_m": {
+    "trees": 9,
+    "mean": 0.345,
+    "max": 0.81,
+    "mean_xy": [
+     -0.008,
+     -0.042
+    ]
+   },
+   "boxes": 1113,
+   "box_top_xy_to_true_centre_median_m": 0.837,
+   "box_top_xy_to_true_centre_p90_m": 2.031,
+   "in_canopy_z_minus_truth_height_low_range_p50_p90_p99_m": [
+    -0.05,
+    1.44,
+    1.97
+   ]
+  },
+  "D M1 guess with inverted rotation": {
+   "T_body_cam": [
+    0.14595,
+    0.08003,
+    0.07056,
+    -0.70702,
+    0.70658,
+    -0.02077,
+    -0.02077
+   ],
+   "ground_slope_deg_median": 3.37,
+   "ground_slope_deg_p90": 3.37,
+   "ground_z_median_m": 0.14,
+   "ground_z_p10_p90_m": [
+    -0.229,
+    0.345
+   ],
+   "canopy_points_inside_true_canopy": 0.95,
+   "canopy_points_mean_dist_outside_m": 0.009,
+   "per_tree_accumulated_canopy_centroid_offset_m": {
+    "trees": 9,
+    "mean": 0.375,
+    "max": 0.734,
+    "mean_xy": [
+     -0.046,
+     -0.008
+    ]
+   },
+   "boxes": 1113,
+   "box_top_xy_to_true_centre_median_m": 0.756,
+   "box_top_xy_to_true_centre_p90_m": 2.04,
+   "in_canopy_z_minus_truth_height_low_range_p50_p90_p99_m": [
+    -0.08,
+    1.44,
+    1.97
+   ]
+  }
+ }
+}
