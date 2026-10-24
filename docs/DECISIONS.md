@@ -346,3 +346,38 @@ neighbour within 8 m; an air-frame needs far less, a nadir camera at 7 m sees ab
   ones (100 / 168 / 117 / 49). They are not generator artefacts: every flagged entry has no owning truth tree and a
   height 0.5-2 m above the highest truth top in the world (e.g. 8.67 m vs 8.19 m), the simple baseline's merged / false
   entries. The drone clears every truth canopy by >= 1.5 m, the scorer's own definition of a real error.
+
+## M4b: ROS wrapper (2026-10-24, 19:00-22:00; D-R1 onwards, separate numbering to avoid collisions)
+
+**D-R1. The node consumes the core by `add_subdirectory`, statically linked.** The registry reaches candidates through
+weak symbols, so executables must take the registry's object files (`tm_link_registry`); an installed static core would
+silently drop every candidate. The core is located through the package's real path (`../../core`) or `-DTM_CORE_DIR`.
+No change to core/CMakeLists.txt.
+
+**D-R2. Mapper config: the yaml points at `config/<mapper>.cfg`, it never copies values.** One source of truth for the
+replay, the evaluation and the drone; overrides exist (`mapper_overrides`) but are logged as WARN and must be empty in
+the shipped yaml (test). Unknown keys still fail at node start (dry-run `createMapper`).
+
+**D-R3. Pairing identical to the offline reader, released in detection order, plus early resolve.** Order keeps the
+mapper's input sequence equal to the replay's; early resolve (a newer disparity than stamp + 20 ms has arrived) avoids a
+0.5 s stall per unpaired detection (+0.35 s scan latency before) without changing which disparity a frame gets. It
+assumes in-order disparity stamps (one publisher); `sync_early_resolve: false` turns it off.
+
+**D-R4. Gates on missing information (rule 6).** Calibration, mount, pose: fail closed (no mapper / held frames,
+counted, health HOLDING or FAULT). Mission phase missing or unknown: fail open (scanning), warned once, listed in
+health. `set_tree_sprayed(false)` is refused (sprayed trees are protected). Heartbeat on a wall timer so it survives a
+paused sim clock; SLEEPING in IDLE / SCAN_APPROACH / SPRAYING / RETURN, frames still reach the mapper (its phase policy
+decides), so the ROS path equals the offline replay.
+
+**D-R5. Replay-only navigation emulator.** A recorded `/spray_target` is in the recorded system's ID space; feeding it
+to the node would freeze the wrong tree. `replay_isaac.launch` remaps it and `nav_emulator.py` resolves targets by
+descent point exactly like `replay_main.cpp`, and marks trees sprayed at the end of SPRAYING.
+
+**D-R6. Frame time is monotonic and the replay clock runs at 1 kHz.** cand_obj's rate limits integrate over frame `t`;
+rosbag play's 100 Hz clock and a phase heartbeat fed before older pending frames made the live run diverge
+(latency 2.80 vs 2.32 s). Fixed in the node; on the drone the wall clock is continuous anyway.
+
+**D-R7. Real launch defaults follow M4c's data-derived chain** (mount pitch 82 deg, not tf_static's 75; disparity
+offset 4.30 px, not camera_info's 4.92), both from one flight without ground truth; `camera_mount_source:=tf` and
+`disparity_offset:=auto` restore the recorded values.
+

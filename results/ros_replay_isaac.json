@@ -1,0 +1,172 @@
+{
+ "final_t": {
+  "ros": 288.411691,
+  "offline": 288.147494
+ },
+ "n_trees": {
+  "ros": 9,
+  "offline": 9
+ },
+ "pairs": [
+  {
+   "id_ros": 1,
+   "id_offline": 1,
+   "iou": 0.983,
+   "centre_dist_m": 0.023,
+   "height_diff_m": -0.033,
+   "sprayed_ros": false,
+   "sprayed_offline": false
+  },
+  {
+   "id_ros": 4,
+   "id_offline": 4,
+   "iou": 1.0,
+   "centre_dist_m": 0.0,
+   "height_diff_m": -0.005,
+   "sprayed_ros": true,
+   "sprayed_offline": true
+  },
+  {
+   "id_ros": 6,
+   "id_offline": 6,
+   "iou": 0.989,
+   "centre_dist_m": 0.02,
+   "height_diff_m": 0.0,
+   "sprayed_ros": true,
+   "sprayed_offline": true
+  },
+  {
+   "id_ros": 7,
+   "id_offline": 7,
+   "iou": 1.0,
+   "centre_dist_m": 0.0,
+   "height_diff_m": -0.0,
+   "sprayed_ros": false,
+   "sprayed_offline": false
+  },
+  {
+   "id_ros": 8,
+   "id_offline": 8,
+   "iou": 1.0,
+   "centre_dist_m": 0.0,
+   "height_diff_m": -0.001,
+   "sprayed_ros": true,
+   "sprayed_offline": true
+  },
+  {
+   "id_ros": 9,
+   "id_offline": 9,
+   "iou": 1.0,
+   "centre_dist_m": 0.0,
+   "height_diff_m": -0.0,
+   "sprayed_ros": true,
+   "sprayed_offline": true
+  },
+  {
+   "id_ros": 12,
+   "id_offline": 12,
+   "iou": 1.0,
+   "centre_dist_m": 0.0,
+   "height_diff_m": -0.004,
+   "sprayed_ros": true,
+   "sprayed_offline": true
+  },
+  {
+   "id_ros": 14,
+   "id_offline": 14,
+   "iou": 0.993,
+   "centre_dist_m": 0.02,
+   "height_diff_m": -0.003,
+   "sprayed_ros": true,
+   "sprayed_offline": true
+  },
+  {
+   "id_ros": 15,
+   "id_offline": 15,
+   "iou": 1.0,
+   "centre_dist_m": 0.0,
+   "height_diff_m": -0.003,
+   "sprayed_ros": true,
+   "sprayed_offline": true
+  }
+ ],
+ "same_id_pairs": 9,
+ "unmatched_ros": [],
+ "unmatched_offline": [],
+ "headline": {
+  "ros": {
+   "recall (final)": 1.0,
+   "precision (final)": 1.0,
+   "published / truth (final)": 9.0,
+   "recall (per-frame mean)": 0.7380050505050504,
+   "mean IoU (final)": 0.8651218386634724,
+   "min IoU (final)": 0.8192825450262027,
+   "merged entries (final)": 0.0,
+   "neighbours swallowed (final)": 0.0,
+   "split trees (final)": 0.0,
+   "false trees (final)": 0.0,
+   "centre RMSE m (final)": 0.18966919154734177,
+   "height bias m (final)": null,
+   "height RMSE m (final)": null,
+   "spill (final)": 0.06502731107068173,
+   "neighbour spill max (final)": 0.056088533912188224,
+   "ID switches after lock": 0.0,
+   "geometry retreats": 0.0,
+   "centre jumps": 0.0,
+   "height jumps": 0.0,
+   "IDs vanished while held by nav": 0.0,
+   "SAFETY total violations": 0.0,
+   "  undefined-height frames": 0.0,
+   "  new trees after scan": 0.0,
+   "  non-target changes in descent": 0.0,
+   "  sprayed-tree changes": 0.0,
+   "  new tree inside sprayed": 0.0,
+   "  invalid-entry frames": 0.0,
+   "  duplicate-ID frames": 0.0,
+   "  implausible-height frames": 0.0,
+   "  locked ID vanished": 0.0,
+   "truth trees sprayed": 7.0,
+   "truth trees sprayed twice": 0.0,
+   "scan latency mean s": 2.3347102222222245
+  },
+  "offline": {
+   "recall (final)": 1.0,
+   "precision (final)": 1.0,
+   "published / truth (final)": 9.0,
+   "recall (per-frame mean)": 0.7380050505050504,
+   "mean IoU (final)": 0.8674131596876449,
+   "min IoU (final)": 0.8165475375795952,
+   "merged entries (final)": 0.0,
+   "neighbours swallowed (final)": 0.0,
+   "split trees (final)": 0.0,
+   "false trees (final)": 0.0,
+   "centre RMSE m (final)": 0.1912159395959332,
+   "height bias m (final)": null,
+   "height RMSE m (final)": null,
+   "spill (final)": 0.06359149185919882,
+   "neighbour spill max (final)": 0.056466234477253456,
+   "ID switches after lock": 0.0,
+   "geometry retreats": 0.0,
+   "centre jumps": 0.0,
+   "height jumps": 0.0,
+   "IDs vanished while held by nav": 0.0,
+   "SAFETY total violations": 0.0,
+   "  undefined-height frames": 0.0,
+   "  new trees after scan": 0.0,
+   "  non-target changes in descent": 0.0,
+   "  sprayed-tree changes": 0.0,
+   "  new tree inside sprayed": 0.0,
+   "  invalid-entry frames": 0.0,
+   "  duplicate-ID frames": 0.0,
+   "  implausible-height frames": 0.0,
+   "  locked ID vanished": 0.0,
+   "truth trees sprayed": 7.0,
+   "truth trees sprayed twice": 0.0,
+   "scan latency mean s": 2.3189166666666683
+  }
+ },
+ "n_snapshots": {
+  "ros": 1191,
+  "offline": 1184
+ }
+}

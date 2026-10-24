@@ -328,6 +328,27 @@ optional `stage_ms` per snapshot for cost. The synthetic generator should write 
   (same build, different seeds / repeated runs) before claiming improvements.
 - Real flight (`/data/real/`) not touched in M1.
 
+## M4b delivered: ROS 1 wrapper `ros/treemapper_ros` (19:00-22:00)
+
+- Node `treemapper_node` (C++17) around any registered `Mapper` (`~mapper`, default cand_obj), Mapper interface +
+  registry only. Inputs: disparity + left/right camera_info, detections (treemapper_msgs/Detection2DArray or the
+  existing spot_spraying_msgs/DetectionResult, decoded via ShapeShifter, no dependency), pose (TF or PoseStamped),
+  /mission_state, hop target (Int32, our IDs). Outputs `/treemapper/{map,markers,health,counters,stage_timing}`,
+  services `/treemapper/{get_trees,set_tree_sprayed}`. Pairing = bag_frames.py rules (exact stamp, 0.5 s wait,
+  nearest 20 ms, de-dup, malformed rejected) + early resolve. Topics/params/gates/Jetson build: `ros/treemapper_ros/README.md`.
+- Config: `config/treemapper.yaml` points at `config/core/<mapper>.cfg` (symlink to the repo's `config/`), never copies
+  it; `test_config_agreement` enforces it. Core consumed by `add_subdirectory` (weak-symbol registry needs
+  `tm_link_registry`); no change to core/CMakeLists.txt was needed.
+- Launch: `treemapper_sim.launch` (world/body, verified nadir mount as param), `treemapper_real.launch` (world_nwu,
+  all names args; M4c's data-derived mount 82 deg + disparity offset 4.30 px as defaults, tf mount selectable),
+  `replay_isaac.launch` (bag --clock, nav_emulator.py, optional record).
+- Verified in tm_dev: 0 warnings (-Wall -Wextra), gtest 27/27, rostest `replay_smoke.test` SUCCESS, full Isaac
+  mission ROS vs offline replay of the same build: same 9 trees + IDs, scorecards equal within transport timing
+  (`results/ros_replay_isaac.md`); 45 s real-flight smoke of the real launch runs (25 trees, not scored).
+- Run it: build per the README (scratch ws `/data/work/catkin_m4b`, profile `snap` = git-archive export of the core),
+  then `ros/treemapper_ros/scripts/ros_replay_check.sh OUT 45 0 0.00390625` (~5 min).
+- Unverified: Orin build/timing, real camera chain on hardware, navigation integration (only the emulator drove it).
+
 ## Blockers
 
 None.
