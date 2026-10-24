@@ -258,3 +258,19 @@ def test_cost_from_stage_ms():
 
 def test_nwu_conversion():
     assert nwu_to_world(1.0, 2.0) == (-2.0, 1.0)
+
+
+def test_switches_split_by_lock_and_vanished_target_flagged():
+    m = Mission(phases=[(0.0, "SCAN"), (5.0, "PLANNING"), (6.0, "HOPPING")], targets=[(0.0, -1), (6.0, 11)])
+    s1 = Snapshot(1.0, [tree(10, 0, 0), tree(11, 6, 0)])
+    s2 = Snapshot(2.0, [tree(20, 0, 0), tree(11, 6, 0)])       # switch before lock
+    s3 = Snapshot(7.0, [tree(30, 0, 0), tree(11, 6, 0)])       # switch after lock
+    s4 = Snapshot(8.0, [tree(30, 0, 0)])                       # target 11 vanishes
+    st = score([s1, s2, s3, s4], GT, m)["stability"]
+    assert st["id_switches"] == 2 and st["id_switches_after_lock"] == 1
+    assert st["ids_vanished_while_held_by_navigation"] == [11]
+
+
+def test_empty_stream_does_not_crash():
+    r = score([], GT)
+    assert r["n_snapshots"] == 0 and r["safety"]["total_violations"] == 0

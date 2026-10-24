@@ -724,6 +724,7 @@ def main(argv=None):
     ap.add_argument("--title", default="Scorecard")
     ap.add_argument("--out-json")
     ap.add_argument("--out-md")
+    ap.add_argument("--append-md", help="markdown file appended to the scorecard (hand-written notes)")
     a = ap.parse_args(argv)
     snaps = read_snapshots(a.map)
     gt = read_ground_truth(a.gt)
@@ -732,6 +733,9 @@ def main(argv=None):
     res = score(snaps, gt, mission, camera)
     res["inputs"] = {"map": a.map, "gt": a.gt, "mission": a.mission, "camera": a.camera}
     md = to_markdown(res, a.title)
+    if a.append_md:
+        with open(a.append_md) as f:
+            md += "\n" + f.read()
     if a.out_json:
         with open(a.out_json, "w") as f:
             json.dump(_nan_to_none(res), f, indent=1, default=_json_default)

@@ -1,0 +1,684 @@
+{
+ "config": {
+  "match_min_iou": 0.1,
+  "cover_min": 0.3,
+  "own_min": 0.2,
+  "dup_min_iou": 0.3,
+  "retreat_tol": 0.02,
+  "jump_m": 1.0,
+  "height_jump_m": 1.0,
+  "change_eps_area": 0.001,
+  "change_eps_h": 0.001,
+  "locked_phases": [
+   "PLANNING",
+   "HOPPING",
+   "SPRAYING"
+  ],
+  "descent_phases": [
+   "HOPPING",
+   "SPRAYING"
+  ],
+  "descent_radius_m": 1.5,
+  "scan_phases": [
+   "SCAN"
+  ]
+ },
+ "n_snapshots": 1393,
+ "t_start": 10.0125,
+ "t_end": 288.374994,
+ "final": {
+  "t": 288.374994,
+  "detection": {
+   "n_truth": 9,
+   "n_published": 7,
+   "matched": 7,
+   "recall": 0.7777777777777778,
+   "precision": 1.0,
+   "missed": 2,
+   "missed_absorbed": 2,
+   "missed_unseen": 0,
+   "merged_entries": 2,
+   "wrong_merges": 2,
+   "trees_in_merged_entries": 4,
+   "split_trees": 0,
+   "duplicates": 0,
+   "fragments": 0,
+   "false_trees": 0,
+   "missed_ids": [
+    0,
+    3
+   ],
+   "split_tree_ids": [],
+   "merged_tree_ids": [
+    0,
+    1,
+    3,
+    4
+   ],
+   "merged_entry_ids": {
+    "7": [
+     3,
+     4
+    ],
+    "1": [
+     0,
+     1
+    ]
+   },
+   "false_tree_ids": []
+  },
+  "geometry": {
+   "mean_iou": 0.6290599125108456,
+   "min_iou": 0.3934600820770134,
+   "centre_mean_m": 1.0861177369146178,
+   "centre_rmse_m": 1.3545971768125653,
+   "centre_max_m": 2.360515200120516,
+   "height_bias_m": 1.4145247997998815,
+   "height_rmse_m": 1.4598585026703688,
+   "height_max_abs_m": 1.891587975437666,
+   "spill": 0.1639746766096052,
+   "neighbour_spill_mean": 0.14825514621556501,
+   "neighbour_spill_max": 0.41481342362505,
+   "per_tree": [
+    {
+     "truth_id": 1,
+     "map_id": 1,
+     "iou": 0.432,
+     "centre_err_m": 2.079,
+     "height_err_m": 1.14,
+     "neighbour_spill": 0.327
+    },
+    {
+     "truth_id": 2,
+     "map_id": 29,
+     "iou": 0.858,
+     "centre_err_m": 0.219,
+     "height_err_m": 1.866,
+     "neighbour_spill": 0.0
+    },
+    {
+     "truth_id": 4,
+     "map_id": 7,
+     "iou": 0.393,
+     "centre_err_m": 2.361,
+     "height_err_m": 1.354,
+     "neighbour_spill": 0.415
+    },
+    {
+     "truth_id": 5,
+     "map_id": 31,
+     "iou": 0.553,
+     "centre_err_m": 1.279,
+     "height_err_m": 1.285,
+     "neighbour_spill": 0.15
+    },
+    {
+     "truth_id": 6,
+     "map_id": 9,
+     "iou": 0.86,
+     "centre_err_m": 0.129,
+     "height_err_m": 1.892,
+     "neighbour_spill": 0.0
+    },
+    {
+     "truth_id": 7,
+     "map_id": 10,
+     "iou": 0.649,
+     "centre_err_m": 0.579,
+     "height_err_m": 1.554,
+     "neighbour_spill": 0.0
+    },
+    {
+     "truth_id": 8,
+     "map_id": 32,
+     "iou": 0.657,
+     "centre_err_m": 0.958,
+     "height_err_m": 0.81,
+     "neighbour_spill": 0.146
+    }
+   ]
+  },
+  "spray": {
+   "definition": "truth tree sprayed iff a sprayed entry's centre lies inside its canopy",
+   "sprayed_entries": 7,
+   "truth_trees_sprayed": 7,
+   "truth_trees_sprayed_twice": 0,
+   "orphan_sprayed_entries": 0,
+   "orphan_sprayed_ids": [],
+   "truth_trees_not_sprayed": [
+    0,
+    3
+   ]
+  }
+ },
+ "per_frame": {
+  "window": "every snapshot of the stream",
+  "n_frames": 1393,
+  "detection": {
+   "n_truth": {
+    "mean": 9.0,
+    "min": 9.0,
+    "max": 9.0
+   },
+   "n_published": {
+    "mean": 4.482412060301508,
+    "min": 0.0,
+    "max": 7.0
+   },
+   "matched": {
+    "mean": 4.4802584350323045,
+    "min": 0.0,
+    "max": 7.0
+   },
+   "recall": {
+    "mean": 0.49780649278136707,
+    "min": 0.0,
+    "max": 0.7777777777777778
+   },
+   "precision": {
+    "mean": 0.9995393093946439,
+    "min": 0.8,
+    "max": 1.0
+   },
+   "missed": {
+    "mean": 4.5197415649676955,
+    "min": 2.0,
+    "max": 9.0
+   },
+   "missed_absorbed": {
+    "mean": 1.2699210337401292,
+    "min": 0.0,
+    "max": 2.0
+   },
+   "missed_unseen": {
+    "mean": 3.2498205312275665,
+    "min": 0.0,
+    "max": 9.0
+   },
+   "merged_entries": {
+    "mean": 1.2699210337401292,
+    "min": 0.0,
+    "max": 2.0
+   },
+   "wrong_merges": {
+    "mean": 1.2699210337401292,
+    "min": 0.0,
+    "max": 2.0
+   },
+   "trees_in_merged_entries": {
+    "mean": 2.5398420674802584,
+    "min": 0.0,
+    "max": 4.0
+   },
+   "split_trees": {
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   },
+   "duplicates": {
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   },
+   "fragments": {
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   },
+   "false_trees": {
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   }
+  },
+  "geometry": {
+   "mean_iou": {
+    "mean": 0.603074953602615,
+    "min": 0.16303068448064695,
+    "max": 0.6751034217067179
+   },
+   "min_iou": {
+    "mean": 0.3895453942609743,
+    "min": 0.10764269053233207,
+    "max": 0.4404412204103545
+   },
+   "centre_mean_m": {
+    "mean": 1.064538143924425,
+    "min": 0.7189250351379831,
+    "max": 2.9803870419796152
+   },
+   "centre_rmse_m": {
+    "mean": 1.3317611179979807,
+    "min": 1.011091039422267,
+    "max": 2.9803870419796152
+   },
+   "centre_max_m": {
+    "mean": 2.2639196533595847,
+    "min": 1.62070770344316,
+    "max": 2.9803870419796152
+   },
+   "height_bias_m": {
+    "mean": 1.293886016006863,
+    "min": 0.2009450483057018,
+    "max": 2.027472402279411
+   },
+   "height_rmse_m": {
+    "mean": 1.4905429519618683,
+    "min": 1.1426905008686883,
+    "max": 2.027472402279411
+   },
+   "height_max_abs_m": {
+    "mean": 1.987804555422172,
+    "min": 1.2117842279765307,
+    "max": 2.814991107961153
+   },
+   "spill": {
+    "mean": 0.14735540518193435,
+    "min": 0.03176061188031059,
+    "max": 0.2679097458877915
+   },
+   "neighbour_spill_mean": {
+    "mean": 0.1290311584677212,
+    "min": 0.0,
+    "max": 0.34991230714429883
+   },
+   "neighbour_spill_max": {
+    "mean": 0.3693783668347173,
+    "min": 0.0,
+    "max": 0.41481342362505
+   }
+  }
+ },
+ "per_frame_published": {
+  "window": "first non-empty snapshot .. last snapshot",
+  "n_frames": 1106,
+  "detection": {
+   "n_truth": {
+    "mean": 9.0,
+    "min": 9.0,
+    "max": 9.0
+   },
+   "n_published": {
+    "mean": 5.6455696202531644,
+    "min": 1.0,
+    "max": 7.0
+   },
+   "matched": {
+    "mean": 5.642857142857143,
+    "min": 1.0,
+    "max": 7.0
+   },
+   "recall": {
+    "mean": 0.6269841269841269,
+    "min": 0.1111111111111111,
+    "max": 0.7777777777777778
+   },
+   "precision": {
+    "mean": 0.9995393093946439,
+    "min": 0.8,
+    "max": 1.0
+   },
+   "missed": {
+    "mean": 3.357142857142857,
+    "min": 2.0,
+    "max": 8.0
+   },
+   "missed_absorbed": {
+    "mean": 1.5994575045207957,
+    "min": 0.0,
+    "max": 2.0
+   },
+   "missed_unseen": {
+    "mean": 1.7576853526220615,
+    "min": 0.0,
+    "max": 8.0
+   },
+   "merged_entries": {
+    "mean": 1.5994575045207957,
+    "min": 0.0,
+    "max": 2.0
+   },
+   "wrong_merges": {
+    "mean": 1.5994575045207957,
+    "min": 0.0,
+    "max": 2.0
+   },
+   "trees_in_merged_entries": {
+    "mean": 3.1989150090415914,
+    "min": 0.0,
+    "max": 4.0
+   },
+   "split_trees": {
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   },
+   "duplicates": {
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   },
+   "fragments": {
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   },
+   "false_trees": {
+    "mean": 0.0,
+    "min": 0.0,
+    "max": 0.0
+   }
+  },
+  "geometry": {
+   "mean_iou": {
+    "mean": 0.603074953602615,
+    "min": 0.16303068448064695,
+    "max": 0.6751034217067179
+   },
+   "min_iou": {
+    "mean": 0.3895453942609743,
+    "min": 0.10764269053233207,
+    "max": 0.4404412204103545
+   },
+   "centre_mean_m": {
+    "mean": 1.064538143924425,
+    "min": 0.7189250351379831,
+    "max": 2.9803870419796152
+   },
+   "centre_rmse_m": {
+    "mean": 1.3317611179979807,
+    "min": 1.011091039422267,
+    "max": 2.9803870419796152
+   },
+   "centre_max_m": {
+    "mean": 2.2639196533595847,
+    "min": 1.62070770344316,
+    "max": 2.9803870419796152
+   },
+   "height_bias_m": {
+    "mean": 1.293886016006863,
+    "min": 0.2009450483057018,
+    "max": 2.027472402279411
+   },
+   "height_rmse_m": {
+    "mean": 1.4905429519618683,
+    "min": 1.1426905008686883,
+    "max": 2.027472402279411
+   },
+   "height_max_abs_m": {
+    "mean": 1.987804555422172,
+    "min": 1.2117842279765307,
+    "max": 2.814991107961153
+   },
+   "spill": {
+    "mean": 0.14735540518193435,
+    "min": 0.03176061188031059,
+    "max": 0.2679097458877915
+   },
+   "neighbour_spill_mean": {
+    "mean": 0.1290311584677212,
+    "min": 0.0,
+    "max": 0.34991230714429883
+   },
+   "neighbour_spill_max": {
+    "mean": 0.3693783668347173,
+    "min": 0.0,
+    "max": 0.41481342362505
+   }
+  }
+ },
+ "stability": {
+  "first_lock_t": 87.346248,
+  "id_switches": 1,
+  "id_switches_after_lock": 0,
+  "id_switch_events": [
+   {
+    "t": 81.382,
+    "truth_id": 1,
+    "from": 2,
+    "to": 1,
+    "after_lock": false
+   }
+  ],
+  "id_meaning_changes": 1,
+  "id_meaning_changes_after_lock": 0,
+  "id_meaning_change_events": [
+   {
+    "t": 81.187,
+    "id": 1,
+    "from": 0,
+    "to": 1,
+    "after_lock": false
+   }
+  ],
+  "id_reappearances": 0,
+  "id_reuse": 0,
+  "geometry_retreats": 0,
+  "max_lost_fraction": 0.0,
+  "retreat_events": [],
+  "centre_jumps": 2,
+  "centre_jump_events": [
+   {
+    "t": 77.385,
+    "id": 1,
+    "moved_m": 2.731
+   },
+   {
+    "t": 145.976,
+    "id": 7,
+    "moved_m": 1.271
+   }
+  ],
+  "height_jumps": 14,
+  "height_jump_events": [
+   {
+    "t": 81.772,
+    "id": 9,
+    "dh_m": 1.284
+   },
+   {
+    "t": 82.179,
+    "id": 1,
+    "dh_m": 1.317
+   },
+   {
+    "t": 113.379,
+    "id": 10,
+    "dh_m": -2.354
+   },
+   {
+    "t": 113.785,
+    "id": 10,
+    "dh_m": 2.602
+   },
+   {
+    "t": 128.182,
+    "id": 7,
+    "dh_m": -1.285
+   },
+   {
+    "t": 131.774,
+    "id": 7,
+    "dh_m": 1.361
+   },
+   {
+    "t": 156.376,
+    "id": 1,
+    "dh_m": 1.249
+   },
+   {
+    "t": 179.581,
+    "id": 31,
+    "dh_m": 1.567
+   },
+   {
+    "t": 182.782,
+    "id": 31,
+    "dh_m": -2.602
+   },
+   {
+    "t": 194.174,
+    "id": 32,
+    "dh_m": -1.014
+   },
+   {
+    "t": 200.771,
+    "id": 32,
+    "dh_m": -1.682
+   },
+   {
+    "t": 210.375,
+    "id": 31,
+    "dh_m": 4.044
+   },
+   {
+    "t": 212.374,
+    "id": 31,
+    "dh_m": -2.076
+   },
+   {
+    "t": 213.576,
+    "id": 31,
+    "dh_m": 1.09
+   }
+  ],
+  "ids_vanished": [
+   2,
+   8
+  ],
+  "ids_vanished_while_held_by_navigation": [
+   8
+  ],
+  "truth_trees_ever_split": [],
+  "truth_trees_ever_in_a_merged_entry": [
+   0,
+   1,
+   3,
+   4
+  ]
+ },
+ "safety": {
+  "undefined_height_frames": 0,
+  "undefined_height_instances": 0,
+  "undefined_height_events": [],
+  "sprayed_tree_changes": 1,
+  "sprayed_tree_change_events": [
+   {
+    "t": 145.976,
+    "id": 7
+   }
+  ],
+  "new_tree_inside_sprayed": 0,
+  "new_tree_inside_sprayed_events": [],
+  "new_trees_after_scan": 0,
+  "new_tree_after_scan_events": [],
+  "descent_frames": 370,
+  "cruise_altitude_m": 15.045,
+  "nontarget_changes_in_descent": 0,
+  "nontarget_change_events": [],
+  "total_violations": 1
+ },
+ "timeliness": {
+  "definition": "first snapshot covering the tree (cov >= cover_min) minus the first time its centre came within the nadir footprint's half-diagonal (yaw-free bound); 'scan' variant counts view time only while the phase is SCAN",
+  "trees_never_published": [],
+  "latency_mean_s": 15.056558444444448,
+  "latency_max_s": 52.682546,
+  "latency_scan_mean_s": 2.856414000000006,
+  "latency_scan_max_s": 11.375048000000007,
+  "per_tree": [
+   {
+    "truth_id": 0,
+    "first_in_view_t": 60.1925,
+    "first_in_view_scan_t": 65.7987,
+    "first_published_t": 67.976248,
+    "latency_s": 7.784,
+    "latency_scan_s": 2.178
+   },
+   {
+    "truth_id": 1,
+    "first_in_view_t": 59.3962,
+    "first_in_view_scan_t": 65.7987,
+    "first_published_t": 77.173748,
+    "latency_s": 17.778,
+    "latency_scan_s": 11.375
+   },
+   {
+    "truth_id": 2,
+    "first_in_view_t": 170.9037,
+    "first_in_view_scan_t": 174.8037,
+    "first_published_t": 178.378746,
+    "latency_s": 7.475,
+    "latency_scan_s": 3.575
+   },
+   {
+    "truth_id": 3,
+    "first_in_view_t": 59.1037,
+    "first_in_view_scan_t": 78.7987,
+    "first_published_t": 80.781248,
+    "latency_s": 21.678,
+    "latency_scan_s": 1.983
+   },
+   {
+    "truth_id": 4,
+    "first_in_view_t": 56.7962,
+    "first_in_view_scan_t": 79.4975,
+    "first_published_t": 80.781248,
+    "latency_s": 23.985,
+    "latency_scan_s": 1.284
+   },
+   {
+    "truth_id": 5,
+    "first_in_view_t": 178.1025,
+    "first_in_view_scan_t": 178.1025,
+    "first_published_t": 179.776246,
+    "latency_s": 1.674,
+    "latency_scan_s": 1.674
+   },
+   {
+    "truth_id": 6,
+    "first_in_view_t": 80.6025,
+    "first_in_view_scan_t": 80.6025,
+    "first_published_t": 81.983748,
+    "latency_s": 1.381,
+    "latency_scan_s": 1.381
+   },
+   {
+    "truth_id": 7,
+    "first_in_view_t": 81.3012,
+    "first_in_view_scan_t": 81.3012,
+    "first_published_t": 82.373748,
+    "latency_s": 1.073,
+    "latency_scan_s": 1.073
+   },
+   {
+    "truth_id": 8,
+    "first_in_view_t": 128.2962,
+    "first_in_view_scan_t": 179.7925,
+    "first_published_t": 180.978746,
+    "latency_s": 52.683,
+    "latency_scan_s": 1.186
+   }
+  ]
+ },
+ "cost": {
+  "available": false,
+  "note": "map stream carries no stage_ms"
+ },
+ "ids_ever_published": [
+  1,
+  2,
+  7,
+  8,
+  9,
+  10,
+  29,
+  31,
+  32
+ ],
+ "inputs": {
+  "map": "/data/work/extracted/isaac_2026-10-23-15-34-29/map_existing.jsonl",
+  "gt": "/data/work/extracted/isaac_2026-10-23-15-34-29/ground_truth.json",
+  "mission": "/data/work/extracted/isaac_2026-10-23-15-34-29/mission.json",
+  "camera": "/data/work/extracted/isaac_2026-10-23-15-34-29/camera_info.json"
+ }
+}
