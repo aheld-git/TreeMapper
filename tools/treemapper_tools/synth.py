@@ -26,12 +26,15 @@ partial (half) boxes, and false positives on clutter and bare ground.
 Mission: IDLE (ground, take-off) -> SCAN_APPROACH -> SCAN (serpentine corridors at 15 m with U-turns)
 -> PLANNING -> [HOPPING (transit 10.5 m, descent to 7 m) -> SPRAYING (4 s)] x n -> RETURN -> IDLE.
 The detector sleeps in IDLE / SPRAYING / RETURN (heartbeat frames only), like the recorded mission.
+Hover altitude (D40, fixes the D30 flaw): the descent, transit and hover clear every canopy within FOOTPRINT_R (8 m) of
+the drone by CLEARANCE (1.5 m). ``overrides={"legacy_hover": True}`` reproduces the pre-D40 generator bit for bit.
 
 Calibration of the noise against the recorded data: results/synthetic_calibration.md.
 """
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import os
@@ -70,6 +73,9 @@ FRAME_HZ = 15.0      # detector/disparity frame rate while awake (recorded: ~27 
 HEARTBEAT_HZ = 5.0
 RES = 0.05           # heightfield resolution, m
 SCAN_ALT, HOP_ALT, SPRAY_ALT = 15.0, 10.5, 7.0
+# Hover clearance (D40): every tree whose canopy lies within FOOTPRINT_R of the drone must stay CLEARANCE below it.
+# The planner works with PLAN_MARGIN extra metres of footprint so the 1 s path smoothing cannot cut a corner into it.
+FOOTPRINT_R, CLEARANCE, PLAN_MARGIN = 8.0, 1.5, 2.0
 G = 9.81
 
 
@@ -160,6 +166,15 @@ class World:
         outside = (x < self.x0) | (x > self.x0 + self.nx * RES) | (y < self.y0) | (y > self.y0 + self.ny * RES)
         return np.where(outside, np.float32(self.ground_xy(0.0, 0.0) - 50.0), out)  # no surface outside
 
+    def footprint_top(self, x, y, reach=FOOTPRINT_R) -> float:
+        """Highest canopy top (z) among trees whose canopy (outline at most ``rmax`` out) lies within ``reach`` of (x, y)."""
+        best = -math.inf
+        for t in self.trees:
+            rmax = t["r"] * (1 + sum(a for a, _ in t["harm"]))
+            if math.hypot(t["x"] - x, t["y"] - y) - rmax < reach:
+                best = max(best, float(self.ground_xy(t["x"], t["y"]) + t["top"]))
+        return best
+
     def ground_truth(self) -> List[GroundTruthTree]:
         out = []
         th = np.linspace(0, 2 * math.pi, 24, endpoint=False)
@@ -173,8 +188,16 @@ class World:
 
 # ----------------------------------------------------------------------------- mission
 
-def plan_mission(rng, world: World, p: dict):
-    """Returns (samples, phase list, target list). samples: list of (t, x, y, z, phase, target_id, target_xy)."""
+def plan_mission(rng, world: World, p: dict, legacy: bool = False, counts: Optional[List[int]] = None):
+    """Returns (samples, dt). samples: list of (x, y, z, phase, burst, target_id, target_xy) at a fixed dt.
+
+    ``legacy=True`` flies the pre-D40 altitudes (hover clears the target only). The default clears every tree within
+    FOOTPRINT_R of the hover point and of the transit (D40). ``counts`` makes both plans share one timeline: a legacy
+    run records the sample count of every segment, a fixed run replays them (only altitudes, hence z speeds, change), so
+    the sample count, the phase timing and every later RNG draw stay identical. The RNG draws are the same in both
+    modes (spray order and the target-centre offsets), so pass a copy of the RNG state to the second call.
+    """
+    seg = iter(counts) if (counts is not None and not legacy) else None
     trees = world.trees
     xs = [t["x"] for t in trees]; ys = [t["y"] for t in trees]
     y_lo, y_hi = min(ys) - 7.0, max(ys) + 7.0
@@ -189,6 +212,10 @@ def plan_mission(rng, world: World, p: dict):
     def line(a, b, speed, phase, target=-1, txy=(math.nan, math.nan)):
         d = math.dist(a, b)
         n = max(1, int(d / speed / dt))
+        if seg is not None:
+            n = next(seg)
+        elif counts is not None:
+            counts.append(n)
         for k in range(1, n + 1):
             f = k / n
             pts.append((a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), phase, False, target, txy))
@@ -214,6 +241,10 @@ def plan_mission(rng, world: World, p: dict):
             rad = (nx - cx) / 2.0
             ccx, ccy = cx + rad, pos[1]
             n = max(2, int(math.pi * rad / p["speed"] / dt))
+            if seg is not None:
+                n = next(seg)
+            elif counts is not None:
+                counts.append(n)
             for i in range(1, n + 1):
                 a = math.pi - math.pi * i / n
                 yy = ccy + direction * rad * math.sin(a)
@@ -234,21 +265,36 @@ def plan_mission(rng, world: World, p: dict):
         txy = (t["x"] + rng.normal(0, 0.3), t["y"] + rng.normal(0, 0.3))  # navigation's idea of the centre
         gz = float(world.ground_xy(*txy))
         top_z = gz + t["top"]
-        hop = (pos[0], pos[1], max(pos[2], top_z + 4.0, gz + HOP_ALT))
+        hop_z = max(pos[2], top_z + 4.0, gz + HOP_ALT)
+        down_z = max(gz + SPRAY_ALT, top_z + 1.5)
+        if not legacy:
+            # D40: clear every canopy within the footprint of the hover point and of the whole transit
+            reach = FOOTPRINT_R + PLAN_MARGIN
+            nseg = max(1, int(math.dist(pos[:2], txy)))
+            top_path = max(world.footprint_top(pos[0] + (txy[0] - pos[0]) * i / nseg,
+                                               pos[1] + (txy[1] - pos[1]) * i / nseg, reach) for i in range(nseg + 1))
+            down_z = max(down_z, world.footprint_top(txy[0], txy[1], reach) + CLEARANCE)
+            hop_z = max(hop_z, top_path + CLEARANCE, down_z + 1.0)
+        hop = (pos[0], pos[1], hop_z)
         line(pos, hop, 1.5, "HOPPING", t["id"], txy); pos = hop
         over = (txy[0], txy[1], pos[2])
         line(pos, over, 3.0, "HOPPING", t["id"], txy); pos = over
-        down = (txy[0], txy[1], max(gz + SPRAY_ALT, top_z + 1.5))
+        down = (txy[0], txy[1], down_z)
         line(pos, down, 1.0, "HOPPING", t["id"], txy); pos = down
         hold(pos, 4.0, "SPRAYING", t["id"], txy)
     if order:
-        up2 = (pos[0], pos[1], g0 + SCAN_ALT)
+        up_z = g0 + SCAN_ALT
+        if not legacy:  # climb-out: above every canopy (a no-op while the scan altitude already clears them all)
+            up_z = max(up_z, max(float(world.ground_xy(q["x"], q["y"]) + q["top"]) for q in trees) + CLEARANCE)
+        up2 = (pos[0], pos[1], up_z)
         line(pos, up2, 2.0, "RETURN"); pos = up2
     back = (home[0], home[1], pos[2])
     line(pos, back, 5.0, "RETURN"); pos = back
     land = (home[0], home[1], g0)
     line(pos, land, 2.0, "RETURN"); pos = land
     hold(pos, 2.0, "IDLE")
+    if seg is not None:
+        assert next(seg, None) is None, "fixed plan used fewer segments than the legacy plan"
     return pts, dt
 
 
@@ -496,8 +542,20 @@ def generate(out_dir: str, level: str, seed: int, overrides: Optional[dict] = No
     frame_hz = p.get("frame_hz", FRAME_HZ)
     rng = np.random.default_rng([seed, list(LEVELS).index(level)])
     world = World(rng, p)
-    pts, dt = plan_mission(rng, world, p)
+    # D40: the hover clears every canopy in the footprint. The legacy plan (same draws, same timeline) is flown as a
+    # SHADOW: it keeps the main RNG stream exactly where the pre-fix generator had it, so every noise draw of every
+    # frame is unchanged. Frames whose true pose differs (only z, only around the hops) are rendered at the new pose
+    # with the same stereo noise field; their detector draws come from a separate stream (see Detector below).
+    counts: List[int] = []
+    plan_rng = copy.deepcopy(rng)
+    pts0, dt = plan_mission(rng, world, p, legacy=True, counts=counts)
+    if p.get("legacy_hover"):
+        pts = pts0
+    else:
+        pts, _ = plan_mission(plan_rng, world, p, legacy=False, counts=counts)
     P, V, yaw, pitch, roll, yaw_rate = kinematics(pts, dt)
+    P0 = P if pts is pts0 else kinematics(pts0, dt)[0]
+    moved = np.abs(P[:, 2] - P0[:, 2]) > 0.0  # kinematics' yaw/pitch/roll depend on x, y only
     n = len(pts)
     ts = dt * np.arange(n)
     phases_s = [q[3] for q in pts]
@@ -510,7 +568,8 @@ def generate(out_dir: str, level: str, seed: int, overrides: Optional[dict] = No
     burst = bb
     os.makedirs(out_dir, exist_ok=True)
     rend = Renderer(world)
-    detector = Detector(rng, world, p, rend.cal)
+    detector = Detector(rng, world, p, rend.cal)  # shadow detector: legacy poses, main stream (as before D40)
+    det_fix = Detector(np.random.default_rng([seed, list(LEVELS).index(level), 32]), world, p, rend.cal)
     # pose noise: white + random-walk bias
     bias = np.cumsum(rng.normal(0, p["pose_bias"] * math.sqrt(dt), (n, 3)), axis=0)
     t_pose_valid = next((ts[i] for i in range(n) if phases_s[i] == "SCAN_APPROACH"), 0.0) + 1.0
@@ -551,7 +610,13 @@ def generate(out_dir: str, level: str, seed: int, overrides: Optional[dict] = No
             Z = rend.depth(P[i], q_true)
             disp = noisy_disparity(rng, Z, p, bool(burst[i]))
             R, C = rend.cam_pose(P[i], q_true)
-            boxes = detector.detect(R, C, bool(burst[i]))
+            if moved[i]:
+                R0, C0 = rend.cam_pose(P0[i], q_true)
+                det_fix.missed, det_fix.merged = dict(detector.missed), dict(detector.merged)
+                detector.detect(R0, C0, bool(burst[i]))  # advances the main stream and sticky state as before
+                boxes = det_fix.detect(R, C, bool(burst[i]))
+            else:
+                boxes = detector.detect(R, C, bool(burst[i]))
             # receive time = stamp (no latency), so phase/target in the frame are those in force on receipt
             w.write(Frame(t, t, pose, valid, ph, int(tid), txy, boxes, disp.astype(np.float32)))
             cnt["frames"] += 1; cnt["boxes"] += len(boxes); cnt["burst_frames"] += int(burst[i])
@@ -566,6 +631,8 @@ def generate(out_dir: str, level: str, seed: int, overrides: Optional[dict] = No
     with open(os.path.join(out_dir, "camera_info.json"), "w") as f:
         json.dump(camera_info(), f, indent=1)
     meta.update(cnt)
+    meta["hover_clearance"] = {"footprint_r": FOOTPRINT_R, "clearance": CLEARANCE, "legacy": bool(p.get("legacy_hover")),
+                               "moved_samples": int(moved.sum())}
     meta["duration_s"] = float(ts[-1])
     meta["frames_bytes"] = os.path.getsize(os.path.join(out_dir, "frames.bin"))
     with open(os.path.join(out_dir, "meta.json"), "w") as f:

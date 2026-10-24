@@ -331,3 +331,7 @@ optional `stage_ms` per snapshot for cost. The synthetic generator should write 
 ## Blockers
 
 None.
+
+## M4d note
+
+suite_v2 (fixed hover) at /data/work/synthetic/suite_v2 is the tuning suite from now on (D40; suite_v1 and suite_holdout stay frozen).

@@ -312,3 +312,37 @@ seen by either candidate) + the recording, frozen configs, paired by seed (`resu
 - Tooling: `tools/treemapper_tools/m3_compare.py` merges per-level evaluate outputs and adds the cand_grid vs cand_obj
   pairing from the same runs (no re-run), plus height-error tails and descent-height ranges.
 
+
+## M4d generator fix (2026-10-24, 19:00-; D40)
+
+**D40. Generator hover clears every canopy in the footprint (fixes D30).** `synth.py` used z = max(ground + 7,
+target top + 1.5) for the spray hover, which only cleared the target. Now the transit, descent and hover use
+`z >= max top of every tree whose canopy lies within FOOTPRINT_R = 8 m of the drone + CLEARANCE = 1.5 m` (the planner adds
+PLAN_MARGIN = 2 m so the 1 s path smoothing cannot cut a corner into a canopy). Transit: the whole target-bound path is
+checked at 1 m steps; hop height >= hover height + 1 m. Climb-out: above the highest canopy + 1.5 m (a no-op while
+the 15 m scan altitude already clears them all). The footprint is 8 m because D30's evidence (hard_s100 at 61.4 s) was a
+neighbour within 8 m; an air-frame needs far less, a nadir camera at 7 m sees about 5 m, so 8 m is the generous choice.
+- **Nothing else changed, by construction.** The legacy plan is still built (same RNG draws, same segment sample counts)
+  and flown as a *shadow*: it keeps the main RNG stream exactly where it was (stereo noise, pose noise, detector
+  draws), and the fixed trajectory replays its segment sample counts, so frame count, timing and phases are identical.
+  The hover only gets higher, so descents are a little faster than 1 m/s. Frames whose true pose differs (only z) are
+  rendered at the new pose with the same stereo noise field; their detector draws come from a separate stream
+  (`[seed, level, 32]`) with the sticky miss/merge state copied from the shadow detector, so the main stream, and with
+  it every later frame, is untouched. Proof (`hard` seed 100, full size, against the pre-fix generator): world and
+  `ground_truth.json` and `camera_info.json` byte-identical; frame count, times, phases, targets identical;
+  746 / 1365 frames bit-identical (all of SCAN, PLANNING, IDLE, the heartbeats after the hops); the 619 that differ are
+  HOPPING (479), SPRAYING (120) and the RETURN climb-out (20), same noisy x, y and attitude, z higher by 0..1.67 m.
+  `overrides={"legacy_hover": True}` reproduces the pre-fix output bit for bit (test pin on the decoded frames).
+- **suite_v1 and suite_holdout are untouched** (frozen references, flawed hover and all). Scores on them stay
+  comparable among themselves; suite_v2 numbers are not comparable with them. New suite: `/data/work/synthetic/suite_v2`,
+  seeds 200-204 x easy/medium/hard, 15 missions, 444 MB (27-37 MB each), the tuning suite from now on.
+- Tests (`tools/tests/test_synth_hover.py`): no canopy in the footprint above (drone z - 1.5 m) during the descent, hover
+  and climb-out for 3 seeds x 3 levels (> 500 samples each); the fix only raises altitude on the same timeline; the D30
+  flaw exists in the legacy plan and not in the fixed one; the legacy flag equals the pre-fix generator and the fixed
+  output differs only in the moved frames. The existing reproducibility test compares two runs and has no pin to update.
+- Check on the generated suite_v2 from `mission.json` + `ground_truth.json` alone: smallest (drone z - tree top) over all
+  trees whose outline is within 8 m, HOPPING and SPRAYING: 1.50 m on 15 / 15 missions (hover z 6.4-9.9 m).
+- Baseline on suite_v2 (`simple`): implausible-height frames are 0 on all easy and medium missions and 434 on four hard
+  ones (100 / 168 / 117 / 49). They are not generator artefacts: every flagged entry has no owning truth tree and a
+  height 0.5-2 m above the highest truth top in the world (e.g. 8.67 m vs 8.19 m), the simple baseline's merged / false
+  entries. The drone clears every truth canopy by >= 1.5 m, the scorer's own definition of a real error.
