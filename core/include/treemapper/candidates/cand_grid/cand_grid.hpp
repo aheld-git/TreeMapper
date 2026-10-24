@@ -60,7 +60,7 @@ struct Config {
   int ground_min_frames{3};        ///< only cells seen in this many frames define the ground ...
   double ground_min_weight{3.0};   ///< ... with at least this weight (noise at the swath edge drags it down)
   // --- extraction / segmentation
-  double extract_period{0.2};      ///< s between extractions
+  double extract_period{0.1};      ///< s between extractions
   double window_margin{6.0};       ///< m around the recent footprint
   double min_cell_weight{1.0};     ///< cell counts as observed ("known")
   double canopy_min_h{0.5};        ///< m above ground: canopy cell
