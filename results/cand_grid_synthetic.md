@@ -102,24 +102,24 @@ Per dataset:
 
 | Metric | mean | worst | std over datasets | run-to-run max diff |
 |---|---|---|---|---|
-| recall (final) | 0.909 | 0.696 | 0.105 | 0 |
-| precision (final) | 0.967 | 0.864 | 0.046 | 0 |
-| published / truth (final) | 17.267 | n/a | 2.744 | 0 |
-| recall (per-frame mean) | 0.804 | 0.621 | 0.089 | 0 |
-| mean IoU (final) | 0.745 | 0.581 | 0.111 | 0 |
-| min IoU (final) | 0.563 | 0.319 | 0.167 | 0 |
-| merged entries (final) | 1.467 | 4 | 1.454 | 0 |
-| neighbours swallowed (final) | 1.600 | 5 | 1.705 | 0 |
-| split trees (final) | 0.133 | 1 | 0.340 | 0 |
-| false trees (final) | 0.533 | 3 | 0.957 | 0 |
-| centre RMSE m (final) | 0.510 | 0.949 | 0.298 | 0 |
-| height bias m (final) | -0.028 | n/a | 0.136 | 0 |
-| height RMSE m (final) | 0.195 | 0.367 | 0.124 | 0 |
-| spill (final) | 0.201 | 0.374 | 0.110 | 0 |
-| neighbour spill max (final) | 0.231 | 0.543 | 0.184 | 0 |
+| recall (final) | 0.900 | 0.652 | 0.118 | 0 |
+| precision (final) | 0.976 | 0.909 | 0.031 | 0 |
+| published / truth (final) | 16.867 | n/a | 2.553 | 0 |
+| recall (per-frame mean) | 0.796 | 0.579 | 0.102 | 0 |
+| mean IoU (final) | 0.761 | 0.602 | 0.100 | 0 |
+| min IoU (final) | 0.572 | 0.329 | 0.159 | 0 |
+| merged entries (final) | 1.467 | 5 | 1.586 | 0 |
+| neighbours swallowed (final) | 1.600 | 6 | 1.855 | 0 |
+| split trees (final) | 0.200 | 2 | 0.542 | 0 |
+| false trees (final) | 0.267 | 1 | 0.442 | 0 |
+| centre RMSE m (final) | 0.473 | 0.911 | 0.278 | 0 |
+| height bias m (final) | -0.019 | n/a | 0.144 | 0 |
+| height RMSE m (final) | 0.188 | 0.391 | 0.119 | 0 |
+| spill (final) | 0.167 | 0.300 | 0.088 | 0 |
+| neighbour spill max (final) | 0.236 | 0.546 | 0.190 | 0 |
 | ID switches after lock | 0 | 0 | 0 | 0 |
 | geometry retreats | 0 | 0 | 0 | 0 |
-| centre jumps | 0.600 | 4 | 1.143 | 0 |
+| centre jumps | 0.733 | 5 | 1.389 | 0 |
 | height jumps | 0 | 0 | 0 | 0 |
 | IDs vanished while held by nav | 0 | 0 | 0 | 0 |
 | SAFETY total violations | 9.333 | 42 | 15.915 | 0 |
@@ -134,30 +134,30 @@ Per dataset:
 |   locked ID vanished | 0 | 0 | 0 | 0 |
 | truth trees sprayed | 4.667 | 4 | 0.699 | 0 |
 | truth trees sprayed twice | 0 | 0 | 0 | 0 |
-| scan latency mean s | 2.058 | 4.118 | 0.949 | 0 |
+| scan latency mean s | 2.138 | 4.987 | 1.089 | 0 |
 
 Per group (mean / worst):
 
 | Metric | easy (n=5) | hard (n=5) | medium (n=5) |
 |---|---|---|---|
-| recall (final) | 1 / 1 | 0.771 / 0.696 | 0.957 / 0.941 |
-| precision (final) | 1 / 1 | 0.960 / 0.905 | 0.940 / 0.864 |
-| published / truth (final) | 14 / n/a | 19 / n/a | 18.800 / n/a |
-| recall (per-frame mean) | 0.883 / 0.870 | 0.689 / 0.621 | 0.841 / 0.821 |
-| mean IoU (final) | 0.875 / 0.859 | 0.605 / 0.581 | 0.755 / 0.740 |
-| min IoU (final) | 0.774 / 0.733 | 0.379 / 0.319 | 0.536 / 0.491 |
-| merged entries (final) | 0 / 0 | 3 / 4 | 1.400 / 2 |
-| neighbours swallowed (final) | 0 / 0 | 3.400 / 5 | 1.400 / 2 |
-| split trees (final) | 0 / 0 | 0.200 / 1 | 0.200 / 1 |
-| false trees (final) | 0 / 0 | 0.600 / 2 | 1 / 3 |
-| centre RMSE m (final) | 0.144 / 0.152 | 0.851 / 0.949 | 0.534 / 0.697 |
-| height bias m (final) | -0.028 / n/a | -0.028 / n/a | -0.029 / n/a |
-| height RMSE m (final) | 0.066 / 0.120 | 0.344 / 0.367 | 0.174 / 0.280 |
-| spill (final) | 0.063 / 0.076 | 0.310 / 0.374 | 0.229 / 0.318 |
-| neighbour spill max (final) | 0.005 / 0.024 | 0.428 / 0.543 | 0.260 / 0.338 |
+| recall (final) | 1 / 1 | 0.745 / 0.652 | 0.957 / 0.941 |
+| precision (final) | 1 / 1 | 0.960 / 0.909 | 0.968 / 0.941 |
+| published / truth (final) | 14 / n/a | 18.400 / n/a | 18.200 / n/a |
+| recall (per-frame mean) | 0.883 / 0.870 | 0.662 / 0.579 | 0.841 / 0.821 |
+| mean IoU (final) | 0.877 / 0.862 | 0.635 / 0.602 | 0.771 / 0.749 |
+| min IoU (final) | 0.774 / 0.733 | 0.397 / 0.329 | 0.545 / 0.500 |
+| merged entries (final) | 0 / 0 | 3.200 / 5 | 1.200 / 2 |
+| neighbours swallowed (final) | 0 / 0 | 3.600 / 6 | 1.200 / 2 |
+| split trees (final) | 0 / 0 | 0.400 / 2 | 0.200 / 1 |
+| false trees (final) | 0 / 0 | 0.400 / 1 | 0.400 / 1 |
+| centre RMSE m (final) | 0.130 / 0.138 | 0.770 / 0.911 | 0.518 / 0.701 |
+| height bias m (final) | -0.029 / n/a | -0.001 / n/a | -0.025 / n/a |
+| height RMSE m (final) | 0.066 / 0.120 | 0.329 / 0.391 | 0.169 / 0.257 |
+| spill (final) | 0.058 / 0.071 | 0.262 / 0.300 | 0.181 / 0.217 |
+| neighbour spill max (final) | 0.005 / 0.024 | 0.443 / 0.546 | 0.261 / 0.338 |
 | ID switches after lock | 0 / 0 | 0 / 0 | 0 / 0 |
 | geometry retreats | 0 / 0 | 0 / 0 | 0 / 0 |
-| centre jumps | 0 / 0 | 1.800 / 4 | 0 / 0 |
+| centre jumps | 0 / 0 | 2 / 5 | 0.200 / 1 |
 | height jumps | 0 / 0 | 0 / 0 | 0 / 0 |
 | IDs vanished while held by nav | 0 / 0 | 0 / 0 | 0 / 0 |
 | SAFETY total violations | 0 / 0 | 20.600 / 42 | 7.400 / 37 |
@@ -172,27 +172,27 @@ Per group (mean / worst):
 |   locked ID vanished | 0 / 0 | 0 / 0 | 0 / 0 |
 | truth trees sprayed | 4 / 4 | 5 / 4 | 5 / 5 |
 | truth trees sprayed twice | 0 / 0 | 0 / 0 | 0 / 0 |
-| scan latency mean s | 1.578 / 1.631 | 2.009 / 4.118 | 2.586 / 3.733 |
+| scan latency mean s | 1.578 / 1.631 | 2.235 / 4.987 | 2.602 / 3.778 |
 
 Per dataset:
 
 | dataset | recall (final) | precision (final) | published / truth (final) | recall (per-frame mean) | mean IoU (final) | min IoU (final) | merged entries (final) | neighbours swallowed (final) | split trees (final) | false trees (final) | centre RMSE m (final) | height bias m (final) | safety |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| easy_s00 | 1 | 1 | 13 | 0.878 | 0.883 | 0.817 | 0 | 0 | 0 | 0 | 0.141 | -0.034 | 0 |
-| easy_s01 | 1 | 1 | 14 | 0.898 | 0.881 | 0.772 | 0 | 0 | 0 | 0 | 0.143 | 0.050 | 0 |
-| easy_s02 | 1 | 1 | 14 | 0.870 | 0.882 | 0.756 | 0 | 0 | 0 | 0 | 0.143 | -0.115 | 0 |
-| easy_s03 | 1 | 1 | 14 | 0.886 | 0.871 | 0.733 | 0 | 0 | 0 | 0 | 0.142 | -0.005 | 0 |
-| easy_s04 | 1 | 1 | 15 | 0.886 | 0.859 | 0.793 | 0 | 0 | 0 | 0 | 0.152 | -0.036 | 0 |
-| hard_s00 | 0.833 | 0.952 | 21 | 0.749 | 0.581 | 0.368 | 4 | 4 | 1 | 0 | 0.715 | 0.092 | 42 |
-| hard_s01 | 0.760 | 1 | 19 | 0.673 | 0.622 | 0.405 | 2 | 2 | 0 | 0 | 0.937 | -0.260 | 23 |
-| hard_s02 | 0.826 | 0.905 | 21 | 0.737 | 0.626 | 0.319 | 4 | 5 | 0 | 2 | 0.949 | 0.105 | 0 |
-| hard_s03 | 0.696 | 0.941 | 17 | 0.621 | 0.586 | 0.433 | 4 | 5 | 0 | 1 | 0.813 | -0.279 | 38 |
-| hard_s04 | 0.739 | 1 | 17 | 0.666 | 0.611 | 0.369 | 1 | 1 | 0 | 0 | 0.841 | 0.201 | 0 |
-| medium_s00 | 0.944 | 1 | 17 | 0.833 | 0.742 | 0.511 | 1 | 1 | 0 | 0 | 0.552 | 0.152 | 37 |
-| medium_s01 | 1 | 0.947 | 19 | 0.881 | 0.753 | 0.503 | 1 | 1 | 1 | 0 | 0.476 | -0.181 | 0 |
-| medium_s02 | 0.947 | 1 | 18 | 0.831 | 0.771 | 0.491 | 2 | 2 | 0 | 0 | 0.697 | 0.011 | 0 |
-| medium_s03 | 0.941 | 0.889 | 18 | 0.821 | 0.768 | 0.585 | 1 | 1 | 0 | 2 | 0.427 | -0.099 | 0 |
-| medium_s04 | 0.950 | 0.864 | 22 | 0.837 | 0.740 | 0.588 | 2 | 2 | 0 | 3 | 0.515 | -0.027 | 0 |
+| easy_s00 | 1 | 1 | 13 | 0.878 | 0.886 | 0.817 | 0 | 0 | 0 | 0 | 0.137 | -0.034 | 0 |
+| easy_s01 | 1 | 1 | 14 | 0.898 | 0.882 | 0.772 | 0 | 0 | 0 | 0 | 0.133 | 0.050 | 0 |
+| easy_s02 | 1 | 1 | 14 | 0.870 | 0.880 | 0.756 | 0 | 0 | 0 | 0 | 0.125 | -0.115 | 0 |
+| easy_s03 | 1 | 1 | 14 | 0.886 | 0.876 | 0.733 | 0 | 0 | 0 | 0 | 0.119 | -0.011 | 0 |
+| easy_s04 | 1 | 1 | 15 | 0.886 | 0.862 | 0.793 | 0 | 0 | 0 | 0 | 0.138 | -0.036 | 0 |
+| hard_s00 | 0.833 | 0.909 | 22 | 0.746 | 0.625 | 0.368 | 4 | 4 | 2 | 0 | 0.649 | 0.194 | 42 |
+| hard_s01 | 0.760 | 1 | 19 | 0.671 | 0.637 | 0.453 | 2 | 2 | 0 | 0 | 0.860 | -0.257 | 23 |
+| hard_s02 | 0.783 | 0.947 | 19 | 0.695 | 0.645 | 0.329 | 5 | 6 | 0 | 1 | 0.911 | 0.123 | 0 |
+| hard_s03 | 0.696 | 0.941 | 17 | 0.621 | 0.602 | 0.437 | 4 | 5 | 0 | 1 | 0.813 | -0.277 | 38 |
+| hard_s04 | 0.652 | 1 | 15 | 0.579 | 0.668 | 0.400 | 1 | 1 | 0 | 0 | 0.616 | 0.210 | 0 |
+| medium_s00 | 0.944 | 1 | 17 | 0.833 | 0.765 | 0.507 | 1 | 1 | 0 | 0 | 0.531 | 0.151 | 37 |
+| medium_s01 | 1 | 0.947 | 19 | 0.881 | 0.782 | 0.546 | 1 | 1 | 1 | 0 | 0.434 | -0.161 | 0 |
+| medium_s02 | 0.947 | 1 | 18 | 0.831 | 0.779 | 0.500 | 1 | 1 | 0 | 0 | 0.701 | 0.009 | 0 |
+| medium_s03 | 0.941 | 0.941 | 17 | 0.821 | 0.779 | 0.586 | 1 | 1 | 0 | 1 | 0.418 | -0.098 | 0 |
+| medium_s04 | 0.950 | 0.950 | 20 | 0.837 | 0.749 | 0.588 | 2 | 2 | 0 | 1 | 0.507 | -0.027 | 0 |
 
 ## Paired: cand_grid vs simple (difference = cand_grid - simple, same dataset = same seed)
 
@@ -200,24 +200,24 @@ Per dataset:
 
 | Metric | simple mean | cand_grid mean | mean diff | std diff | t | win / loss / tie |
 |---|---|---|---|---|---|---|
-| recall (final) | 0.555 | 0.909 | +0.354 | 0.227 | +6.0 | 14 / 0 / 1 |
-| precision (final) | 0.555 | 0.967 | +0.411 | 0.267 | +6.0 | 15 / 0 / 0 |
-| published / truth (final) | 18.600 | 17.267 | -1.333 | 4.952 | -1.0 | - |
-| recall (per-frame mean) | 0.520 | 0.804 | +0.285 | 0.208 | +5.3 | 14 / 1 / 0 |
-| mean IoU (final) | 0.392 | 0.745 | +0.354 | 0.064 | +21.5 | 15 / 0 / 0 |
-| min IoU (final) | 0.150 | 0.563 | +0.413 | 0.150 | +10.7 | 15 / 0 / 0 |
+| recall (final) | 0.555 | 0.900 | +0.345 | 0.219 | +6.1 | 14 / 0 / 1 |
+| precision (final) | 0.555 | 0.976 | +0.420 | 0.266 | +6.1 | 15 / 0 / 0 |
+| published / truth (final) | 18.600 | 16.867 | -1.733 | 5.021 | -1.3 | - |
+| recall (per-frame mean) | 0.520 | 0.796 | +0.276 | 0.199 | +5.4 | 14 / 1 / 0 |
+| mean IoU (final) | 0.392 | 0.761 | +0.370 | 0.074 | +19.4 | 15 / 0 / 0 |
+| min IoU (final) | 0.150 | 0.572 | +0.423 | 0.143 | +11.5 | 15 / 0 / 0 |
 | merged entries (final) | 4.267 | 1.467 | -2.800 | 2.077 | -5.2 | 14 / 1 / 0 |
-| neighbours swallowed (final) | 14 | 1.600 | -12.400 | 8.927 | -5.4 | 15 / 0 / 0 |
-| split trees (final) | 0.533 | 0.133 | -0.400 | 0.737 | -2.1 | 6 / 1 / 8 |
-| false trees (final) | 11.067 | 0.533 | -10.533 | 8.798 | -4.6 | 15 / 0 / 0 |
-| centre RMSE m (final) | 1.982 | 0.510 | -1.473 | 0.608 | -9.4 | 15 / 0 / 0 |
-| height bias m (final) | 0.073 | -0.028 | -0.101 | 0.298 | -1.3 | - |
-| height RMSE m (final) | 0.543 | 0.195 | -0.349 | 0.291 | -4.6 | 14 / 1 / 0 |
-| spill (final) | 0.633 | 0.201 | -0.433 | 0.086 | -19.5 | 15 / 0 / 0 |
-| neighbour spill max (final) | 0.372 | 0.231 | -0.141 | 0.142 | -3.9 | 13 / 2 / 0 |
+| neighbours swallowed (final) | 14 | 1.600 | -12.400 | 8.951 | -5.4 | 15 / 0 / 0 |
+| split trees (final) | 0.533 | 0.200 | -0.333 | 0.900 | -1.4 | 6 / 1 / 8 |
+| false trees (final) | 11.067 | 0.267 | -10.800 | 8.793 | -4.8 | 15 / 0 / 0 |
+| centre RMSE m (final) | 1.982 | 0.473 | -1.510 | 0.625 | -9.4 | 15 / 0 / 0 |
+| height bias m (final) | 0.073 | -0.019 | -0.091 | 0.275 | -1.3 | - |
+| height RMSE m (final) | 0.543 | 0.188 | -0.355 | 0.303 | -4.5 | 14 / 1 / 0 |
+| spill (final) | 0.633 | 0.167 | -0.466 | 0.096 | -18.8 | 15 / 0 / 0 |
+| neighbour spill max (final) | 0.372 | 0.236 | -0.136 | 0.151 | -3.5 | 13 / 2 / 0 |
 | ID switches after lock | 0.067 | 0 | -0.067 | 0.258 | -1.0 | 1 / 0 / 14 |
 | geometry retreats | 0 | 0 | 0 | 0 | +0.0 | 0 / 0 / 15 |
-| centre jumps | 18 | 0.600 | -17.400 | 10.615 | -6.3 | 15 / 0 / 0 |
+| centre jumps | 18 | 0.733 | -17.267 | 10.627 | -6.3 | 15 / 0 / 0 |
 | height jumps | 0.867 | 0 | -0.867 | 1.246 | -2.7 | 7 / 0 / 8 |
 | IDs vanished while held by nav | 0 | 0 | 0 | 0 | +0.0 | 0 / 0 / 15 |
 | SAFETY total violations | 44 | 9.333 | -34.667 | 71.099 | -1.9 | 5 / 1 / 9 |
@@ -232,35 +232,35 @@ Per dataset:
 |   locked ID vanished | 0 | 0 | 0 | 0 | +0.0 | 0 / 0 / 15 |
 | truth trees sprayed | 2.867 | 4.667 | +1.800 | 1.373 | +5.1 | 13 / 0 / 2 |
 | truth trees sprayed twice | 0 | 0 | 0 | 0 | +0.0 | 0 / 0 / 15 |
-| scan latency mean s | 0.720 | 2.058 | +1.338 | 0.962 | +5.4 | 0 / 15 / 0 |
+| scan latency mean s | 0.720 | 2.138 | +1.418 | 1.107 | +5.0 | 0 / 15 / 0 |
 
 Mean paired difference per group:
 
 | group (n) | recall (final) | precision (final) | mean IoU (final) | neighbours swallowed (final) | false trees (final) | centre RMSE m (final) | height RMSE m (final) | spill (final) | SAFETY total violations |
 |---|---|---|---|---|---|---|---|---|---|
-| easy (5) | +0.101 | +0.111 | +0.294 | -2.200 | -1.600 | -1.100 | -0.182 | -0.367 | 0 |
-| hard (5) | +0.500 | +0.710 | +0.386 | -21.800 | -21.400 | -1.795 | -0.484 | -0.520 | -111.400 |
-| medium (5) | +0.461 | +0.413 | +0.381 | -13.200 | -8.600 | -1.524 | -0.380 | -0.410 | +7.400 |
+| easy (5) | +0.101 | +0.111 | +0.295 | -2.200 | -1.600 | -1.113 | -0.181 | -0.373 | 0 |
+| hard (5) | +0.474 | +0.710 | +0.416 | -21.600 | -21.600 | -1.876 | -0.499 | -0.568 | -111.400 |
+| medium (5) | +0.461 | +0.440 | +0.397 | -13.400 | -9.200 | -1.540 | -0.386 | -0.458 | +7.400 |
 
 Per seed (cand_grid - simple):
 
 | dataset | recall (final) | precision (final) | mean IoU (final) | neighbours swallowed (final) | false trees (final) | centre RMSE m (final) | height RMSE m (final) | spill (final) | SAFETY total violations |
 |---|---|---|---|---|---|---|---|---|---|
-| easy_s00 | +0.077 | +0.143 | +0.391 | -2 | -3 | -1.362 | -0.293 | -0.454 | 0 |
-| easy_s01 | +0.143 | +0.077 | +0.266 | -2 | -1 | -1.265 | -0.103 | -0.316 | 0 |
-| easy_s02 | +0.214 | +0.083 | +0.288 | -4 | -2 | -1.068 | -0.084 | -0.355 | 0 |
-| easy_s03 | +0.071 | +0.133 | +0.259 | -2 | -1 | -1.008 | -0.352 | -0.340 | 0 |
-| easy_s04 | 0 | +0.118 | +0.265 | -1 | -1 | -0.794 | -0.075 | -0.373 | 0 |
-| hard_s00 | +0.708 | +0.794 | +0.350 | -25 | -17 | -1.409 | -0.715 | -0.547 | -183 |
-| hard_s01 | +0.400 | +0.667 | +0.397 | -26 | -23 | -2.429 | -1.062 | -0.505 | -66 |
-| hard_s02 | +0.435 | +0.545 | +0.338 | -15 | -19 | -0.689 | -0.455 | -0.449 | -44 |
-| hard_s03 | +0.304 | +0.631 | +0.376 | -17 | -25 | -2.425 | -0.284 | -0.516 | -52 |
-| hard_s04 | +0.652 | +0.913 | +0.466 | -26 | -23 | -2.021 | +0.095 | -0.582 | -212 |
-| medium_s00 | +0.278 | +0.333 | +0.321 | -10 | -9 | -1.115 | -0.373 | -0.440 | +37 |
-| medium_s01 | +0.444 | +0.471 | +0.369 | -12 | -13 | -1.199 | -0.215 | -0.489 | 0 |
-| medium_s02 | +0.579 | +0.462 | +0.394 | -17 | -7 | -0.977 | -0.424 | -0.451 | 0 |
-| medium_s03 | +0.353 | +0.363 | +0.441 | -12 | -8 | -2.418 | -0.642 | -0.356 | 0 |
-| medium_s04 | +0.650 | +0.435 | +0.381 | -15 | -6 | -1.912 | -0.248 | -0.315 | 0 |
+| easy_s00 | +0.077 | +0.143 | +0.394 | -2 | -3 | -1.366 | -0.293 | -0.459 | 0 |
+| easy_s01 | +0.143 | +0.077 | +0.266 | -2 | -1 | -1.275 | -0.103 | -0.319 | 0 |
+| easy_s02 | +0.214 | +0.083 | +0.286 | -4 | -2 | -1.087 | -0.084 | -0.359 | 0 |
+| easy_s03 | +0.071 | +0.133 | +0.264 | -2 | -1 | -1.031 | -0.350 | -0.347 | 0 |
+| easy_s04 | 0 | +0.118 | +0.268 | -1 | -1 | -0.808 | -0.075 | -0.378 | 0 |
+| hard_s00 | +0.708 | +0.751 | +0.394 | -25 | -17 | -1.475 | -0.820 | -0.602 | -183 |
+| hard_s01 | +0.400 | +0.667 | +0.412 | -26 | -23 | -2.507 | -1.063 | -0.530 | -66 |
+| hard_s02 | +0.391 | +0.587 | +0.357 | -14 | -20 | -0.727 | -0.445 | -0.523 | -44 |
+| hard_s03 | +0.304 | +0.631 | +0.393 | -17 | -25 | -2.426 | -0.284 | -0.535 | -52 |
+| hard_s04 | +0.565 | +0.913 | +0.523 | -26 | -23 | -2.245 | +0.119 | -0.653 | -212 |
+| medium_s00 | +0.278 | +0.333 | +0.344 | -10 | -9 | -1.136 | -0.375 | -0.465 | +37 |
+| medium_s01 | +0.444 | +0.471 | +0.399 | -12 | -13 | -1.241 | -0.238 | -0.528 | 0 |
+| medium_s02 | +0.579 | +0.462 | +0.402 | -18 | -7 | -0.974 | -0.421 | -0.468 | 0 |
+| medium_s03 | +0.353 | +0.415 | +0.451 | -12 | -9 | -2.428 | -0.642 | -0.412 | 0 |
+| medium_s04 | +0.650 | +0.521 | +0.390 | -15 | -8 | -1.920 | -0.251 | -0.419 | 0 |
 
 
 ## Notes (M3b, cand_grid)
@@ -269,17 +269,18 @@ Per seed (cand_grid - simple):
   (deterministic), so the noise that matters is seed to seed. The comparison is therefore paired by seed.
   Tuned on this suite and the Isaac recording only. `/data/work/holdout` was not opened.
 - **Paired vs simple (15 seeds, win / loss)**:
-  - recall 14/0 (+0.35), precision 15/0 (+0.41), mean IoU 15/0 (+0.35), min IoU 15/0;
-  - neighbours swallowed 15/0 (-12.4), false trees 15/0 (-10.5), centre RMSE 15/0 (-1.47 m);
-  - height RMSE 14/1 (-0.35 m), spill 15/0 (-0.43), centre jumps 15/0;
+  - recall 14/0 (+0.35), precision 15/0 (+0.42), mean IoU 15/0 (+0.37), min IoU 15/0 (+0.42);
+  - neighbours swallowed 15/0 (-12.4), false trees 15/0 (-10.8), centre RMSE 15/0 (-1.51 m);
+  - height RMSE 14/1 (-0.36 m), spill 15/0 (-0.47), centre jumps 15/0;
   - truth trees sprayed 13/0 (+1.8);
-  - **scan latency 0/15 (+1.34 s)**: the one systematic loss.
-- **Per level (cand_grid mean / worst)**:
-  - easy: recall 1.00, precision 1.00, IoU 0.88, centre 0.14 m, height RMSE 0.07 m, spill 0.06, 0 safety.
-  - **medium**: recall 0.96 / 0.94, precision 0.94 / 0.86, IoU 0.76 / 0.74, swallowed 1.4, false 1.0,
-    centre 0.53 m, height RMSE 0.17 m, spill 0.23. simple: 0.50 / 0.53 / 0.37 / 14.6 / 9.6 / 2.06 / 0.55 / 0.64.
-  - hard: recall 0.77 / 0.70, precision 0.96 / 0.91, IoU 0.61, swallowed 3.4, false 0.6, height RMSE 0.34 m,
-    spill 0.31.
+  - **scan latency 0/15 (+1.42 s)**: the one systematic loss.
+- **Per level (cand_grid mean / worst; simple's mean in brackets)**:
+  - easy: recall 1.00 (0.90), precision 1.00 (0.89), IoU 0.88 (0.58), centre 0.13 m (1.24),
+    height RMSE 0.07 m (0.25), spill 0.06 (0.43), 0 safety.
+  - **medium**: recall 0.96 / 0.94 (0.50), precision 0.97 / 0.94 (0.53), IoU 0.77 / 0.75 (0.37),
+    swallowed 1.2 (14.6), false 0.4 (9.6), centre 0.52 m (2.06), height RMSE 0.17 m (0.55), spill 0.18 (0.64).
+  - hard: recall 0.75 / 0.65 (0.27), precision 0.96 / 0.91 (0.25), IoU 0.64 (0.22), swallowed 3.6 (25.2),
+    false 0.4 (22), height RMSE 0.33 m (0.83), spill 0.26 (0.83).
 - **Safety: the only non-zero count is implausible-height frames** (medium 7.4 = one seed; hard 20.6 = three
   seeds; simple has 0 on medium and 132 on hard). Every other safety count is 0 on every seed: undefined
   heights, new trees after scan, non-target descent changes, sprayed-tree changes, new tree inside sprayed,
@@ -289,28 +290,28 @@ Per seed (cand_grid - simple):
 
 | dataset | implausible frames | tree id | our height m | truth tree height m | min drone z at the events m | truth itself above drone? |
 |---|---|---|---|---|---|---|
-| hard_s00 | 42 | 11 | 5.71 | 5.89 | 5.35 | yes |
-| hard_s00 | 42 | 12 | 6.17 | 6.17 | 5.35 | yes |
-| hard_s00 | 42 | 14 | 5.37 | 5.22 | 5.35 | no |
-| hard_s00 | 42 | 15 | 5.39 | 5.30 | 5.35 | no |
-| hard_s00 | 42 | 19 | 5.92 | 5.81 | 5.35 | yes |
+| hard_s00 | 42 | 9 | 5.71 | 5.89 | 5.35 | yes |
+| hard_s00 | 42 | 10 | 6.17 | 6.17 | 5.35 | yes |
+| hard_s00 | 42 | 13 | 5.39 | 5.30 | 5.35 | no |
+| hard_s00 | 42 | 16 | 5.46 | 5.28 | 5.35 | no |
+| hard_s00 | 42 | 17 | 5.92 | 5.81 | 5.35 | yes |
+| hard_s00 | 42 | 20 | 5.57 | 5.35 | 5.35 | yes |
 | hard_s01 | 23 | 19 | 7.55 | 8.05 | 7.34 | yes |
 | hard_s03 | 38 | 16 | 7.50 | 8.13 | 7.33 | yes |
-| medium_s00 | 37 | 9 | 7.07 | 6.97 | 6.99 | no |
+| medium_s00 | 37 | 9 | 7.08 | 6.97 | 6.99 | no |
 
-  - In hard_s00, hard_s01 and hard_s03 the true canopy top of the flagged trees is itself above the hovering
-    drone. Sloped ground (6 %) puts a neighbour's top above the hover altitude of a lower target. Over the
-    whole mission window, the tallest true tree is above the drone for 82 / 48 / 200 pose samples
-    (`truthimpl.py` in `/data/work/cand_grid_tune`).
-  - In the remaining cases (medium_s00, two trees in hard_s00) the true top is within 0.02-0.15 m of the
-    drone's altitude. cand_grid's height error there is +0.09 to +0.15 m.
+  - In every flagged case the true canopy top is above the hovering drone's world z, or within 0.02-0.07 m of
+    it. Sloped ground (6 % on hard) puts a neighbour's top above the hover altitude of a lower target. Over the
+    whole mission window, the tallest true tree is above the drone for 82 / 48 / 200 pose samples in
+    hard_s00 / s01 / s03 (`truthimpl.py` in `/data/work/cand_grid_tune`).
+  - cand_grid's height error on the flagged trees is -0.63 to +0.22 m.
   - cand_grid does not clip heights to the drone altitude. That would publish a too-low descent reference,
     the dangerous direction. A height quantile of 0.93 instead of 0.97 halves these counts, at the cost of a
     -0.1 m bias and about 0.7 m underestimates of the leafy Isaac canopies. It was rejected; see
     `docs/candidates/cand_grid.md`.
   - **This is a scorer / scenario limitation that the coordinator should judge.** It is not hidden here.
 - **Cost**: x86 workstation, one core. Means per frame:
-  - integrate 0.31-0.50 ms (worst snapshot mean 0.96 ms);
-  - extract 0.26-0.57 ms (worst snapshot mean 1.7 ms);
+  - integrate 0.30-0.50 ms (worst 0.2 s snapshot mean 0.97 ms);
+  - extract 0.26-0.56 ms (worst snapshot mean 1.74 ms);
   - total about 0.75-1.1 ms per frame, against 0.4-0.55 ms for simple.
   Not measured on the Orin. Grid memory 2.6-3.1 MB per mission (`gauge_grid_bytes`).

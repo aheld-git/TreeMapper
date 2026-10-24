@@ -51,7 +51,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 2.3855833333333387
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.6041765193370165, \"p95_ms\": 0.808525, \"max_ms\": 1.0695, \"n\": 724}, \"integrate\": {\"mean_ms\": 0.0037139502762430945, \"p95_ms\": 0.0097, \"max_ms\": 0.0154, \"n\": 724}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.6054350828729282, \"p95_ms\": 0.80831, \"max_ms\": 0.9051, \"n\": 724}, \"integrate\": {\"mean_ms\": 0.0036903314917127073, \"p95_ms\": 0.009870000000000006, \"max_ms\": 0.0151, \"n\": 724}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/isaac_2026-10-23-15-34-29"
      }
     ]
@@ -266,7 +266,7 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 9.0,
-       "recall (per-frame mean)": 0.7378787878787878,
+       "recall (per-frame mean)": 0.7377525252525252,
        "mean IoU (final)": 0.8524952748104522,
        "min IoU (final)": 0.7538785735206603,
        "merged entries (final)": 0.0,
@@ -295,9 +295,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 7.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 2.3411388888888904
+       "scan latency mean s": 2.3633611111111117
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.08749460317460317, \"p95_ms\": 0.626394999999999, \"max_ms\": 0.9432, \"n\": 630}, \"integrate\": {\"mean_ms\": 0.46957361878453047, \"p95_ms\": 0.681785, \"max_ms\": 0.7735, \"n\": 724}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.08784079365079366, \"p95_ms\": 0.6289099999999983, \"max_ms\": 0.9394, \"n\": 630}, \"integrate\": {\"mean_ms\": 0.4717447513812154, \"p95_ms\": 0.68621, \"max_ms\": 0.7792, \"n\": 724}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/isaac_2026-10-23-15-34-29"
      }
     ]
@@ -322,8 +322,8 @@
      "n": 1
     },
     "recall (per-frame mean)": {
-     "mean": 0.7378787878787878,
-     "worst": 0.7378787878787878,
+     "mean": 0.7377525252525252,
+     "worst": 0.7377525252525252,
      "std": 0.0,
      "n": 1
     },
@@ -496,8 +496,8 @@
      "n": 1
     },
     "scan latency mean s": {
-     "mean": 2.3411388888888904,
-     "worst": 2.3411388888888904,
+     "mean": 2.3633611111111117,
+     "worst": 2.3633611111111117,
      "std": 0.0,
      "n": 1
     }
@@ -758,7 +758,7 @@
      "recall (final)": 0.11111111111111116,
      "precision (final)": 0.0,
      "published / truth (final)": 1.0,
-     "recall (per-frame mean)": 0.1021464646464646,
+     "recall (per-frame mean)": 0.10202020202020201,
      "mean IoU (final)": 0.12268989450683099,
      "min IoU (final)": 0.2917414850245037,
      "merged entries (final)": -1.0,
@@ -787,7 +787,7 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 0.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": -0.04444444444444828
+     "scan latency mean s": -0.022222222222227028
     }
    },
    "summary": {
@@ -827,8 +827,8 @@
     "recall (per-frame mean)": {
      "n": 1,
      "ref_mean": 0.6357323232323232,
-     "other_mean": 0.7378787878787878,
-     "mean_diff": 0.1021464646464646,
+     "other_mean": 0.7377525252525252,
+     "mean_diff": 0.10202020202020201,
      "std_diff": null,
      "t": null,
      "wins": 1,
@@ -1130,8 +1130,8 @@
     "scan latency mean s": {
      "n": 1,
      "ref_mean": 2.3855833333333387,
-     "other_mean": 2.3411388888888904,
-     "mean_diff": -0.04444444444444828,
+     "other_mean": 2.3633611111111117,
+     "mean_diff": -0.022222222222227028,
      "std_diff": null,
      "t": null,
      "wins": 1,

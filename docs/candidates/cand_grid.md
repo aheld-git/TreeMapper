@@ -66,7 +66,7 @@ Publishable = all of the following, each a different kind of evidence (pure `pub
 
 | Evidence | Gate (default) | Defends against |
 |---|---|---|
-| geometric: latchable cell area | ≥ 5 m² of cells with w ≥ 3, ≥ 3 frames, spread ≤ 1.5 m, CHM ≥ 0.6 × peak CHM | noise bursts, single bad frames, clutter fragments |
+| geometric: latchable cell area | ≥ 5 m² of cells with w ≥ 3, ≥ 3 frames, spread ≤ 1.0 m, CHM ≥ 0.6 × peak CHM | noise bursts, single bad frames, clutter fragments |
 | shape: peak height above ground | smoothed peak CHM ≥ 1.8 m | bushes and ground clutter (0.2-0.9 m) |
 | observation completeness | peak neighbourhood (1 m) fully observed, open fraction ≤ 0.6 | partial views at the swath edge |
 | semantic | ≥ 30 % of the segment's cells covered by a detection box in ≥ 2 frames | non-tree raised objects |
@@ -86,7 +86,7 @@ Why this is single-pass and hover-invariant: every gate is reached in a fraction
 When geometry may change after publication:
 
 - **Outline**: grow-only. It is the convex hull of all latched cells plus the previous outline. A cell
-  latches only when it has multi-frame (≥ 3), weighted (w ≥ 3), consistent (spread ≤ 1.5 m) evidence. It must
+  latches only when it has multi-frame (≥ 3), weighted (w ≥ 3), consistent (spread ≤ 1.0 m) evidence. It must
   also belong to the same tree in two consecutive extractions, from a segment that is closed enough. A single
   frame cannot latch a cell: one frame contributes at most min(n, 6) × weight, and in a turn q is about 0.1. A
   few bad frames cannot shrink anything, because nothing is ever removed.
@@ -204,17 +204,17 @@ Gates, and whether each fails open or closed:
     precision on hard.
 - **Spill on oblique, occluded skirts**: points near occluded ground beyond the far silhouette are smeared by
   the line-of-sight error. Those cells never see ground, so they look raised. The relative-height latch rule
-  and the lateral weighting (k = 10) trim most of it. Final spill: 0.06 (easy), 0.23 (medium), 0.31 (hard),
+  and the lateral weighting (k = 10) trim most of it. Final spill: 0.06 (easy), 0.18 (medium), 0.26 (hard),
   0.09 on Isaac.
-- **Hard is still hard**: recall 0.77, IoU 0.61 and 3.4 neighbours swallowed per mission (simple: 25), under
+- **Hard is still hard**: recall 0.75, IoU 0.64 and 3.6 neighbours swallowed per mission (simple: 25), under
   5× real stereo noise with mostly overlapping canopies.
 - **The 0.6 × peak-CHM latch rule makes outlines a "core plus"**: low crown edges (a dome's last ~10 % of
   radius) are not latched, so outlines are slightly smaller than the true crown on clean data.
 - **Implausible-height safety counts.** This is the only non-zero safety count: medium 7.4 (one seed),
   hard 20.6 (three seeds). simple has 132 on hard.
   - Every event involves a tree whose true top is above the hovering drone's world z (sloped ground: hard_s00,
-    hard_s01, hard_s03) or within 0.02-0.15 m of it (medium_s00, two trees in hard_s00).
-  - cand_grid's error on those trees is between +0.15 m and -0.6 m. The per-event table is in
+    hard_s01, hard_s03) or within 0.02-0.07 m of it (medium_s00, two trees in hard_s00).
+  - cand_grid's error on those trees is between -0.63 m and +0.22 m. The per-event table is in
     `results/cand_grid_synthetic.md`.
   - Clipping heights to the drone altitude would publish a too-low descent reference, so it is not done.
   - A lower height quantile (0.93) halves the counts, but it biases heights by -0.1 m and underestimates the
@@ -223,8 +223,8 @@ Gates, and whether each fails open or closed:
 - **Fragment merge outside the window**: two published fragments merge only while both are inside the
   extraction window (the recent footprint plus 6 m). Fragments far from any current view are not
   consolidated until the drone sees them again.
-  - Merges do occur: `instances_merged` per mission is 0 on easy, 0-4 on medium, 1-9 on hard and 0 on Isaac.
-  - `merge_blocked_size` (two large instances refused) reaches 17.
+  - Merges do occur: `instances_merged` per mission is 0 on easy, 0-4 on medium, 0-7 on hard and 0 on Isaac.
+  - `merge_blocked_size` (two large instances refused) reaches 19.
   - `merge_blocked_phase` is 29 on Isaac: merge votes during PLANNING / HOPPING, correctly refused.
   - The merge rules have pure tests only. There is no end-to-end fragment test.
 - **The ground model assumes the ground is visible somewhere within ~4.5 m** of every canopy. A continuous
@@ -245,6 +245,15 @@ Gates, and whether each fails open or closed:
   measured canopy tops of 5.4-5.9 m, which is the unsafe direction for a descent reference. 0.99 / 1.0 (the max)
   biased synthetic heights up by 0.1-0.3 m. 0.97 with a 0.1 m step limit was best: synthetic RMSE 0.07 / 0.17 /
   0.34 m, and on Isaac 4.7-5.8 m with 0 height jumps.
+- **Cell-consistency (spread) gate.**
+  - With no gate, hard had 32 implausible-height frames and 2 false trees per mission.
+  - 1.5 m removed most of them.
+  - The remaining false trees on medium (about 1 per mission) lay 3.6-10.5 m from any canopy, beyond the row
+    ends: corridor-turn noise bursts. Their frame medians spread about 1.4 m.
+  - 1.0 m, the frozen value, took medium precision from 0.94 to 0.97 and false trees from 1.0 to 0.4, at a cost
+    of -0.03 recall on hard.
+  - This gate is noise-scale dependent. Real stereo (about 0.1 px) gives a much smaller spread, so 1.0 m is
+    permissive there. A 5×-real sensor starts to lose genuine cells.
 - **Strong turn down-weighting** (rotation reference 0.2 rad/s, 2.5 s recovery) lost recall on hard
   (0.71 → 0.60): trees at the row ends are seen mainly while turning.
 - **Disabling the per-cell outlier gate** cost precision (medium 0.97 → 0.87, a split tree on Isaac) and
