@@ -42,7 +42,7 @@ Stereo checks that need the images (rectification and the motion-based depth sca
 - **Pairing**: detection to disparity by exact header stamp, else nearest within 20 ms, else no disparity
   (counted). Pose comes from `/tf` `world_nwu -> body` at the disparity stamp. A missing pose gives
   `pose_valid = false` and a counter, never a crash. Heartbeats fill gaps in the detection stream.
-- **Camera chain (verified, `results/real_flight_geometry.md`)**:
+- **Camera chain (inferred from one flight, not verified on hardware; `results/real_flight_geometry.md`)**:
   - lever arm from tf_static `body -> sensor_down`;
   - mount pitch **82 deg** (tf_static says 75; `--mount-pitch-deg tf` restores it);
   - optical-to-ROS axis swap;

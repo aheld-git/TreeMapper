@@ -533,3 +533,57 @@ wall-clock `stage_ms`) with M4a's committed run. All at <= 2 cores (`TM_JOBS=2`,
 stereo profile = `config/cand_obj_real.cfg`, the default of `treemapper_real.launch` (D54). `cand_grid` and `simple` stay registered and
 buildable as references for the evaluation, not for flight. The README parameter table is generated from the two `.cfg`
 files (`python3 -m treemapper_tools.param_table`; it fails if a key has no description).
+
+## Final-review fixes (2026-10-24, 21:00-; D58-D65)
+
+**D58. The node contains its own failures; launch `required="false"`, no respawn** (B1). `required="true"` let one
+exception end the whole drone roslaunch, navigation included. Every callback / timer / service body now runs in
+`CallbackGuard` (`node_support.hpp`): logged, counted (`callback_exceptions[_<cb>]`, stage `input`), health FAULT for 10 s,
+node keeps its map and IDs; services answer failure. Only `FatalConfigError` (startup misconfiguration) still ends the
+node. Respawn stays off until IDs carry a persistent / random epoch: a respawned node restarts IDs at 0 (rule 1) and
+forgets the sprayed list (rule 5). Documented in `ros/treemapper_ros/README.md` "Crash containment".
+
+**D59. Height = world-frame z of the canopy top, stated everywhere** (B2). Not a height above ground: the 0.99 quantile
+of the fused world z of the latched cells; datum = the world frame's origin, and `world_nwu` re-origins at every boot.
+`TreeEntry.observations` now carries the mapper's matched-frame count (new core field `TreeEntry::observations`, not
+written into map streams, so streams and scores are unchanged); `confidence` is reserved, always 0; `DronePose.msg` is
+marked unused (kept so the interface package does not churn).
+
+**D60. Honest labels for the evaluation data** (B3). The Isaac recording was tuned on (M3, M4a): "used during tuning;
+not an unbiased test". The held-out suite was looked at for the M3 selection, the M4a verdict, the M4c real-profile check
+and the R14 effect: a validation set now. Future claims need a fresh seed range (suggested 1000-1009; suite_v1 0-4,
+held-out 100-109, suite_v2 200-204). The JSON behind the three headline cards is committed (copied from
+`/data/work/eval/m4a`, no re-run).
+
+**D61. Sticky lock in cand_obj, `phasePolicy()` unchanged** (S4). After PLANNING / HOPPING / SPRAYING, ERROR, unknown and
+SCAN_APPROACH behave like PLANNING (awake, no creation, no merge, no height fusion) until SCAN is entered again. Done in
+`CandObj::policyFor` on top of the shared `phasePolicy()`, so `simple` and `cand_grid` keep their committed behaviour and
+need no re-score. SCAN_APPROACH is included (stricter than asked): an approach after the list was planned against is not
+yet a re-scan. Only SCAN clears it. Effect on scores: none (Isaac enters SCAN_APPROACH after a spray for 15 frames, no
+change; no synthetic mission leaves the locked phases except to RETURN / IDLE).
+
+**D62. Rule tests checked by mutation** (S6). Five new tests kill the five mutants the review found surviving; a further
+gap (merges in locked phases were untested) was found and closed; `scripts/mutation/run_mutants.sh` keeps the check
+reproducible. Three mutants are equivalent (redundant checks) and documented in `scripts/mutation/mutants.py`.
+`results/final_review_fixes.md` section 3.
+
+**D63. Confirmation needs heights from non-truncated crowns** (S8). The header promised that truncated-seeded instances
+"cannot publish until real tops are sampled", but nothing enforced it, and a tree seen only with its top outside the
+image published an under-estimated height (unsafe for a descent). Now `min_height_cells` latched cells must carry a height
+sample from a crown whose top was inside the image (per-cell flag `hgood`, OR-ed on merges); no new tunable. Measured on
+Isaac and suite_v2 (not the holdout): Isaac scorecard unchanged (one tree's first published height 4.29 m instead of
+3.56 m), suite_v2 recall unchanged, precision +0.004, split trees -0.07, scan latency +0.026 s; real flight with the
+real profile byte-identical, sim profile 102 -> 101 final trees. Kept. `peak_border_px` now has an effect with
+`seed_truncated = true` (closes PROGRESS open item 6).
+
+**D64. Non-finite config values are rejected** (S12). `ConfigReader::getDouble` rejects "nan" / "inf" (std::stod accepts
+them) for every system, and cand_obj's `sanitized()` throws on a non-finite field (NaN passed every range comparison and
+`height_quantile = nan` reached an out-of-range index). Health SLEEPING now means exactly `!phasePolicy().awake` (S13: it
+said SLEEPING in SCAN_APPROACH while the mapper mapped, and hid the stale-input warning). `yaml-cpp` declared as a test
+dependency (S14).
+
+**D65. Merge candidates from a uniform grid, output-identical** (S5). The merge sweep tested every pair every frame
+(18.6 ms / frame at 1600 trees on x86); now candidates come from a grid on the centres (cell = the 8 m reach), visited in
+the old (a, b) order, so the first merging pair is the same; crown matching tests the O(1) reach before the cell overlap.
+1.29 ms / frame at 1600 trees. Proven identical: map streams (without `stage_ms`), targets and counters byte-identical on
+Isaac (3 / 3 files) and suite_v2 (45 / 45) against the S4+S8 build.

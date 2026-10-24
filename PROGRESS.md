@@ -13,13 +13,14 @@ Autonomous, time-boxed build of the on-board tree mapper (see `docs/PROJECT_BRIE
 | M3 | 18:30–21:30 | >= 2 genuinely different architectures (e.g. per-object tracking+fusion vs spatial evidence grid), compared with the scorer over many seeds + noise floor; pick one | **done** — **cand_obj chosen** (D31, `results/m3_comparison.md`) |
 | M4 | 19:00–20:30 | Hardening of the chosen design; a test per rule of brief section 7; single config file + defaults test; ROS 1 wrappers + launch files (real-log and sim modes) built in tm_dev | **done**, as four parallel parts: M4a cand_obj hardening (D32-D39), M4d generator fix + suite_v2 (D40), M4b ROS wrapper (D41-D47), M4c real flight (D48-D54); M4c added the real-flight profile `config/cand_obj_real.cfg`, the default of the real launch (D53, D54) |
 | M5 | 20:15–22:45 | Handoff: README, results report, design doc (section 10 answers), decision log; everything committed | **done** (D55-D57); independent review follows |
+| final fix | 21:00–23:40 | The final review's findings: B1-B3 blocking, S4-S14 | **done** (D58-D65, `results/final_review_fixes.md`); see "Final-review fixes" below |
 
 If behind: cut alternatives, never the scorer, the safety-rule tests or the handoff.
 
 ## Final state (M5, 2026-10-24)
 
 **Start here**: `README.md` (build, run, score, parameters, hardware checklist), `results/REPORT.md` (all results, with
-sources), `docs/DESIGN.md` (design, brief section 10 answers, rule-by-rule tests), `docs/DECISIONS.md` (D1-D57, R1-R14).
+sources), `docs/DESIGN.md` (design, brief section 10 answers, rule-by-rule tests), `docs/DECISIONS.md` (D1-D65, R1-R14).
 
 | Deliverable (brief section 12) | Where | Status |
 |---|---|---|
@@ -35,9 +36,30 @@ PASSED (63 gtest cases in `test_core`, 102 pytest); catkin build of both package
 `rostest replay_smoke.test` SUCCESS; `evaluate.sh cand_obj` on Isaac reproduces the committed scorecard exactly
 (byte-identical map stream without wall-clock timing).
 
+**Verification after the final-review fixes** (`results/REPORT.md` section 11): fresh `run_tests.sh` ALL TESTS PASSED
+(72 gtest cases, 102 pytest), fresh catkin build clean, `test_treemapper_ros` 30/30, `rostest replay_smoke.test` SUCCESS,
+mutation check 17/20 killed + 3 equivalent.
+
 **Headline** (`results/cand_obj_m4_isaac.md`): on the recorded Isaac mission cand_obj finds 9/9 trees (existing 7/9),
 mean IoU 0.867 (0.629), centre RMSE 0.19 m (1.36), 0 safety violations (5), 0 centre/height jumps (8/19); scan latency
 2.32 s (1.19 s).
+
+### Final-review fixes (D58-D65)
+
+- **B1** node: `required="false"`, no respawn (IDs would restart at 0), every callback / timer / service guarded
+  (`CallbackGuard`: log + `callback_exceptions*` counters + health FAULT 10 s, node stays up; `FatalConfigError` at
+  startup still exits). **B2** height = world-frame z of the canopy top (datum: world origin, re-origins at boot) in
+  msg / types / DESIGN / READMEs; `observations` filled, `confidence` reserved 0, `DronePose.msg` marked unused.
+  **B3** Isaac recording relabelled "used during tuning; not an unbiased test"; held-out suite = validation set (looked at
+  for M3, M4a, M4c, R14); fresh seed range (1000-1009) recommended; headline-card JSONs committed.
+- **S4** sticky lock (cand_obj only, `phasePolicy` unchanged); **S6** 9 new rule tests, `scripts/mutation/run_mutants.sh`
+  17/20 killed, 3 equivalent; **S8** non-truncated height guard implemented (kept: Isaac scorecard unchanged, suite_v2
+  recall unchanged); **S12** nan/inf config rejected; **S13** health SLEEPING == mapper asleep (SCAN_APPROACH awake);
+  **S14** yaml-cpp test_depend; **S5** grid merge sweep, byte-identical output, 18.6 -> 1.3 ms/frame at 1600 trees.
+- Docs: navigator must be ported to `GetTrees` / `SetTreeSprayed` (no adapter, README); real camera chain "inferred from
+  one flight"; cand_obj.md sections 2-9 bannered as M3 history.
+- Numbers changed: suite_v2 (precision 0.987 -> 0.991, split 0.27 -> 0.20, latency 1.77 -> 1.80 s), real flight sim
+  profile 102 -> 101 trees. **Held-out numbers are from the pre-fix M4a build (not re-run).**
 
 ### Open items
 
@@ -47,9 +69,14 @@ mean IoU 0.867 (0.629), centre RMSE 0.19 m (1.36), 0 safety violations (5), 0 ce
 3. **Latency** ~1.1 s behind the existing system on the recording; publication thresholds are the lever (README table).
 4. **Hard-level recall** 0.83 (M4 traded 0.02-0.04 recall for 0 jumps, D39).
 5. **Map reuse across flights** is a design only (`docs/DESIGN.md` section 2.5).
-6. **Stale parameter**: with `seed_truncated = true` (shipped), `peak_border_px` only feeds a counter; the comments in
-   `cand_obj.hpp` and `docs/candidates/cand_obj.md` sections 2 / 6 still describe the M3 meaning ("no height sample").
-   Harmless, but a reader tuning it will see no effect.
+6. ~~Stale parameter `peak_border_px`~~: resolved by S8 (truncated crowns' heights do not count toward publication).
+   New: the held-out suite has been looked at too often to be a test set; generate a fresh suite (seeds 1000-1009) and score
+   it once before any new performance claim. The held-out cards are from the pre-final-fix build.
+9. **Respawn stays off** until IDs get a persistent / random epoch offset (and the sprayed list persists); a crashed node
+   stays down (B1, `ros/treemapper_ros/README.md`).
+10. **Navigator port**: the existing navigator uses the old fuser interface; there is no adapter (README "Build on the Jetson").
+11. Equivalent mutants (redundant checks, kept as defence): seed-time `insideSprayed`, locked-phase `refreshHeight`,
+   `may_create` in the confirm test (`scripts/mutation/mutants.py`).
 7. Heights are world z and inherit any pose-z drift of the flight controller (unknown on the real flight).
 8. The Isaac truth heights are a constant fallback, so heights are validated on synthetic data only.
 

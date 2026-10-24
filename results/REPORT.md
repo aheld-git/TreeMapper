@@ -21,6 +21,11 @@ Definitions of every metric: `docs/SCORER.md` and `tools/treemapper_tools/score.
   peak, 0 / 0 jumps**, but regresses on synthetic data (recall 0.93 -> 0.85, 20 safety frames on one hard mission), so
   two profiles ship: real launch = real profile, everything else = sim profile. (`results/real_flight_scorecard.md`,
   `results/real_flight_profile.md`)
+- **Final-review fixes after these runs** (`results/final_review_fixes.md`, D58-D65): sticky lock, a non-truncated height
+  guard for confirmation, and an O(N) merge sweep changed cand_obj after the numbers above were produced. Re-scored on
+  Isaac (scorecard unchanged) and suite_v2 (recall unchanged 0.954, precision 0.987 -> 0.991, split trees 0.27 -> 0.20,
+  scan latency 1.77 -> 1.80 s); the real profile's real-flight map is byte-identical; the sim profile on the real flight
+  102 -> 101 trees. **The held-out numbers in this report are from the pre-fix (M4a) build and were not re-run.**
 
 ## 2. Final scorecard against the existing system: recorded Isaac mission
 
@@ -61,7 +66,7 @@ noise, a hostile detector: misses, false positives, merged and partial boxes, D2
 parameter tuning. **It is no longer untouched**: its results were looked at for the M3 selection, the M4a verdict, the M4c
 real-profile check and the effect of the R14 scorer fix, and each look could have steered a design choice. Treat the
 numbers below as a validation set, not an unbiased test; any future claim should come from a fresh seed range (for
-example seeds 200-209, generated after this report and scored once). The recorded Isaac mission was **used during tuning**
+example seeds 1000-1009: suite_v1 uses 0-4, the held-out suite 100-109, suite_v2 200-204; generate once, score once). The recorded Isaac mission was **used during tuning**
 (M3 and M4a tuned on it, D32-D39, `docs/candidates/cand_obj.md` section 5), so it is not an unbiased test either. Cells: **mean / worst seed** (worst = min for recall, precision, IoU, sprayed;
 max otherwise). W/L/T = seeds where cand_obj is better / worse / equal, paired by seed. Sources: means, worsts and the paired
 comparison with cand_grid `results/cand_obj_m4_holdout.md`; paired comparison with simple `results/final_holdout_vs_simple.md`
@@ -136,7 +141,7 @@ comparable across suites (D40).
 
 ## 4. Real flight (no ground truth): stability, safety, tree count and fragmentation
 
-Source: `results/real_flight_scorecard.md` (`BB_treehopping_farm`, 511 s, verified camera chain D49/D50, constant SCAN phase;
+Source: `results/real_flight_scorecard.md` (`BB_treehopping_farm`, 511 s, camera chain inferred from one flight, D49/D50, constant SCAN phase;
 cand_obj M4 = the shipped sim profile, core 960ccb7). The stereo shows about 60-63 crowns (63 stereo crown peaks, D51);
 "outlines with 0 peaks" are fragments or false trees, "2+ peaks" are merged crowns.
 
@@ -252,6 +257,12 @@ Cost is about 1 ms per frame on x86, nearly all of it in the `chm` stage (`insta
 single snapshots (the mean stays ~1 ms). Assume several times that on the Orin (unmeasured); memory is bounded (~14 kB per
 live instance, `docs/candidates/cand_obj.md` section 10.8).
 
+**Scaling with map size** (final review S5, `results/final_review_fixes.md` section 4; `integrate()` only, x86): the merge
+sweep used to test every pair of instances every frame, 0.21 / 1.47 / 18.6 ms per frame at 100 / 400 / 1600 trees.
+Merge candidates now come from a uniform grid on the centres (output byte-identical on Isaac and suite_v2): 0.12 / 0.47 /
+1.29 ms. What is left is linear in the number of trees (~0.8 us per tree per frame); a very large orchard (several
+thousand trees in one map) would still want a spatial index for the per-instance view test.
+
 ## 9. Noise floor
 
 - **Run-to-run: 0.** Generator, replay and mappers are deterministic (D26). M5 re-ran the shipped system on the recording in a
@@ -300,6 +311,18 @@ gtest); the core is unchanged since 960ccb7 in both. Logs: `/data/work/m5/` (fir
 
 | real profile reproduces | `treemapper_replay --system cand_obj --config "<config/cand_obj_real.cfg as k=v;...>"` on `/data/work/extracted/real_farm/frames.bin` (fresh build) | 63 trees in the final map, 68 IDs ever published: equal to `results/real_flight_profile_scorecard.json` (63 / 68) |
 
+**Final-review fix pass** (2026-10-24 ~21:00-21:35, tm_dev, at most 4 cores, after commit c375a5a; logs under
+`/data/work/final_fix/`):
+
+| Check | Command | Result |
+|---|---|---|
+| all tests, fresh build, all candidates | `TM_BUILD=/data/work/final_fix/build_final TM_JOBS=4 ./scripts/run_tests.sh` (empty dir) | **ALL TESTS PASSED**: no warnings, `test_core` 72 gtest cases, pytest 102 |
+| ROS package build | `catkin clean` + `catkin build -j4` + `--catkin-make-args tests` in `/data/work/final_fix/catkin_ws` | all packages succeeded, no warnings |
+| ROS gtests | `test_treemapper_ros` | **30 / 30** (+ sleep phases = phasePolicy, callback containment) |
+| ROS end-to-end smoke | `rostest treemapper_ros replay_smoke.test` | **SUCCESS** (1 test, 0 errors, 0 failures) |
+| rule tests vs mutants | `scripts/mutation/run_mutants.sh` | 17 / 20 killed, 3 equivalent (`results/final_review_fixes.md` section 3) |
+| re-score + S5 identity | `results/final_review_fixes.md` sections 1-2, 4 | Isaac scorecard unchanged; suite_v2 small changes (S8); S5 byte-identical |
+
 Not re-verified by M5: the held-out suite and the real-flight scorecards of the other systems (taken from the committed
 M4a / M4c runs; the generator, replay and mappers are deterministic, D26), and anything on the Orin.
 
@@ -314,7 +337,7 @@ M4a / M4c runs; the generator, replay and mappers are deterministic, D26), and a
 | M4a | **Hardening of cand_obj**, carrying cand_grid's strengths over: latched-surface height quantile, heights frozen outside creation phases, rate-limited centre / height, range / off-axis / rotation weighting, overlap matching + seed guard. Held-out run once at the end of M4a (the suite had already been looked at for M3 and R14): jumps 0 everywhere, IoU and centre better, recall slightly lower. | `docs/candidates/cand_obj.md` section 10, `results/cand_obj_m4_holdout.md`, `results/cand_obj_m4_isaac.md`, `results/cand_obj_m4_synthetic.md`, D32-D39 |
 | M4d | Generator fix (the descent hover cleared only the target) and a new tuning suite suite_v2; held-out suites untouched. | D40 |
 | M4b | **ROS 1 wrapper** + launch files for sim and real; ROS path reproduces the offline replay on the full Isaac mission. | `ros/treemapper_ros/README.md`, `results/ros_replay_isaac.md`, D41-D47 |
-| M4c | **Real flight**: frame reader, camera chain verified from data (82 deg mount, 4.30 px offset), no-GT scorecard of all systems; found the over-fragmentation and tuned a real profile. | `docs/REAL_FLIGHT.md`, `results/real_flight_geometry.md`, `results/real_flight_scorecard.md`, D48-D54 |
+| M4c | **Real flight**: frame reader, camera chain inferred from one flight (82 deg mount, 4.30 px offset; not checked on hardware), no-GT scorecard of all systems; found the over-fragmentation and tuned a real profile. | `docs/REAL_FLIGHT.md`, `results/real_flight_geometry.md`, `results/real_flight_scorecard.md`, D48-D54 |
 | M5 | Handoff: README, this report, design document, consolidated decision log; verification in a fresh build. | D55-D57 |
 
 ## 13. Index of result files
@@ -327,8 +350,10 @@ M4a / M4c runs; the generator, replay and mappers are deterministic, D26), and a
 | `simple_baseline_{isaac,synthetic}.{md,json}` | M2 baseline |
 | `cand_obj_{isaac,synthetic}.{md,json}`, `cand_grid_{isaac,synthetic}.{md,json}` | M3 candidates (tuning data) |
 | `m3_comparison.{md,json}` | M3 held-out selection |
-| `cand_obj_m4_{holdout,isaac,synthetic}.md` | M4 hardened cand_obj vs M3, cand_grid, simple (and existing on Isaac) |
-| `final_holdout_vs_simple.md` | shipped cand_obj: per-level card with seed spread, paired vs simple (M5 extract) |
+| `cand_obj_m4_{holdout,isaac,synthetic}.md` | M4 hardened cand_obj vs M3, cand_grid, simple (and existing on Isaac); pre-final-review build |
+| `final_holdout_vs_simple.{md,json}` | shipped cand_obj: per-level card with seed spread, paired vs simple (M5 extract) |
+| `cand_obj_m4_{holdout,isaac}.json` | the M4a runs behind the two M4 cards (copied, no re-run) |
+| `final_review_fixes.md`, `final_review_rescore.json` | final-review fixes: before / after on Isaac and suite_v2, real flight, mutation check, cost scaling |
 | `ros_replay_isaac.{md,json}` | ROS path vs offline replay |
 | `real_flight_geometry.{md,json}`, `real_flight_stereo_check.json` | real camera chain |
 | `real_flight_scorecard.{md,json}`, `real_flight_crowns.json`, `real_flight_plots/` | real flight, all systems, no GT |

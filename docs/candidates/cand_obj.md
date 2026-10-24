@@ -22,23 +22,32 @@ median of per-frame crown-top samples, see section 10). Published centre and hei
 
 ## 2. Why this should beat the simple baseline
 
+> **Historical (M3).** Sections 2-9 describe the M3 candidate as it was selected. They are **superseded** by section 10
+> (M4 hardening) and by `docs/DESIGN.md` (the shipped system). In particular the M3 height model (median of up to
+> `height_buffer` crown-top samples, `min_height_samples`) no longer exists: M4 publishes the 0.99 quantile of the fused
+> latched surface and gates publication on `min_height_cells` (section 10.1); the final review added the sticky lock and the
+> non-truncated-height guard (`docs/DESIGN.md` sections 2.4 and 4).
+
+
 The baseline's failures (PROGRESS.md, M2) and the mechanism that answers each:
 
 | Failure of `simple` | cand_obj mechanism |
 |---|---|
 | Merged detector boxes / touching canopies -> neighbours swallowed | Crowns come from the height field, not from boxes: two touching domes have a saddle between their tops, so the watershed splits them at the saddle even when the xy gap is below the depth noise. A merged box simply contains two crown tops. |
-| False trees from clutter, FP boxes, noise bursts | A crown must be a local maximum >= `min_tree_height` above the ground plane (bushes are 0.2-0.9 m), inside a box, with >= `min_basin_cells` cells; an instance must then be matched in `confirm_frames` frames, have `min_height_samples` finite tops and `min_publish_area` of latched cells before it exists for navigation. A noise burst seeds tentative instances that expire after `tentative_timeout` without ever being published. |
+| False trees from clutter, FP boxes, noise bursts | A crown must be a local maximum >= `min_tree_height` above the ground plane (bushes are 0.2-0.9 m), inside a box, with >= `min_basin_cells` cells; an instance must then be matched in `confirm_frames` frames, have `min_height_samples` (M3; now `min_height_cells`) finite tops and `min_publish_area` of latched cells before it exists for navigation. A noise burst seeds tentative instances that expire after `tentative_timeout` without ever being published. |
 | Outline spill from raw hulls | Nothing enters an outline below cell level, and cell heights are medians (at 15 m, ~9 points per cell: per-point sigma_Z 0.9 m at medium becomes ~0.4 m per cell and ~0.15 m after smoothing), so ground noise rarely passes the 1 m canopy threshold; a cell also has to be canopy in a majority of the frames it was judged. Cells farther than `max_cell_radius` from the instance centre are refused. |
-| Noisy heights, heights above the drone | Height sample = median height of the crown-top cell (not p95 of raw points); the published height is the median of up to `height_buffer` samples; samples above drone altitude - margin are dropped and counted; crowns truncated by the image border give no sample. |
+| Noisy heights, heights above the drone | Height sample = median height of the crown-top cell (not p95 of raw points); the published height is the median of up to `height_buffer` samples (M3 only; removed in M4, section 10.1); samples above drone altitude - margin are dropped and counted; crowns truncated by the image border give no sample. |
 | Publish latency | An instance publishes after `confirm_frames` (4) matched frames with 3 finite tops and 3 m^2 latched: ~0.3 s at 15 Hz once the crown is fully in view. |
 | Identity through track loss / jumps | No tracks: matching is by world position against the instance's own outline, so a lost or jumping detector track changes nothing. IDs are monotonic and a merge keeps the better-established ID. |
 | Rule 2 | A single frame can change neither an outline (latching needs `latch_frames` >= 3 frames) nor a height (median). Latched cells are never removed, so the hull can only grow. |
 
 ## 3. Confidence and identity model
 
+> Historical (M3), superseded by section 10 and `docs/DESIGN.md` (see the note under section 2).
+
 **Existence.** An instance is *tentative* from its first crown until it is confirmed; tentative instances are never
 published, cannot be confirmed in a locked phase (that would be a new tree after scanning), and are deleted after
-`tentative_timeout` (1.5 s) unseen. Confirmation needs `confirm_frames` frames with a matched crown, `min_height_samples`
+`tentative_timeout` (1.5 s) unseen. Confirmation needs `confirm_frames` frames with a matched crown, `min_height_samples` (M3; now `min_height_cells`)
 finite crown-top samples and `min_publish_area` of latched cells, and the centre must not lie inside a sprayed tree.
 A confirmed instance is never deleted; it can only be absorbed by a merge during a creation phase.
 
@@ -61,6 +70,8 @@ confirmed > more frames seen > lower ID, and keeps its ID and its height samples
 fragment inside a large tree merge easily, while two large trees would need half of the smaller one covered.
 
 ## 4. How each rule of brief section 7 is guaranteed (and tested)
+
+> Historical (M3), superseded by section 10 and `docs/DESIGN.md` (see the note under section 2).
 
 | Rule | Guarantee | Test |
 |---|---|---|
@@ -95,6 +106,8 @@ merged,refused_confirm_inside_sprayed}`, `merge_cells_dropped_outside_window`, `
 
 ## 5. What was tried (tuning on suite_v1 and the recording; held-out suite never read)
 
+> Historical (M3), superseded by section 10 and `docs/DESIGN.md` (see the note under section 2).
+
 All runs paired by seed against `simple`; the synthetic numbers below are cand_obj's per-level means (easy / medium / hard)
 on suite_v1, 5 seeds each. Run-to-run noise is 0 (deterministic), so differences between rows are real for these seeds
 but the seed-to-seed spread (std over datasets, in the cards) still applies to any claim about other orchards.
@@ -124,6 +137,8 @@ Rejected ideas and why:
   not done, because it would cost IoU on the recording, which has no fattening, and nothing real-stereo exists to decide it.
 
 ## 6. Known failure modes and weaknesses
+
+> Historical (M3), superseded by section 10 and `docs/DESIGN.md` (see the note under section 2).
 
 - **Implausible-height frames on synthetic are mostly not height errors.** The generator hovers at a fixed ~7 m world z
   (5.3-6.0 m in hard_s00) while some truth tops are 6.2-8.1 m, and the scorer flags every published height above the drone.
@@ -155,12 +170,16 @@ Rejected ideas and why:
 
 ## 7. Cost
 
+> Historical (M3), superseded by section 10 and `docs/DESIGN.md` (see the note under section 2).
+
 Per processed frame on the x86 workstation (RelWithDebInfo, one core), `stage_ms` in the cards: `chm` (back-projection
 of 16000 points, binning, medians + MAD, plane fit, smoothing, watershed) about 0.7-0.9 ms mean, `instances` (matching,
 evidence, latching, hulls, merges) about 0.01-0.05 ms. Memory: one 28 x 28 evidence window (about 4 kB) per live instance.
 Expect several times the x86 figure on the Orin (not measured); the budget of 10 ms per frame leaves an order of magnitude.
 
 ## 8. Results (final frozen configuration; details in `results/cand_obj_*.md`)
+
+> Historical (M3), superseded by section 10 and `docs/DESIGN.md` (see the note under section 2).
 
 Recorded Isaac mission (used during tuning; not an unbiased test; it was tuned on, section 5): recall 9/9 (simple 8, existing 7), mean / min IoU 0.86 / 0.78
 (0.73 / 0.46, 0.63 / 0.39), 0 swallowed neighbours (1, 2), centre RMSE 0.21 m (1.10, 1.36), spill 0.05 (0.14, 0.16),
@@ -172,6 +191,8 @@ neighbours swallowed 15/0/0, false trees 15/0/0 (0 on every mission), centre RMS
 IoU 0.76, 1.0 swallowed, 0 false, centre 0.46 m, height 0.19 m, spill 0.19.
 
 ## 9. Answers to the brief's section 10 questions, as far as this candidate goes
+
+> Historical (M3), superseded by section 10 and `docs/DESIGN.md` (see the note under section 2).
 
 - **Touching trees with a gap below the depth noise**: separated in height, not in xy. Two crowns have two tops and a
   saddle between them; the watershed on the smoothed CHM splits at the saddle whatever the xy gap. The limit is the

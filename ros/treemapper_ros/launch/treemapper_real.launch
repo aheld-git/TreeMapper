@@ -4,7 +4,7 @@
      rotation is appended (camera_frame_is_optical false). The log's /tf_static body -> sensor_down says lever
      (0.30, 0.08, -0.20) m and 75 deg about +y, but the no-ground-truth camera-chain check of the real flight
      (tools/treemapper_tools/real_frames.py, results/real_flight_geometry.md, docs/REAL_FLIGHT.md) puts the pitch at
-     82 deg (+-1.5): with 75 deg the ground tilts ~7 deg. Default here = that data-verified mount as a parameter
+     82 deg (+-1.5): with 75 deg the ground tilts ~7 deg. Default here = that mount, inferred from one flight (not verified on hardware), as a parameter
      (camera_mount_source param); camera_mount_source:=tf uses the TF as published.
      Disparity: the real driver's disparity carries a constant offset. camera_info says cx_left - cx_right = 4.918 px
      (disparity_offset:=auto), but M4c's pose-based motion test on the farm log puts the offset at 4.30 px (depth

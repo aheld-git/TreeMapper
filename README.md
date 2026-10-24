@@ -56,7 +56,7 @@ docker exec tm_dev bash -lc 'source /opt/ros/noetic/setup.bash && cd /ws && TM_J
 ```
 
 It configures and builds the core with every candidate (`TM_CANDIDATES=cand_obj` builds one), fails on a build error,
-runs ctest (gtest `test_core`, 63 cases) and pytest (102 tests), and prints `ALL TESTS PASSED`. Use a fresh
+runs ctest (gtest `test_core`, 72 cases) and pytest (102 tests), and prints `ALL TESTS PASSED`. Use a fresh
 `TM_BUILD=/data/work/build_<name>` to build from scratch.
 
 ROS package (catkin, scratch workspace outside the repo; details in `ros/treemapper_ros/README.md`):
@@ -87,10 +87,14 @@ Target: arm64, Ubuntu 20.04, ROS Noetic, the same stack as `tm_dev`.
    only the C++17 standard library (no Eigen, CGAL, OpenCV, CUDA), so there is nothing arm64-specific to port.
 3. `catkin build treemapper_ros -j2 -DCMAKE_BUILD_TYPE=Release` (keep `-j2`: the detector shares the CPU). g++ 9.4 on 20.04
    is enough. Python tools are only for offline evaluation (numpy, scipy, shapely; `tools/requirements.txt`).
-4. Include `treemapper_real.launch` in the drone launch and set the frame / topic arguments. Navigation subscribes to
+4. **Port the navigator first.** The existing navigator talks to the old fuser's interface (`GetTreeInfo`,
+   `PolygonWithMetadata`, its `set_tree_sprayed`, fusion IDs); TreeMapper serves a different one (`treemapper_msgs`:
+   `TreeMap`, `GetTrees`, `SetTreeSprayed`, TreeMapper IDs) and there is **no adapter**. The navigator must be ported to
+   `GetTrees` / `SetTreeSprayed` (and must take its hop targets from TreeMapper's IDs) before a flight.
+5. Include `treemapper_real.launch` in the drone launch and set the frame / topic arguments. Navigation subscribes to
    `/treemapper/map` (latched) or calls `/treemapper/get_trees`, publishes `/mission_state` (latched String) and the hop
    target on `/spray_target` **in TreeMapper's IDs**, and calls `/treemapper/set_tree_sprayed`.
-5. First checks on the device: the checklist at the end of this file.
+6. First checks on the device: the checklist at the end of this file.
 
 ## Run on a recorded flight log
 
@@ -218,7 +222,7 @@ profile are in bold. (Generated from the two files by `python3 -m treemapper_too
 | crowns | `min_prominence` | 0.6 | **1.0** | m, a basin peak this little above its saddle merges into the neighbour | the touching-tree knob: lower splits touching crowns (and over-fragments rough real crowns); higher merges neighbours |
 | crowns | `min_basin_cells` | 4 | **8** | cells, smaller crowns ignored | higher suppresses noise blobs, delays small/edge crowns |
 | crowns | `box_dilate` | 0.15 | 0.15 | fraction, boxes grown before the crown-top test | higher tolerates box jitter / pixel misalignment, admits more non-tree tops |
-| crowns | `peak_border_px` | 24.0 | 24.0 | px, a crown top this close to the image edge is flagged truncated (its top may be outside the image) | only matters with seed_truncated = false (then truncated crowns never seed); with the shipped true it only feeds a counter (instances_seeded_from_truncated_crown) |
+| crowns | `peak_border_px` | 24.0 | 24.0 | px, a crown top this close to the image edge is flagged truncated (its top may be outside the image) | with seed_truncated = false truncated crowns never seed; either way their height samples do not count toward the min_height_cells needed for publication (a tree seen only truncated never publishes) |
 | instances | `seed_truncated` | true | **false** | a crown whose top is flagged truncated may still seed an instance | true = earlier evidence (latency), slightly more neighbour spill at crown entry |
 | instances | `window` | 28 | 28 | cells per side of an instance evidence window | must cover the largest crown (28 x 0.4 = 11.2 m); memory ~14 kB per instance |
 | instances | `hull_cell_corners` | false | false | outline from latched cell corners (true) or centres (false) | corners = larger outlines (+spill), centres = tighter |
@@ -231,7 +235,7 @@ profile are in bold. (Generated from the two files by `python3 -m treemapper_too
 | instances | `latch_frames` | 5 | 5 | quality-weighted positive frames before a cell latches | rule 2 knob: higher = more robust to bad frames, slower outlines / latency |
 | instances | `latch_ratio` | 0.75 | 0.75 | fraction of judged frames a cell must be positive in | higher = tighter outlines, less spill; too high loses recall under heavy noise |
 | instances | `confirm_frames` | 3 | 3 | frames with a matched crown before publication | higher = fewer false trees, later publication |
-| instances | `min_height_cells` | 3 | 3 | latched cells with a fused height before publication (rule 3) | higher = more robust first height, later publication |
+| instances | `min_height_cells` | 3 | 3 | latched cells with a fused height (as many sampled from non-truncated crowns) before publication (rule 3) | higher = more robust first height, later publication |
 | instances | `min_publish_area` | 3.0 | **8.0** | m^2 of latched cells before publication | higher = fewer fragments / centre drift, later publication, misses small trees |
 | instances | `min_tree_height` | 1.5 | 1.5 | m above ground, lower crowns never seed | higher rejects bushes/clutter, misses young trees |
 | instances | `tentative_timeout` | 1.5 | 1.5 | s, unconfirmed instances unseen this long are deleted | longer keeps slow-building trees, keeps noise seeds alive |
@@ -260,7 +264,7 @@ error, 7-16 % with 4.918 instead of 4.30 px on the farm flight), `pose_wait` (po
 | real drone, real flight logs (`treemapper_real.launch`) | `config/cand_obj_real.cfg` | default of the launch's `mapper_config_file` arg (`config/core/cand_obj_real.cfg`) |
 | Isaac sim / recorded Isaac mission (`treemapper_sim.launch`, `replay_isaac.launch`), `treemapper.yaml`'s pointer, `scripts/evaluate.sh`, `treemapper_replay` without `--config` | `config/cand_obj.cfg` = built-in defaults | default |
 
-The real profile changes 9 keys (bold above). With the sim profile the real farm flight over-fragments: 102 trees where
+The real profile changes 9 keys (bold above). With the sim profile the real farm flight over-fragments: 102 trees (101 after the final-review truncation guard) where
 the stereo shows about 63 crowns, 39 outlines without a crown peak. With the real profile: 63 trees, 6 outlines without a
 peak, 2 with two, 5 peaks missed, 0 centre / height jumps (`results/real_flight_profile.md`). The decisive key is
 `merge_overlap` 0.5 -> 0.3: real crowns are rough and split into two or three instances that overlap by 30-50 %.

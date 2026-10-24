@@ -105,7 +105,11 @@ optional relative-height trim of the crown skirt (`latch_rel_h`) exists but ship
 **Existence.** An instance is *tentative* from its first crown. It is published (confirmed) only when all hold:
 `confirm_frames` (3) frames with a matched crown; `min_height_cells` (3) latched cells carrying a fused height;
 `min_publish_area` (3 m^2) of latched cells; its centre is not inside a sprayed tree; and the phase allows creation
-(an instance cannot be confirmed in a locked phase: that would be a new tree after scanning). Unconfirmed instances unseen
+(an instance cannot be confirmed in a locked phase: that would be a new tree after scanning); and (final review S8)
+at least `min_height_cells` of its latched cells carry a height sample from a crown whose top was inside the image (not
+"truncated", within 24 px of the border): a tree seen only with its top outside the image would publish an
+under-estimated height, the unsafe direction for a descent (counter `instances_waiting_untruncated_height`, test
+`CandObjFinal.TruncatedOnlyCrownNeverPublishes`). Unconfirmed instances unseen
 for `tentative_timeout` (1.5 s) are deleted. A confirmed instance is never deleted; it can only be absorbed by a merge in
 a creation phase. Because the height is a quantile over >= 3 fused cells, it is finite at the moment of publication
 and stays finite (rule 3).
@@ -161,14 +165,14 @@ on whole missions). Each test fails if its rule is broken.
 
 | Rule | Guarantee in the design | Test(s) |
 |---|---|---|
-| 1 IDs stable, never reused | monotonic `next_id_`; retired IDs never re-issued; geometric matching, no tracks; established side of a merge keeps its ID | `CandObjRules.IdsNeverReusedAndMergeKeepsEstablished`, `CandObjM4.FragmentNeverTakesOverAPublishedTree`; scorer: `test_score_review.py` (ID reuse decided geometrically, R9) |
+| 1 IDs stable, never reused | monotonic `next_id_`; retired IDs never re-issued; geometric matching, no tracks; established side of a merge keeps its ID | `CandObjRules.IdsNeverReusedAndMergeKeepsEstablished`, `CandObjM4.FragmentNeverTakesOverAPublishedTree`, `CandObjFinal.MergeWinnerIsTheConfirmedInstance`, `CandObjFinal.NoMergeWhileTheListIsLocked`; scorer: `test_score_review.py` (ID reuse decided geometrically, R9) |
 | 2 no silent damage to published geometry | latch needs >= 5 frames at >= 75 %; latched cells never unlatch (grow-only, monotone outline); height from >= 3 fused cells with a 2 m outlier gate, rate-limited; centre rate-limited | `CandObjRules.OneBadFrameNeverCorruptsAPublishedTree`, `CandObjRules.HoveringDoesNotInflateTheOutline`, `CandObjCHM.NoiseBurstFramesAreDroppedAndCounted`, `CandObjM4.MergeNeverJumpsThePublishedValues`; scorer retreat / jump metrics (R1) |
-| 3 height always a real number once published | publication requires >= 3 latched cells with a fused height; non-finite and near-drone heights never fused; `TreeMap::isPublishable` rejects undefined heights and degenerate outlines; the ROS conversion carries the core value | `CandObjRules.PublishesOnlyAfterConfirmationWithFiniteRobustHeight`, `CandObjM4.HeightFromLatchedSurfaceAndRateLimitedPublication`, `TreeMap.RejectsUndefinedHeightAndDegenerateOutline`, `Conversions.TreeEntryRoundTrip` |
+| 3 height always a real number once published | publication requires >= 3 latched cells with a fused height; non-finite and near-drone heights never fused; `TreeMap::isPublishable` rejects undefined heights and degenerate outlines; the ROS conversion carries the core value | `CandObjRules.PublishesOnlyAfterConfirmationWithFiniteRobustHeight`, `CandObjM4.HeightFromLatchedSurfaceAndRateLimitedPublication`, `TreeMap.RejectsUndefinedHeightAndDegenerateOutline`, `Conversions.TreeEntryRoundTrip`, `CandObjFinal.HeightsNotFusedInLockedPhases`, `CandObjFinal.TruncatedOnlyCrownNeverPublishes`, `CandObjFinal.NonFiniteConfigValuesAreRejected` |
 | 4 one tree, one entry | watershed split at saddles; size-aware merge (overlap of the smaller / centre distance) over all live instances; seed guard; established side keeps identity and height | `CandObjRules.TouchingNeighboursStaySeparate`, `CandObjCHM.TouchingDomesUnderOneBoxBecomeTwoCrownsWithoutGroundSpill`, `CandObjRules.SeveralCrownsOnOneTreeAllCount`, `CandObjM4.FragmentNeverTakesOverAPublishedTree`, `CandObjRules.IdsNeverReusedAndMergeKeepsEstablished` |
-| 5 sprayed trees protected | sprayed instances get no crowns, no evidence, no height steps, no merges; crowns inside a sprayed outline never seed; an instance whose centre is inside a sprayed tree is never confirmed; the node refuses `set_tree_sprayed(false)` | `CandObjRules.SprayedTreesFrozenAndProtected`; scorer sprayed-change / new-inside-sprayed metrics (R2) |
+| 5 sprayed trees protected | sprayed instances get no crowns, no evidence, no height steps, no merges; crowns inside a sprayed outline are matched to it and dropped (the separate seed-time `insideSprayed` check is redundant with that match, kept as defence); an instance whose centre is inside a sprayed tree is never confirmed; only published IDs can be marked; the node refuses `set_tree_sprayed(false)` | `CandObjRules.SprayedTreesFrozenAndProtected`, `CandObjFinal.NoNewTreeConfirmedInsideASprayedTree`, `CandObjFinal.SprayedTreeNeverMerges`, `CandObjFinal.MarkSprayedRefusesUnpublishedInstances`; scorer sprayed-change / new-inside-sprayed metrics (R2) |
 | 6 fail loudly and predictably | every gate has a documented direction (table below); each trigger is counted and its first occurrence logged; the node lists active warnings in `~health` | `CandObjFrames.HeartbeatsHoldsAndSleepAreCounted`, `CandObjRules.OnlyTargetChangesDuringDescentAndPostSprayClimb`, `CandObjConfig.SanitizedClampsAndLogsEveryClamp`, `MapperRegistry.EverySystemRejectsAnUnknownConfigKey`, `Calibration.BuildsFromCameraInfoAndRejectsUncalibrated`, `Disparity.RejectsMalformedAndMismatchedImages` |
 | 7 every dropped data point counted by reason | `counters()` covers points, cells, crowns, height samples, instances, frames (list in `docs/candidates/cand_obj.md` section 4); the node adds input / pairing counters; both published on `~counters` | every cand_obj test reads counters; `CandObjCHM.NoiseBurstFramesAreDroppedAndCounted`, `FrameSync.DuplicateDisparityStampIsDroppedAndCounted`, `Conversions.CountersAndTiming` |
-| single config, defaults = file | `config/cand_obj.cfg` equals the built-in defaults; clamps in `Config::sanitized()`, each logged; the node's yaml only points at the file | `CandObjConfig.ShippedFileEqualsBuiltInDefaults`, `CandObjConfig.SanitizedClampsAndLogsEveryClamp`, `ConfigAgreement.*` |
+| single config, defaults = file | `config/cand_obj.cfg` equals the built-in defaults; clamps in `Config::sanitized()`, each logged; non-finite values (nan / inf) rejected by `ConfigReader` and `sanitized()`; the node's yaml only points at the file | `CandObjConfig.ShippedFileEqualsBuiltInDefaults`, `CandObjConfig.SanitizedClampsAndLogsEveryClamp`, `ConfigAgreement.*` |
 
 **Gates and their failure direction (rule 6)**
 
@@ -187,14 +191,20 @@ on whole missions). Each test fails if its rule is broken.
 
 ## 4. Behaviour across mission phases (brief section 6)
 
-The rules are one pure function, `phasePolicy()` (`core/src/simple_mapper.cpp`, shared by all systems), plus cand_obj's
-post-spray hold:
+The rules are one pure function, `phasePolicy()` (`core/src/simple_mapper.cpp`, shared by all systems, unchanged), plus
+two cand_obj additions on top of it (`CandObj::policyFor`, `integrate`): the post-spray hold and the **sticky lock**
+(final review S4): once the tree list has been locked (PLANNING, HOPPING or SPRAYING seen), ERROR, unknown and
+SCAN_APPROACH stay awake but behave like PLANNING (no creation, no merge, no height fusion) until SCAN is entered again
+explicitly. A fault or a lost `/mission_state` after navigation planned against the list can therefore neither invent
+trees nor retire a planned ID (counter `frames_locked_after_planning`, one warning).
 
 | Phase | Processing | New trees | Merges | Who may change | Heights fused |
 |---|---|---|---|---|---|
-| SCAN, SCAN_APPROACH | awake | yes | yes | every tree | yes |
-| ERROR | awake (a fault is when you most want to see) | yes | yes | every tree | yes |
-| unknown / no `/mission_state` | awake, warning (fail open) | yes | yes | every tree | yes |
+| SCAN | awake (clears the sticky lock) | yes | yes | every tree | yes |
+| SCAN_APPROACH, before any lock | awake | yes | yes | every tree | yes |
+| ERROR, before any lock | awake (a fault is when you most want to see) | yes | yes | every tree | yes |
+| unknown / no `/mission_state`, before any lock | awake, warning (fail open) | yes | yes | every tree | yes |
+| ERROR / unknown / SCAN_APPROACH **after a lock** (sticky lock, until SCAN) | awake | no (and no tentative may confirm) | no | every confirmed tree may grow | no |
 | PLANNING | awake | no (and no tentative may confirm) | no | every confirmed tree may grow | no |
 | HOPPING | awake | no | no | **only the hop target** (no target: nothing) | no |
 | post-spray climb (after SPRAYING, until 2 m from the hover point or SCAN) | awake | no | no | only the target | no |
@@ -205,6 +215,10 @@ post-spray hold:
   the brief requires (it allows existing trees to grow while hopping) and was chosen because a low-angle look at a
   neighbour during transit is exactly the damage the freeze is for. Planning frames still grow locked trees.
   Test: `CandObjRules.OnlyTargetChangesDuringDescentAndPostSprayClimb`, `CandObjRules.NoNewTreesAfterScanning`.
+- **Sticky lock.** Tests: `CandObjFinal.StickyLockAfterPlanningUntilScan` (ERROR / unknown / SCAN_APPROACH after
+  HOPPING publish 1 tree, not 2; an explicit SCAN unlocks), `CandObjFinal.NoMergeWhileTheListIsLocked` (PLANNING and
+  ERROR-after-lock keep both planned IDs; the same frames in SCAN do merge). Not exercised by any recorded or synthetic
+  mission (none enters ERROR / unknown / SCAN_APPROACH after the lock), so the scores are unchanged by it.
 - **Sleep and heartbeat.** While asleep the node keeps publishing `~health` at 2 Hz from a wall timer (state SLEEPING,
   "phase X: sleeping, not dead") and feeds heartbeat frames to the mapper every 0.2 s while the detector is silent, so
   phase changes and timeouts still run. Test: `CandObjFrames.HeartbeatsHoldsAndSleepAreCounted`; rostest
@@ -258,3 +272,5 @@ estimated crown radius and the local tree spacing); it is a code change and was 
 - **Height reference** is the 0.99 quantile of the fused latched surface, i.e. near the canopy top; validated against
   synthetic truth only (Isaac truth heights are a constant fallback, R13; the real flight has no truth).
 - **Unverified on hardware**: all timings are x86 (about 1 ms per frame); the Orin was not available (README checklist).
+- **Map size**: per-frame cost grows linearly with the number of trees in the map (~0.8 us per tree on x86 after the
+  final review's merge grid; 1.3 ms at 1600 trees, was 18.6 ms with the O(N^2) merge sweep; `results/final_review_fixes.md`).
