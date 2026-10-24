@@ -20,7 +20,8 @@ Map stream (``*.jsonl``): one JSON object per published snapshot, in time order:
 Ground truth (``ground_truth.json``)::
 
     {"frame": "world", "trees": [{"id": 0, "outline": [[x, y], ...],
-                                  "centre": [x, y], "radius": 2.46, "height": 4.0}]}
+                                  "centre": [x, y], "radius": 2.46, "height": 4.0}],
+     "height_reliable": false}         # optional: false = heights are a fallback, not measured
 
 Mission context (``mission.json``) -- optional; without it phase-dependent safety
 metrics report "n/a" (no phase information = scanning, per brief section 6)::
@@ -121,6 +122,17 @@ class GroundTruthTree:
     height: float
 
 
+class GroundTruthList(list):
+    """List of ``GroundTruthTree`` that remembers the frame its file declared (the scorer
+    raises when the map stream's frame differs) and the optional ``height_reliable`` flag
+    (False = the truth heights are a fallback, not measured canopy heights; None = unknown)."""
+
+    def __init__(self, trees=(), frame: str = "world", height_reliable: Optional[bool] = None):
+        super().__init__(trees)
+        self.frame = frame
+        self.height_reliable = height_reliable
+
+
 @dataclass
 class Mission:
     phases: List[Tuple[float, str]] = field(default_factory=list)
@@ -130,6 +142,10 @@ class Mission:
     @property
     def has_phases(self) -> bool:
         return bool(self.phases)
+
+    @property
+    def has_targets(self) -> bool:
+        return bool(self.targets)
 
 
 def write_snapshots(path: str, snaps: Iterable[Snapshot]) -> int:
@@ -160,7 +176,7 @@ def write_ground_truth(path: str, trees: Sequence[GroundTruthTree], frame: str =
              "radius": round(g.radius, 4), "height": g.height} for g in trees]}, f, indent=1)
 
 
-def read_ground_truth(path: str) -> List[GroundTruthTree]:
+def read_ground_truth(path: str) -> "GroundTruthList":
     with open(path) as f:
         d = json.load(f)
     out = []
@@ -169,7 +185,9 @@ def read_ground_truth(path: str) -> List[GroundTruthTree]:
         c = g.get("centre") or polygon_centroid(outline)
         out.append(GroundTruthTree(int(g["id"]), outline, (float(c[0]), float(c[1])),
                                    float(g.get("radius", 0.0)), float(g["height"])))
-    return out
+    hr = d.get("height_reliable")
+    return GroundTruthList(out, frame=str(d.get("frame", "world")),
+                           height_reliable=None if hr is None else bool(hr))
 
 
 def write_mission(path: str, m: Mission) -> None:
@@ -184,9 +202,12 @@ def read_mission(path: Optional[str]) -> Mission:
         return Mission()
     with open(path) as f:
         d = json.load(f)
-    return Mission([(float(t), str(s)) for t, s in d.get("phases", [])],
-                   [(float(t), int(i)) for t, i in d.get("targets", [])],
-                   [tuple(float(v) for v in p) for p in d.get("pose", [])])
+    # Every series is a piecewise-constant / sampled signal looked up by time (step_lookup,
+    # bisect): sort by time (stable, so equal stamps keep file order) instead of trusting the file.
+    by_t = lambda r: r[0]
+    return Mission(sorted([(float(t), str(s)) for t, s in d.get("phases", [])], key=by_t),
+                   sorted([(float(t), int(i)) for t, i in d.get("targets", [])], key=by_t),
+                   sorted([tuple(float(v) for v in p) for p in d.get("pose", [])], key=by_t))
 
 
 def step_lookup(series: Sequence[Tuple[float, object]], t: float, default=None):

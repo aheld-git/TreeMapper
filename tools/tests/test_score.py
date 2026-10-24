@@ -126,7 +126,11 @@ def test_shrink_jump_and_height_jump():
     s2 = Snapshot(2.0, [tree(10, 0, 0, h=1.5, height=4.0)])       # shrinks
     s3 = Snapshot(3.0, [tree(10, 1.6, 0, h=1.5, height=6.0)])     # jumps 1.6 m, height +2
     st = score([s1, s2, s3], GT)["stability"]
-    assert st["geometry_retreats"] == 2
+    # retreat is measured against the ID's historic outline union and counted once per onset:
+    # s2 loses 44 % of it, s3 stays below it (still retreating) -> one onset
+    assert st["geometry_retreats"] == 1
+    # s3 (x 0.1..3.1) keeps 1.9 x 3 m^2 of the 16 m^2 union
+    assert st["max_lost_fraction"] == pytest.approx(1 - 5.7 / 16.0, abs=1e-3)
     assert st["centre_jumps"] == 1 and st["height_jumps"] == 1
 
 
