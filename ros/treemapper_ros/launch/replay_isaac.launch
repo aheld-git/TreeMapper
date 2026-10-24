@@ -19,16 +19,20 @@
   <arg name="output" default="screen"/>
   <arg name="tools_path" default="$(find treemapper_ros)/../../tools"/>
 
+  <!-- $(eval) must be a whole attribute value: helper args -->
+  <arg name="_u_opt" value="$(eval '-u ' + str(arg('duration')) if float(arg('duration')) > 0 else '')"/>
+  <arg name="_target_topic" value="$(eval '/treemapper/hop_target' if str(arg('nav_emulator')).lower() in ['true', '1'] else '/spray_target')"/>
+
   <include file="$(find treemapper_ros)/launch/treemapper_sim.launch">
     <arg name="use_sim_time" value="true"/>
     <arg name="mapper_config_file" value="$(arg mapper_config_file)"/>
-    <arg name="hop_target_topic" value="$(eval '/treemapper/hop_target' if arg('nav_emulator') else '/spray_target')"/>
+    <arg name="hop_target_topic" value="$(arg _target_topic)"/>
     <arg name="disparity_quantum_px" value="$(arg disparity_quantum_px)"/>
     <arg name="output" value="$(arg output)"/>
   </include>
 
   <node pkg="rosbag" type="play" name="player" output="log" required="false"
-        args="--clock -d $(arg delay) -s $(arg start) -r $(arg rate) $(eval ('-u %s' % arg('duration')) if float(arg('duration')) > 0 else '') $(arg bag)
+        args="--clock -d $(arg delay) -s $(arg start) -r $(arg rate) $(arg _u_opt) $(arg bag)
               --topics /cam/bottom/left/half/camera_info /cam/bottom/right/half/camera_info /disparity_image_down_float
                        /object_detection/detections /mission_state /spray_target /tf /tf_static">
     <remap if="$(arg nav_emulator)" from="/spray_target" to="/recorded/spray_target"/>
