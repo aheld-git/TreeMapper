@@ -28,7 +28,7 @@ This is one complete autonomous mission: take-off, approach, scan, planning, hop
 How to read the two PolygonArray topics:
 - Each entry has an integer ID, a 2D outline (vertices), min, max and average height, a sprayed flag and a centroid.
 - Ground truth outlines are regular polygons: one circle per tree from its simulated canopy radius. They are approximations. Do not tune your system to produce circles.
-- Ground-truth heights come from each simulated tree's canopy top.
+- **Ground-truth heights are NOT per-tree in this recording.** The ground-truth publisher fell back to a constant 4.0 m above each trunk base for every tree, because the per-tree heights file was not written for this run. Real canopy tops sit about 1.3–1.9 m higher (measured from verified stereo points, see `results/geometry_check.md`). Height errors against this ground truth are therefore biased, and are not a fair absolute measure.
 - **Frames:** ground truth is in the sim `world` frame (ENU). The existing system's map can be in `world_nwu`. Convert `world_nwu` to `world` with (x, y) → (−y, x).
 
 ### `sweep_000-e9d737ac_2026-10-23-15-34-29.bag` — 39 MB
@@ -47,7 +47,7 @@ The standard validation recording of the same mission. It repeats the ground tru
 | Merged neighbours (over-merge) | 4 | — |
 | Fragmented trees | 3 | — |
 | Outline spill outside true canopies | 0.13 | — |
-| Height bias / RMSE | 1.41 m / 1.46 m | — |
+| Height bias / RMSE | 1.41 m / 1.46 m (mostly a ground-truth artefact; see the ground-truth height note above) | — |
 | Trees sprayed | 7 of 9 (no revisits, no orphans) | — |
 
 The two missed trees were absorbed into neighbours. The existing system ran at commit `5f608dc` of its repo.
