@@ -17,6 +17,7 @@
 // publishDecision, mergeSurvivor, instanceMayChange) so each rule is testable on its own.
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -43,7 +44,7 @@ struct Config {
   double above_drone_margin{0.3};  ///< points above drone z - margin are impossible (dropped)
   // --- evidence weighting
   double z_ref{15.0};              ///< m, range of unit point weight (weight ~ (z_ref/Z)^4: sigma_Z ~ Z^2)
-  double lateral_k{4.0};           ///< weight /= 1 + k*rho^2 (rho = off-axis tangent; lateral error ~ rho*sigma_Z)
+  double lateral_k{10.0};          ///< weight /= 1 + k*rho^2 (rho = off-axis tangent; lateral error ~ rho*sigma_Z)
   int frame_cell_cap{6};           ///< points of one cell in one frame that count (hover/density invariance)
   double rot_rate_ref{0.35};       ///< rad/s; frame weight *= 1/(1+(rate/ref)^2) (turn blur / noise bursts)
   double quality_recover_s{1.5};   ///< s, frame weight recovers linearly to 1 after a fast rotation
@@ -56,6 +57,8 @@ struct Config {
   double ground_radius{4.5};       ///< m, first ground guess = min of coarse values within this radius
   double ground_band{0.6};         ///< m, refined ground = mean of cells within this band above the guess
   double ground_smooth{1.5};       ///< m, neighbourhood radius of that mean (0 band = no refinement)
+  int ground_min_frames{3};        ///< only cells seen in this many frames define the ground ...
+  double ground_min_weight{3.0};   ///< ... with at least this weight (noise at the swath edge drags it down)
   // --- extraction / segmentation
   double extract_period{0.2};      ///< s between extractions
   double window_margin{6.0};       ///< m around the recent footprint
@@ -65,10 +68,11 @@ struct Config {
   double merge_saddle{0.8};        ///< m, basins whose lower peak rises less than this above the saddle merge
   double max_tree_radius{3.6};     ///< m, segment cells farther from the peak are cut
   double peak_radius{1.0};         ///< m, the peak neighbourhood must be fully observed
-  double max_open_fraction{0.25};  ///< segment boundary cells touching unobserved cells, at most
+  double max_open_fraction{0.6};   ///< segment boundary cells touching unobserved cells, at most
   // --- confirmation / publication (confidence model)
   double latch_weight{3.0};        ///< cell weight to latch
   double latch_rel_h{0.6};         ///< a cell latches only if its CHM >= this fraction of its tree's peak CHM
+  double latch_max_spread{1.5};    ///< m, cells whose frame medians spread more than this never latch
   int latch_min_frames{3};         ///< distinct frames a cell must have been seen in to latch
   int latch_confirm{2};            ///< consecutive extractions a cell must be assigned to the same tree
   int box_min_frames{2};           ///< frames with detector support for a cell to count as box-supported
@@ -105,6 +109,8 @@ double frameQuality(double rot_rate, double since_fast_s, const Config& c);
 struct Cell {
   float h{0.0f};       ///< fused surface height (world z)
   float w{0.0f};       ///< confidence weight, saturates at cell_weight_cap
+  float m2{0.0f};      ///< weighted sum of squared deviations of the frame medians (spread = sqrt(m2 / w))
+  float spread() const { return w > 0.0f ? std::sqrt(m2 / w) : 0.0f; }
   std::int32_t owner{-1};   ///< instance key of a published tree that latched this cell
   std::int32_t cand{-1};    ///< instance this cell was last assigned to (latch persistence)
   std::uint16_t box{0};     ///< frames in which a detection box covered this cell (capped)

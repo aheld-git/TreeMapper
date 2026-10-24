@@ -16,9 +16,9 @@ namespace cand_grid {
 #define CAND_GRID_FIELDS(X)                                                                         \
   X(cell) X(min_range) X(max_range) X(above_drone_margin) X(z_ref) X(lateral_k) X(frame_cell_cap)    \
   X(rot_rate_ref) X(quality_recover_s) X(cell_weight_cap) X(outlier_gate_m) X(gate_min_weight)       \
-  X(coarse) X(ground_quantile) X(ground_radius) X(ground_band) X(ground_smooth) X(extract_period) X(window_margin)                   \
+  X(coarse) X(ground_quantile) X(ground_radius) X(ground_band) X(ground_smooth) X(ground_min_frames) X(ground_min_weight) X(extract_period) X(window_margin)                   \
   X(min_cell_weight) X(canopy_min_h) X(tree_min_h) X(merge_saddle) X(max_tree_radius) X(peak_radius) \
-  X(max_open_fraction) X(latch_weight) X(latch_rel_h) X(latch_min_frames) X(latch_confirm) X(box_min_frames)        \
+  X(max_open_fraction) X(latch_weight) X(latch_rel_h) X(latch_max_spread) X(latch_min_frames) X(latch_confirm) X(box_min_frames)        \
   X(box_min_fraction) X(confirm_extractions) X(min_area) X(height_quantile) X(max_height_step)       \
   X(peak_match_dist) X(merge_confirm) X(frag_max_area_ratio) X(unconfirmed_timeout) X(target_margin) X(climb_release_m)
 
@@ -72,6 +72,8 @@ std::vector<std::string> validate(Config* c) {
   clampField("ground_radius", &c->ground_radius, 0.0, 50.0, &m);
   clampField("ground_band", &c->ground_band, 0.0, 10.0, &m);
   clampField("ground_smooth", &c->ground_smooth, 0.0, 20.0, &m);
+  clampField("ground_min_frames", &c->ground_min_frames, 1, 255, &m);
+  clampField("ground_min_weight", &c->ground_min_weight, 0.0, 1e6, &m);
   clampField("extract_period", &c->extract_period, 0.0, 10.0, &m);
   clampField("window_margin", &c->window_margin, 0.0, 50.0, &m);
   clampField("min_cell_weight", &c->min_cell_weight, 1e-6, 1e6, &m);
@@ -82,6 +84,7 @@ std::vector<std::string> validate(Config* c) {
   clampField("peak_radius", &c->peak_radius, 0.0, 10.0, &m);
   clampField("max_open_fraction", &c->max_open_fraction, 0.0, 1.0, &m);
   clampField("latch_rel_h", &c->latch_rel_h, 0.0, 1.0, &m);
+  clampField("latch_max_spread", &c->latch_max_spread, 0.0, 1e6, &m);
   clampField("latch_min_frames", &c->latch_min_frames, 1, 255, &m);
   clampField("latch_confirm", &c->latch_confirm, 1, 255, &m);
   clampField("box_min_frames", &c->box_min_frames, 0, 65535, &m);
@@ -132,14 +135,23 @@ FuseResult fuseCell(Cell* cell, float med, float wf, const Config& c) {
     // three consecutive frames disagree with the established value: the established value was wrong
     cell->h = med;
     cell->w = wf;
+    cell->m2 = 0.0f;
     cell->nf = 1;
     cell->rej = 0;
     return FuseResult::kReset;
   }
   cell->rej = 0;
   const float wn = cell->w + wf;
-  cell->h += (wf / wn) * (med - cell->h);
-  cell->w = std::min(wn, static_cast<float>(c.cell_weight_cap));  // saturating confidence
+  const float delta = med - cell->h;
+  cell->h += (wf / wn) * delta;
+  cell->m2 += wf * delta * (med - cell->h);  // West's weighted running variance
+  const float cap = static_cast<float>(c.cell_weight_cap);
+  if (wn > cap) {  // saturating confidence: rescale the spread accumulator with the weight
+    cell->m2 *= cap / wn;
+    cell->w = cap;
+  } else {
+    cell->w = wn;
+  }
   if (cell->nf < 255) ++cell->nf;
   return FuseResult::kAccepted;
 }
@@ -255,6 +267,12 @@ Segmentation segmentCanopy(const Window& win, const Config& c) {
     const Cell& k = win.at(i);
     return k.nf > 0 && k.w >= c.min_cell_weight;
   };
+  // the ground is defined only by well-observed cells: a cell seen once or twice at the swath edge is
+  // too noisy, and a min filter over noise drags the ground down and turns noise into "canopy"
+  auto groundCell = [&](int i) {
+    const Cell& k = win.at(i);
+    return k.nf >= c.ground_min_frames && k.w >= c.ground_min_weight;
+  };
 
   // 1. ground: coarse low quantile of the surface, then a min filter of radius ground_radius
   const int K = std::max(1, c.coarse);
@@ -267,7 +285,7 @@ Segmentation segmentCanopy(const Window& win, const Config& c) {
       for (int y = cy * K; y < std::min(H, cy * K + K); ++y) {
         for (int x = cx * K; x < std::min(W, cx * K + K); ++x) {
           const int i = y * W + x;
-          if (known(i)) buf.push_back(win.at(i).h);
+          if (groundCell(i)) buf.push_back(win.at(i).h);
         }
       }
       if (buf.size() >= min_known) cv[static_cast<std::size_t>(cy * CW + cx)] = quantileInPlace(&buf, c.ground_quantile);
@@ -288,7 +306,7 @@ Segmentation segmentCanopy(const Window& win, const Config& c) {
         const int i = y * W + x;
         const std::size_t ci = static_cast<std::size_t>((y / K) * CW + x / K);
         const float g = gc[ci];
-        if (!known(i) || !std::isfinite(g)) continue;
+        if (!groundCell(i) || !std::isfinite(g)) continue;
         const float hh = win.at(i).h;
         if (hh < g + c.ground_band) { sum[ci] += hh; cnt[ci] += 1.0f; }
       }

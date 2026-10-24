@@ -5,8 +5,6 @@
 #include <iostream>
 #include <limits>
 #include <set>
-#include <cstdio>
-#include <cstdlib>
 
 #include "treemapper/candidates/cand_grid/cand_grid.hpp"
 
@@ -255,6 +253,8 @@ void CandGridMapper::integrateFrame(const FrameInput& f, const PhasePolicy& pol)
   if (n_rej) count("points_rejected_cell_outlier", n_rej);
   if (n_reset) count("cells_reset_after_disagreement", n_reset);
   count("cell_updates", n_cells);
+  counters_["gauge_grid_tiles"] = grid_.tiles();  // gauges (not monotonic): memory of the sparse grid
+  counters_["gauge_grid_bytes"] = grid_.bytes();
   if (!have_win_) {
     wx0_ = bx0; wx1_ = bx1; wy0_ = by0; wy1_ = by1;
     have_win_ = true;
@@ -314,26 +314,14 @@ void CandGridMapper::extract(double t, const PhasePolicy& pol, TreeId target) {
   }
   const Segmentation seg = segmentCanopy(win, cfg_);
   count("extractions");
-  if (const char* dbg = std::getenv("CAND_GRID_DUMP")) {  // TEMP debug
-    static bool done = false;
-    if (!done && t >= std::atof(dbg)) {
-      done = true;
-      std::FILE* fo = std::fopen("/data/work/cand_grid_tune/dump.csv", "w");
-      for (int i = 0; i < win.w * win.h; ++i) {
-        const Cell& k = win.at(i);
-        std::fprintf(fo, "%d,%d,%.3f,%.2f,%d,%d,%.3f,%.3f,%d,%d\n", win.x0 + i % win.w, win.y0 + i / win.w, k.h, k.w, k.nf, k.box,
-                     seg.ground[i], seg.chm[i], seg.label[i], k.owner);
-      }
-      std::fclose(fo);
-    }
-  }
+
   auto gx = [&](int i) { return win.x0 + i % win.w; };
   auto gy = [&](int i) { return win.y0 + i / win.w; };
   auto centre = [&](int i) { return Point2{(gx(i) + 0.5) * cfg_.cell, (gy(i) + 0.5) * cfg_.cell}; };
   auto latchable = [&](int i, const Segment& sg) {
     const Cell& k = win.at(i);
     const float chm = seg.chm[static_cast<std::size_t>(i)];
-    return k.w >= cfg_.latch_weight && k.nf >= cfg_.latch_min_frames &&
+    return k.w >= cfg_.latch_weight && k.nf >= cfg_.latch_min_frames && k.spread() <= cfg_.latch_max_spread &&
            chm >= std::max(cfg_.canopy_min_h, cfg_.latch_rel_h * sg.peak_chm);
   };
   std::set<std::pair<int, int>> voted;  // (survivor-candidate key, other key) seen in one basin this time
