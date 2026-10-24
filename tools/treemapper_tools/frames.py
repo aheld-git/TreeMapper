@@ -25,6 +25,7 @@ A world point is ``R_wb (R_bc p_opt + t_bc) + t_wb`` with ``p_opt = ((u-cx) Z/fx
 File form (``frames.bin``, little endian), read by both Python and the C++ runner::
 
     b"TMF1" | u32 header_len | header JSON (calibration + meta) |
+    15 x f64 calibration (width height fx fy cx cy baseline stride tx ty tz qx qy qz qw) |
     records: f64 t, f64 stamp, 7 x f64 pose, u8 pose_valid, i8 phase_code, i32 target_id,
              2 x f64 target_xy, u16 n_boxes, u8 has_disp, n_boxes x 6 x f32,
              [gh x gw x u16 disparity * 256 (0 = invalid)]
@@ -46,6 +47,7 @@ MAGIC = b"TMF1"
 PHASES = ["", "IDLE", "SCAN_APPROACH", "SCAN", "PLANNING", "HOPPING", "SPRAYING", "RETURN", "ERROR"]
 PHASE_CODE = {p: i for i, p in enumerate(PHASES)}
 _REC = struct.Struct("<dd7dBbi2dHB")
+_CAL = struct.Struct("<15d")  # width height fx fy cx cy baseline stride tx ty tz qx qy qz qw
 DISP_SCALE = 256.0
 
 
@@ -147,6 +149,9 @@ class FrameWriter:
         self.cal = cal
         hdr = json.dumps({"calibration": cal.to_json(), "meta": meta or {}}).encode()
         self.f.write(MAGIC + struct.pack("<I", len(hdr)) + hdr)
+        # binary copy of the calibration for readers without JSON (the C++ runner)
+        self.f.write(_CAL.pack(cal.width, cal.height, cal.fx, cal.fy, cal.cx, cal.cy, cal.baseline,
+                               cal.stride, *[float(v) for v in cal.T_body_cam]))
         self.n = 0
 
     def write(self, fr: Frame) -> None:
@@ -174,6 +179,7 @@ def read_frames(path: str) -> Tuple[Calibration, dict, Iterator[Frame]]:
     (n,) = struct.unpack("<I", f.read(4))
     hdr = json.loads(f.read(n).decode())
     cal = Calibration.from_json(hdr["calibration"])
+    f.read(_CAL.size)
     gh, gw = cal.grid_shape
 
     def gen():

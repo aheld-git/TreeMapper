@@ -13,12 +13,22 @@ endif()
 add_library(treemapper_core
   src/types.cpp
   src/tree_map.cpp
+  src/geometry.cpp
+  src/simple_mapper.cpp
 )
 target_include_directories(treemapper_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 target_compile_options(treemapper_core PRIVATE -Wall -Wextra -Wpedantic)
 set_target_properties(treemapper_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Offline tooling: frame-file reader + replay runner (not needed by the ROS nodes).
+add_library(treemapper_io src/frame_io.cpp)
+target_link_libraries(treemapper_io PUBLIC treemapper_core)
+target_compile_options(treemapper_io PRIVATE -Wall -Wextra -Wpedantic)
+add_executable(treemapper_replay apps/replay_main.cpp)
+target_link_libraries(treemapper_replay PRIVATE treemapper_io)
+target_compile_options(treemapper_replay PRIVATE -Wall -Wextra -Wpedantic)
 
 option(TREEMAPPER_BUILD_TESTS "Build the core unit tests" ON)
 if(TREEMAPPER_BUILD_TESTS)
@@ -30,10 +40,10 @@ if(TREEMAPPER_BUILD_TESTS)
     add_subdirectory(/usr/src/googletest ${CMAKE_BINARY_DIR}/googletest EXCLUDE_FROM_ALL)
     add_library(GTest::gtest_main ALIAS gtest_main)
   endif()
-  add_executable(test_core tests/test_tree_map.cpp)
+  add_executable(test_core tests/test_tree_map.cpp tests/test_simple_mapper.cpp)
   target_link_libraries(test_core PRIVATE treemapper_core GTest::gtest_main)
   add_test(NAME test_core COMMAND test_core)
 endif()
 
-install(TARGETS treemapper_core ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
+install(TARGETS treemapper_core treemapper_io ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
 install(DIRECTORY include/ DESTINATION include)
