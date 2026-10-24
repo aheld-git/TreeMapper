@@ -72,6 +72,8 @@ Config Config::sanitized(const std::function<void(const std::string&)>& log) con
   c.window = clampLog("window", c.window, 4, 256, log);
   c.match_radius = clampLog("match_radius", c.match_radius, 0.0, 50.0, log);
   c.match_overlap = clampLog("match_overlap", c.match_overlap, 0.0, 1.0, log);
+  c.seed_overlap = clampLog("seed_overlap", c.seed_overlap, 0.0, 1.0, log);
+  c.match_reach = clampLog("match_reach", c.match_reach, 0.0, 50.0, log);
   c.max_cell_radius = clampLog("max_cell_radius", c.max_cell_radius, 0.0, 50.0, log);
   c.latch_rel_h = clampLog("latch_rel_h", c.latch_rel_h, 0.0, 1.0, log);
   c.latch_frames = clampLog("latch_frames", c.latch_frames, 1, 10000, log);
@@ -121,6 +123,8 @@ Config configFrom(const MapperConfig& config) {
   c.window = r.getInt("window", c.window);
   c.match_radius = r.getDouble("match_radius", c.match_radius);
   c.match_overlap = r.getDouble("match_overlap", c.match_overlap);
+  c.seed_overlap = r.getDouble("seed_overlap", c.seed_overlap);
+  c.match_reach = r.getDouble("match_reach", c.match_reach);
   c.max_cell_radius = r.getDouble("max_cell_radius", c.max_cell_radius);
   c.latch_rel_h = r.getDouble("latch_rel_h", c.latch_rel_h);
   c.latch_frames = r.getInt("latch_frames", c.latch_frames);
@@ -546,7 +550,7 @@ int CandObj::findInstanceForCrown(const Crown& c) const {
   // 1. the crown covers an instance's latched cells (or is covered by them): it is that instance, even when
   //    its top lies far from the instance's current (partial) centroid. This is what stops a second
   //    instance being born on a published tree whose first view was a slice at the swath edge.
-  int best = -1;
+  int best = -1, guard = -1;
   if (cfg_.match_overlap > 0.0 && !c.cells.empty()) {
     // among the covered instances the better-established one wins (confirmed > frames seen > lower ID):
     // a tentative fragment can never take a crown away from a published tree
@@ -566,9 +570,16 @@ int CandObj::findInstanceForCrown(const Crown& c) const {
       // the crown must contain the instance's known cells (fraction of the LATCHED set) and its top must
       // be within the instance's own reach: a neighbour's crown touching the tree's edge cells, or a
       // merged basin whose top is on the neighbour, is not credited to this tree
+      if (dist(in.centre, c.peak) > cfg_.match_reach) continue;
       const double frac = static_cast<double>(ov) / static_cast<double>(in.n_latched);
-      if (frac < cfg_.match_overlap || dist(in.centre, c.peak) > cfg_.max_cell_radius) continue;
-      if (best < 0 || better(in, instances_[static_cast<std::size_t>(best)])) best = static_cast<int>(k);
+      const double frac_crown = static_cast<double>(ov) / static_cast<double>(c.cells.size());
+      if (frac >= cfg_.match_overlap) {
+        if (best < 0 || better(in, instances_[static_cast<std::size_t>(best)])) best = static_cast<int>(k);
+      } else if (frac_crown >= cfg_.seed_overlap && in.confirmed) {
+        // seed guard: a crown partly on a published tree's cells must not be born as a second instance
+        // next to it (it would stop growing once the tree takes its crowns and stay a permanent fragment)
+        if (guard < 0 || better(in, instances_[static_cast<std::size_t>(guard)])) guard = static_cast<int>(k);
+      }
     }
     if (best >= 0) return best;
   }
@@ -580,7 +591,7 @@ int CandObj::findInstanceForCrown(const Crown& c) const {
     const bool inside = in.hull.size() >= 3 && pointInPolygon(in.hull, c.peak);
     if ((d < cfg_.match_radius || inside) && d < bd) { bd = d; best = static_cast<int>(k); }
   }
-  return best;
+  return best >= 0 ? best : guard;
 }
 
 bool CandObj::insideSprayed(const Point2& p) const {

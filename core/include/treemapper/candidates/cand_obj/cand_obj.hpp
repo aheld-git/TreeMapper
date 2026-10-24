@@ -56,7 +56,7 @@ struct Config {
   // --- point and frame weighting (M4, from cand_grid): enters the height fusion and the evidence
   double z_ref{15.0};               ///< m, range of unit point weight (weight ~ (z_ref/Z)^4: sigma_Z ~ Z^2)
   double lateral_k{10.0};           ///< point weight /= 1 + k*rho^2 (rho = off-axis tangent; lateral error ~ rho*sigma_Z)
-  double rot_rate_ref{0.35};        ///< rad/s; frame quality = 1/(1+(rate/ref)^2) (turn blur / noise bursts)
+  double rot_rate_ref{1.0};         ///< rad/s; frame quality = 1/(1+(rate/ref)^2) (turn blur / noise bursts)
   double quality_recover_s{1.5};    ///< s, frame quality recovers linearly to 1 after a fast rotation
   // --- ground plane (per frame, from the lowest cells)
   double ground_low_fraction{0.4};  ///< fit the plane to this lowest fraction of the cells
@@ -75,10 +75,13 @@ struct Config {
                                     ///< cells start latching early; it cannot publish until real tops are sampled)
   int window{28};                   ///< cells per side of an instance's evidence window (anchored at birth)
   double match_radius{2.0};         ///< m, a peak this close to an instance centre is that instance
-  double match_overlap{0.5};        ///< a crown covering this fraction of an instance's latched cells (top within
-                                    ///< max_cell_radius of its centre) is that instance, wherever its top is
+  double match_overlap{0.5};        ///< a crown covering this fraction of an instance's latched cells is that instance,
+                                    ///< wherever its top is ...
+  double match_reach{3.0};          ///< ... provided its top is within this distance of the instance centre
+  double seed_overlap{0.25};        ///< a crown with this fraction of its cells on a published tree's latched cells is
+                                    ///< never born as a new instance: it is credited to that tree (seed guard)
   double max_cell_radius{4.0};      ///< m, cells farther from the instance centre are not credited (spill guard)
-  double latch_rel_h{0.5};          ///< a cell is claimed only if its height above ground >= this x the crown's peak (skirt trim)
+  double latch_rel_h{0.0};          ///< a cell is claimed only if its height above ground >= this x the crown's peak (skirt trim)
   int latch_frames{5};              ///< positive (quality-weighted) frames before a cell latches
   double latch_ratio{0.75};         ///< ... and positive in at least this fraction of the judged frames
   int confirm_frames{3};            ///< frames with a matched crown before an instance may publish
@@ -90,7 +93,7 @@ struct Config {
   double cell_weight_cap{30.0};     ///< a cell's fused-height weight saturates here (hovering cannot inflate it)
   double outlier_gate_m{2.0};       ///< m, a frame height this far from an established cell's value is rejected
   double gate_min_weight{3.0};      ///< ... once the cell has this much weight (3 rejections in a row re-initialise it)
-  double height_quantile{0.97};     ///< published height = this quantile of the latched cells' fused surface
+  double height_quantile{0.99};     ///< published height = this quantile of the latched cells' fused surface
   double max_height_rate{0.5};      ///< m/s a published height may move (no jumps)
   double max_centre_rate{0.8};      ///< m/s a published centre may move (no jumps; the outline is not delayed)
   // --- merges (rule 4)
@@ -107,7 +110,7 @@ struct Config {
 /// Key/value -> Config (keys = field names); unknown keys throw std::invalid_argument.
 Config configFrom(const MapperConfig& config);
 /// Number of tunables, for the config-file test.
-constexpr int kConfigKeyCount = 43;
+constexpr int kConfigKeyCount = 45;
 
 /// Frame quality from the body rotation rate (rad/s) and the time since the last fast rotation.
 /// Unknown rate (< 0) -> 1 (fail open). Pure, tested.

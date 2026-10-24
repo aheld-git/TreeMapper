@@ -139,7 +139,7 @@ MapperConfig readCfgFile(const std::string& path) {
   X(min_range) X(max_range) X(above_drone_margin) X(max_frame_noise) X(height_sample_clearance) X(cell) X(min_cell_points) X(max_grid)                     \
   X(z_ref) X(lateral_k) X(rot_rate_ref) X(quality_recover_s)                                                \
   X(ground_low_fraction) X(ground_inlier_band) X(ground_max_slope) X(min_above_ground) X(min_prominence)     \
-  X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(seed_truncated) X(window) X(match_radius) X(match_overlap) \
+  X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(seed_truncated) X(window) X(match_radius) X(match_overlap) X(match_reach) X(seed_overlap) \
   X(max_cell_radius) X(latch_rel_h) X(latch_frames) X(latch_ratio) X(confirm_frames) X(min_height_cells) X(min_publish_area) X(min_tree_height) \
   X(tentative_timeout) X(cell_weight_cap) X(outlier_gate_m) X(gate_min_weight) X(height_quantile) X(max_height_rate) X(max_centre_rate) \
   X(merge_overlap) X(merge_centre_dist) X(post_spray_hold_radius)
@@ -551,7 +551,7 @@ TEST(CandObjM4, HeightFromLatchedSurfaceAndRateLimitedPublication) {
     prev_h = trees[0].height;
     prev_c = trees[0].centre;
   }
-  EXPECT_NEAR(trees[0].height, 4.92, 0.12) << dump(m);  // the whole dome: 3 % of a dome's cells lie above 5 * sqrt(0.97) = 4.92 m
+  EXPECT_NEAR(trees[0].height, 4.97, 0.10) << dump(m);  // the whole dome: 1 % of a dome's cells lie above 5 * sqrt(0.99) = 4.97 m
   EXPECT_GT(trees[0].height, h_slice + 0.2);
   EXPECT_LE(max_dh, 0.5 * 0.1 + 1e-6);                 // max_height_rate 0.5 m/s at 10 Hz
   EXPECT_LE(max_dc, 0.8 * 0.1 + 1e-6);                 // max_centre_rate 0.8 m/s
@@ -562,7 +562,9 @@ TEST(CandObjM4, HeightFromLatchedSurfaceAndRateLimitedPublication) {
 // Skirt trim: crown cells below latch_rel_h x the crown's peak height above ground are never claimed, so
 // the stereo smear of the crown edge cannot latch.
 TEST(CandObjM4, SkirtCellsBelowRelativeHeightNeverLatch) {
-  CandObj m;
+  Config c0;
+  c0.latch_rel_h = 0.5;  // the gate is shipped off (it cost hard recall; see the design doc); test it enabled
+  CandObj m(c0);
   double t = 0;
   for (int i = 0; i < 10; ++i) {
     std::vector<Crown> c{disc(0, 0, 2.5, 4.0)};
