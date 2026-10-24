@@ -30,7 +30,7 @@ This file **overrides** the cloud assumptions in `PROJECT_BRIEF.md`. Everything 
 
 ## Time box
 
-The run is time-boxed to about **9 hours from launch**. Every resume prompt states the current time and the end time. The driver will tell you when the wrap-up window starts. Plan so that **something usable exists early** and improves:
+The run is time-boxed to about **9 hours from launch**. Each milestone brief states the current time, its own time budget and the end time. The driver will tell you when the wrap-up window starts. Plan so that **something usable exists early** and improves:
 
 | By (hours after launch) | Milestone |
 |---|---|
@@ -44,8 +44,9 @@ If you fall behind, cut scope from the alternatives, never from the scorer, the 
 
 ## How to work
 
-- **You are the orchestrator.** Delegate implementation to subagents with the Agent tool: `model: "sonnet"` for mechanical, well-specified work, `model: "opus"` for design-heavy work and for reviewing each milestone. Give every subagent a self-contained brief with exact paths. Tell subagents that need to produce a report to return it as text, or write it with `cat > file <<'EOF'`, because their Write tool may refuse report files.
-- **Verify before claiming.** A milestone is done only when its tests pass and its scorecard is in the repo.
-- **Keep `PROGRESS.md` current** at the repo root, updating it after every milestone and at least every hour. It should show: current milestone, what is done, the latest scorecard, blockers, and what comes next. The supervisor reads it hourly.
-- **Supervisor guidance** arrives appended to the driver's resume prompt (and is archived under `overnight/inbox_archive/`). Follow it, and acknowledge it in `PROGRESS.md`.
-- **When everything in brief section 12 is delivered and committed**, write `overnight/DONE` containing a one-line summary. The driver stops when it sees that file.
+- **One milestone per agent.** The work runs as a chain of milestone agents started by a coordinator session. You are one of them: do exactly your milestone's brief, verify it, commit it, and report back. You cannot spawn further agents; the coordinator runs reviews and the next milestone.
+- **No safety net beyond these rules.** This repo's `.claude/settings.json` deny rules do not apply to you, because you run from the coordinator's session. The hard rules above are therefore the safety net, and breaking one is a failed milestone.
+- **Verify before claiming.** A milestone is done only when its tests pass and its scorecard (if any) is committed.
+- **Keep `PROGRESS.md` current** at the repo root: the milestone plan, what is done, the latest scorecard, decisions taken, blockers, and what the next milestone needs to know. The next agent starts from it with no other memory.
+- **Write reports with Bash heredocs** (`cat > file <<'EOF'`). The Write tool may refuse report-style files; code files are fine.
+- **Commit as you go**, with clear messages ending in the line `Co-Authored-By: Claude <noreply@anthropic.com>`.
