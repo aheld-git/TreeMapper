@@ -100,6 +100,7 @@ Config configFrom(const MapperConfig& config) {
   c.box_dilate = r.getDouble("box_dilate", c.box_dilate);
   c.peak_border_px = r.getDouble("peak_border_px", c.peak_border_px);
   c.hull_cell_corners = r.getBool("hull_cell_corners", c.hull_cell_corners);
+  c.seed_truncated = r.getBool("seed_truncated", c.seed_truncated);
   c.window = r.getInt("window", c.window);
   c.match_radius = r.getDouble("match_radius", c.match_radius);
   c.max_cell_radius = r.getDouble("max_cell_radius", c.max_cell_radius);
@@ -680,7 +681,8 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
     if (k < 0) {
       if (insideSprayed(c.peak)) { count("crowns_dropped_inside_sprayed"); continue; }
       if (!pol.may_create) { count("crowns_dropped_new_tree_locked_phase"); continue; }
-      if (c.truncated) { count("crowns_dropped_truncated_seed"); continue; }
+      if (c.truncated && !cfg_.seed_truncated) { count("crowns_dropped_truncated_seed"); continue; }
+      if (c.truncated) count("instances_seeded_from_truncated_crown");
       Instance in;
       in.id = next_id_++;
       in.ai = floorDiv(c.peak.x, cfg_.cell) - cfg_.window / 2;

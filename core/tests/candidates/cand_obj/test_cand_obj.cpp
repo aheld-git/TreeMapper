@@ -114,7 +114,7 @@ MapperConfig readCfgFile(const std::string& path) {
 #define CAND_OBJ_FIELDS(X)                                                                                  \
   X(min_range) X(max_range) X(above_drone_margin) X(max_frame_noise) X(height_sample_clearance) X(cell) X(min_cell_points) X(max_grid)                     \
   X(ground_low_fraction) X(ground_inlier_band) X(ground_max_slope) X(min_above_ground) X(min_prominence)     \
-  X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(window) X(match_radius) X(max_cell_radius) X(latch_frames) \
+  X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(seed_truncated) X(window) X(match_radius) X(max_cell_radius) X(latch_frames) \
   X(latch_ratio) X(confirm_frames) X(min_height_samples) X(min_publish_area) X(min_tree_height)             \
   X(tentative_timeout) X(height_buffer) X(merge_overlap) X(merge_centre_dist) X(post_spray_hold_radius)
 
@@ -162,12 +162,15 @@ TEST(CandObjRegistry, RegisteredAndBuildsThroughTheFactory) {
 TEST(CandObjRules, PublishesOnlyAfterConfirmationWithFiniteRobustHeight) {
   CandObj m;
   double t = 0;
-  // 3 frames: not yet confirmed (confirm_frames = 4)
-  for (int i = 0; i < 3; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 4.0)});
+  // 2 frames: not yet confirmed (confirm_frames = 3, min_height_samples = 3)
+  for (int i = 0; i < 2; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 4.0)});
   EXPECT_TRUE(m.publishedTrees().empty());
-  // a frame whose height sample is NaN and one above the drone contribute nothing to the height
+  // a frame whose height sample is NaN and one too close to the drone contribute nothing to the height:
+  // still only 2 finite samples, so still unpublished although 4 frames were seen
   step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, std::nan(""))});
   step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 13.5)});  // within 2 m of the drone at 15 m
+  EXPECT_TRUE(m.publishedTrees().empty());
+  step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 4.0)});  // third finite sample
   auto trees = m.publishedTrees();
   ASSERT_EQ(trees.size(), 1u);
   EXPECT_TRUE(std::isfinite(trees[0].height));
@@ -240,7 +243,7 @@ TEST(CandObjRules, IdsNeverReusedAndMergeKeepsEstablished) {
   // which keeps its identity and its height (rule 4)
   // (the fragment's cells were judged ground / another crown for 14 frames, so they need as many positive
   // frames before they latch for ID 1: evidence is symmetric)
-  for (int i = 0; i < 20; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.9, 4.0)});
+  for (int i = 0; i < 50; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.9, 4.0)});
   trees = m.publishedTrees();
   ASSERT_EQ(trees.size(), 1u) << dump(m);
   EXPECT_EQ(trees[0].id, 1);
@@ -301,14 +304,14 @@ TEST(CandObjRules, OnlyTargetChangesDuringDescentAndPostSprayClimb) {
   const auto before = m.publishedTrees();
   ASSERT_EQ(before.size(), 2u);
   const TreeId target = before[0].id, other = before[1].id;
-  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kHopping, target, {disc(0.3, 0, 2.6, 4.0), disc(8.3, 0, 2.6, 4.0)});
+  for (int i = 0; i < 25; ++i) step(m, t, MissionPhase::kHopping, target, {disc(0.3, 0, 2.6, 4.0), disc(8.3, 0, 2.6, 4.0)});
   auto after = m.publishedTrees();
   EXPECT_GT(area(*find(after, target)), area(*find(before, target)) + 0.5);
   EXPECT_NEAR(area(*find(after, other)), area(*find(before, other)), 1e-9);
   EXPECT_EQ(find(after, other)->height, find(before, other)->height);
   // no valid target while hopping -> frozen
   const auto mid = m.publishedTrees();
-  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kHopping, kNoTree, {disc(0.6, 0, 3.2)});
+  for (int i = 0; i < 25; ++i) step(m, t, MissionPhase::kHopping, kNoTree, {disc(0.6, 0, 3.2)});
   EXPECT_NEAR(area(*find(m.publishedTrees(), target)), area(*find(mid, target)), 1e-9);
   // post-spray climb: SPRAYING over `target`, then PLANNING while still over the hover point ->
   // the neighbour must not change until the drone has moved away
@@ -318,11 +321,11 @@ TEST(CandObjRules, OnlyTargetChangesDuringDescentAndPostSprayClimb) {
   f.phase = MissionPhase::kPlanning; f.t = t += 0.1;
   m.process(f);  // heartbeat in PLANNING (no disparity) just flips the phase
   const auto pre = m.publishedTrees();
-  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kPlanning, kNoTree, {disc(8.3, 0, 3.0, 4.0)}, poseAt(0.5, 0, 8.0));
+  for (int i = 0; i < 25; ++i) step(m, t, MissionPhase::kPlanning, kNoTree, {disc(8.3, 0, 3.0, 4.0)}, poseAt(0.5, 0, 8.0));
   EXPECT_NEAR(area(*find(m.publishedTrees(), other)), area(*find(pre, other)), 1e-9);
   EXPECT_GT(cnt(m, "frames_post_spray_hold"), 0u);
   // once away from the hover point, PLANNING growth resumes
-  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kPlanning, kNoTree, {disc(8.3, 0, 3.0, 4.0)}, poseAt(6.0, 0, 10.0));
+  for (int i = 0; i < 40; ++i) step(m, t, MissionPhase::kPlanning, kNoTree, {disc(8.3, 0, 3.0, 4.0)}, poseAt(6.0, 0, 10.0));
   EXPECT_GT(area(*find(m.publishedTrees(), other)), area(*find(pre, other)) + 0.5);
 }
 

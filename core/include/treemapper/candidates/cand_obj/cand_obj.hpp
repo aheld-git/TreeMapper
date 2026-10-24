@@ -50,19 +50,21 @@ struct Config {
   double ground_max_slope{0.3};     ///< above this |slope| the fit is rejected (flat fallback)
   double min_above_ground{1.0};     ///< m, a smoothed cell this far above the plane is canopy
   // --- crowns (watershed basins)
-  double min_prominence{0.8};       ///< m, a peak this little above its saddle is merged into the neighbour
+  double min_prominence{0.6};       ///< m, a peak this little above its saddle is merged into the neighbour
   int min_basin_cells{4};           ///< smaller crowns are ignored
   double box_dilate{0.15};          ///< boxes grown by this fraction of their size before the peak test
-  double peak_border_px{40.0};      ///< px, a crown whose top is this close to the image edge is truncated
+  double peak_border_px{24.0};      ///< px, a crown whose top is this close to the image edge is truncated
                                     ///< (its top may be outside the image): no seeding, no height sample
   bool hull_cell_corners{false};    ///< outline from latched cell corners (true) or cell centres (false)
   // --- instances
+  bool seed_truncated{true};        ///< a crown whose top is still outside the image may seed an instance (its
+                                    ///< cells start latching early; it cannot publish until real tops are sampled)
   int window{28};                   ///< cells per side of an instance's evidence window (anchored at birth)
   double match_radius{2.0};         ///< m, a peak this close to an instance centre is that instance
   double max_cell_radius{4.0};      ///< m, cells farther from the instance centre are not credited (spill guard)
-  int latch_frames{3};              ///< positive frames before a cell latches
-  double latch_ratio{0.5};          ///< ... and positive in at least this fraction of the judged frames
-  int confirm_frames{4};            ///< frames with a matched crown before an instance may publish
+  int latch_frames{5};              ///< positive frames before a cell latches
+  double latch_ratio{0.75};          ///< ... and positive in at least this fraction of the judged frames
+  int confirm_frames{3};            ///< frames with a matched crown before an instance may publish
   int min_height_samples{3};        ///< finite crown-top samples before an instance may publish
   double min_publish_area{3.0};     ///< m^2 of latched cells before an instance may publish
   double min_tree_height{1.5};      ///< m above ground, smaller crowns never seed an instance
@@ -82,7 +84,7 @@ struct Config {
 /// Key/value -> Config (keys = field names); unknown keys throw std::invalid_argument.
 Config configFrom(const MapperConfig& config);
 /// Number of tunables, for the config-file test.
-constexpr int kConfigKeyCount = 31;
+constexpr int kConfigKeyCount = 32;
 
 /// One crown observation handed to the instance layer (built by the CHM stage, or by tests).
 struct Crown {
