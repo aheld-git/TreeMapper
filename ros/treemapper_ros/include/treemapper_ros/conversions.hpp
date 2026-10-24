@@ -23,8 +23,8 @@
 
 namespace treemapper_ros {
 
-/// Contract entry -> message. `meta` (may be null) fills the diagnostics fields; confidence and
-/// observations are not exposed by the Mapper interface and are published as 0 ("not provided").
+/// Contract entry -> message. `meta` (may be null) fills the diagnostics fields; `observations` comes from the
+/// mapper (TreeEntry::observations, 0 = not provided), `confidence` is reserved and always 0.
 treemapper_msgs::TreeEntry toMsg(const treemapper::TreeEntry& e, const TreeMeta* meta);
 /// Message -> contract entry (used by tools and tests; diagnostics fields are dropped).
 treemapper::TreeEntry fromMsg(const treemapper_msgs::TreeEntry& m);

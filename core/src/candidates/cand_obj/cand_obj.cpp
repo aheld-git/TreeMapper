@@ -944,6 +944,7 @@ std::vector<TreeEntry> CandObj::publishedTrees() const {
     te.centre = in.centre_pub;
     te.height = in.height();
     te.sprayed = in.sprayed;
+    te.observations = in.frames_seen;
     out.push_back(std::move(te));
   }
   std::sort(out.begin(), out.end(), [](const TreeEntry& a, const TreeEntry& b) { return a.id < b.id; });

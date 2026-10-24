@@ -1,7 +1,10 @@
 # TreeMapper: on-board tree mapping for a spot-spraying drone
 
 TreeMapper turns the drone's downward stereo and 2D tree detections into the tree map that navigation flies on: one entry
-per tree with a stable integer ID, a ground outline, a centre, a canopy height (the descent reference) and a sprayed flag.
+per tree with a stable integer ID, a ground outline, a centre, a canopy-top height (the descent reference) and a sprayed
+flag. The height is the canopy top as a **world-frame z coordinate**, not a height above ground: the 0.99 quantile of the
+fused world z of the tree's latched cells, in the map frame (`world_nwu` on the drone, which re-origins at every boot, so
+heights compare only with poses of the same session).
 It runs as a ROS 1 Noetic node around a ROS-free C++17 core library, and ships with the evaluation harness that decided
 the design: a synthetic orchard generator, a scorer that judges any system emitting the map contract, and one-command
 evaluations.
@@ -12,7 +15,9 @@ tops (so touching trees separate in height, not in xy); a crown counts only if i
 are matched to tree instances by world geometry (no 2D tracks); each instance accumulates per-cell evidence and a cell
 latches permanently after 5 consistent frames; the published outline is the hull of latched cells (grow-only), the height
 the 0.99 quantile of the fused latched surface, both rate-limited. It was chosen over a map-centric DSM alternative
-(`cand_grid`) on a held-out synthetic suite and the recorded Isaac mission. Read next: `docs/DESIGN.md` (design, brief
+(`cand_grid`) on a held-out synthetic suite and the recorded Isaac mission. Neither is an unbiased test: the recording
+was **used during tuning**, and the held-out suite was inspected several times (M3 selection, M4a verdict, M4c
+real-profile check, R14 effect); future claims need a fresh seed range (`results/REPORT.md` section 3). Read next: `docs/DESIGN.md` (design, brief
 section 10 answers, rule-by-rule guarantees and tests), `results/REPORT.md` (all results), `docs/DECISIONS.md`.
 
 ## Repository layout
@@ -302,7 +307,8 @@ Nothing here ran on the Orin, on the real camera live, or with real navigation. 
 6. **Phase behaviour on the real stack**: the real flight has no phases, so the lock, descent freeze and sprayed
    protection were exercised only in simulation (synthetic suites and the Isaac recording). Run one hop/spray mission
    with `record` on and score it with `real_score` / `score.py` (no ground truth).
-7. **Heights**: the published height is world z of the canopy top (0.99 quantile of the fused surface). Pose z comes from
+7. **Heights**: the published height is world z of the canopy top (0.99 quantile of the fused surface), datum = the
+   world frame's origin (world_nwu re-origins at boot), not height above ground. Pose z comes from
    the flight controller (GNSS / baro) and its drift is unknown; check against a measured tree before trusting descents.
 8. **Load and clocks**: at higher replay rates the subscriber queue drops disparity frames (counted, not silent); on the
    drone there is one clock, in two-bag replays receive times are bag time.

@@ -110,6 +110,14 @@ for `tentative_timeout` (1.5 s) are deleted. A confirmed instance is never delet
 a creation phase. Because the height is a quantile over >= 3 fused cells, it is finite at the moment of publication
 and stays finite (rule 3).
 
+**Height semantics.** `TreeEntry.height` is the canopy **top as a world-frame z coordinate** (m) in the map frame
+(`world_nwu` on the drone, `world` in Isaac), the 0.99 quantile of the fused world z of the latched cells. It is **not**
+a height above ground: its datum is the world frame's origin, and on the real drone `world_nwu` re-origins at every
+boot (origin = power-on position), so it is comparable only with drone poses of the same session. Navigation compares
+it with the drone's world z; above-ground height would be `height - local ground z`. `DronePose.msg`'s
+`height_above_ground` is unused (the node takes the pose from TF / PoseStamped, the mapper gates on world z).
+`TreeEntry.observations` = frames with a matched crown; `confidence` is reserved and always 0.
+
 **Extent.** Per-cell evidence with a permanent latch (5 positive frames, >= 75 % positive). Evidence increments are
 quality-weighted: a frame taken during a fast rotation (turn blur) counts as a fraction of a frame
 (`1 / (1 + (rate / 1.0 rad/s)^2)`, recovering over 1.5 s). A hover cannot inflate an outline beyond cells that are canopy
@@ -219,7 +227,7 @@ post-spray hold:
 | several tracks on one tree | every matched crown adds evidence; several crowns of one tree in a frame all count |
 | size-blind merges | overlap measured against the smaller instance's latched area |
 | hovering inflating confidence | latch by majority, height weight capped at 30, evidence quality-weighted |
-| simulation too easy | synthetic noise 1.5x / 3x / 5x the real stereo (`results/synthetic_calibration.md`), a hostile detector; tuned on synthetic, reported on a held-out suite and the recording; real flight scored without truth |
+| simulation too easy | synthetic noise 1.5x / 3x / 5x the real stereo (`results/synthetic_calibration.md`), a hostile detector; tuned on synthetic and on the recording (so the recording is not an unbiased test), reported on a held-out suite (inspected several times: a validation set, not an untouched test); real flight scored without truth |
 
 ## 6. Sim vs real is configuration only
 

@@ -1,5 +1,6 @@
 #include "treemapper_ros/conversions.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -25,8 +26,8 @@ treemapper_msgs::TreeEntry toMsg(const TreeEntry& e, const TreeMeta* meta) {
   m.centre.z = 0.0;
   m.height = e.height;
   m.sprayed = e.sprayed;
-  m.confidence = 0.0f;
-  m.observations = 0;
+  m.confidence = 0.0f;  // reserved, always 0 (TreeEntry.msg)
+  m.observations = static_cast<std::uint32_t>(std::max(0, e.observations));
   if (meta) {
     m.locked = meta->locked;
     m.first_published = ros::Time(meta->first_published);

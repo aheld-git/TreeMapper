@@ -263,6 +263,7 @@ std::vector<TreeEntry> SimpleMapper::publishedTrees() const {
     te.centre = polygonCentroid(e.outline);
     te.height = e.height();
     te.sprayed = e.sprayed;
+    te.observations = e.n_obs;
     if (te.outline.size() < 3 || !std::isfinite(te.height) || !std::isfinite(te.centre.x) ||
         !std::isfinite(te.centre.y)) {
       continue;  // never publish an undefined height or a degenerate outline (rule 3)

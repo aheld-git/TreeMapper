@@ -26,7 +26,10 @@ struct TreeEntry {
   TreeId id{kNoTree};
   Polygon2 outline;      ///< ground footprint seen from above, world frame
   Point2 centre;         ///< point navigation flies to
-  double height{0.0};    ///< canopy height above ground (descent reference); always finite once published
+  double height{0.0};    ///< canopy TOP as world-frame z (m), not height above ground: the 0.99 quantile of the
+                         ///< fused world z of the latched canopy cells. Datum = world-frame origin (world_nwu
+                         ///< re-origins at every boot on the real drone). Descent reference; finite once published.
+  int observations{0};   ///< frames with a matched observation (diagnostic; 0 = not provided by the mapper)
   bool sprayed{false};   ///< set by navigation via markSprayed()
 };
 
@@ -50,7 +53,7 @@ const char* toString(MissionPhase p);
 /// Drone pose in the world frame.
 struct DronePose {
   double t{0.0};
-  double x{0.0}, y{0.0}, z{0.0};             ///< z = height above ground
+  double x{0.0}, y{0.0}, z{0.0};             ///< world-frame position; z = world z (not height above ground)
   double qx{0.0}, qy{0.0}, qz{0.0}, qw{1.0};
   bool valid{false};
 };
