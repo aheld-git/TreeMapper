@@ -32,6 +32,8 @@ static const std::map<std::string, MapperFactory>& registry() {
     std::map<std::string, MapperFactory> r;
     // --- registered systems (add yours below, keep alphabetical) ---------------------------------
     TM_REGISTER_BUILTIN(simple)
+    TM_REGISTER_CANDIDATE(cand_grid)
+    TM_REGISTER_CANDIDATE(cand_obj)
     // ---------------------------------------------------------------------------------------------
     return r;
   }();
