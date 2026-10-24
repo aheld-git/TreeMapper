@@ -22,11 +22,15 @@ What differs from the Isaac reader (``bag_frames.py``), and why:
   ``--nearest-tol`` (20 ms), else the frame is written without disparity (counted).
 * **Pose**: ``world_nwu -> body`` from ``/tf``, interpolated at the header stamp (max gap 0.25 s). Missing
   -> ``pose_valid = False`` (the mapper holds), counted in ``pose_invalid_frames``; never a crash.
-* **Camera chain**: ``/tf_static`` ``body -> sensor_down`` is a real mount (75.0 deg about +y). The
-  disparity/image frame is the optical convention (x right, y down, z forward); ``sensor_down`` is a ROS
-  body-style frame (x forward along the optical axis) -- the existing pipeline applies the same OpenCV->ROS
-  swap (``sensor_optical_frame: false``). So ``T_body_cam = T_body_sensor_down * R_ros_from_optical``.
-  Verified without ground truth in ``results/real_flight_geometry.md``. Override: ``--t-body-cam``.
+* **Camera chain**: ``/tf_static`` ``body -> sensor_down`` = lever arm (0.30, 0.08, -0.20) m, rotation
+  75.0 deg about +y (15 deg off nadir, forward). The disparity/image frame is optical (x right, y down,
+  z forward); ``sensor_down`` is a ROS-style frame (x along the optical axis) -- the existing pipeline applies
+  the same OpenCV->ROS swap (``sensor_optical_frame: false``). So
+  ``T_body_cam = [lever, Ry(pitch)] * R_ros_from_optical``. **The pitch is NOT the tf_static 75 deg**: the
+  no-ground-truth checks (results/real_flight_geometry.md) put it at **82 deg** (8 deg off nadir, +-1.5):
+  with 75 deg the ground tilts 6.7 deg (world) / 7.4 deg (heading frame) and tree positions drift along
+  the heading by 0.14 m per metre of altitude; at 82 deg both vanish. ``--mount-pitch-deg`` (default 82)
+  sets it; ``--mount-pitch-deg tf`` uses the tf_static rotation as recorded; ``--t-body-cam`` overrides all.
 * **Calibration**: rectified left ``P`` (fx = fy = 477.15, cx = 322.72, cy = 200.06) and the baseline
   from the right ``P[3] = -fx*B``. The real driver stores it in **millimetres** like Isaac's
   (-76633.363 / 477.152 = 160.6 -> 0.1606 m); ``baseline_from_P`` deduces the unit (plausible 0.01-1 m).
@@ -60,6 +64,7 @@ TF, TFS = "/tf", "/tf_static"
 CAM_L, CAM_R = "/cam/bottom/left/half/camera_info", "/cam/bottom/right/half/camera_info"
 WORLD, BODY, MOUNT = "world_nwu", "body", "sensor_down"
 PHASE = "SCAN"  # constant: the real flight has no mission phase (module docstring)
+MOUNT_PITCH_DEG = 82.0  # verified from the data, not tf_static's 75.0 (results/real_flight_geometry.md)
 
 # optical (x right, y down, z forward) -> ROS camera-body convention (x forward, y left, z up)
 R_ROS_FROM_OPTICAL = np.array([[0.0, 0.0, 1.0], [-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]])
@@ -87,6 +92,13 @@ def mount_to_body_cam(t_body_mount: Sequence[float], q_body_mount: Sequence[floa
     if not mount_is_optical:
         R = R @ R_ROS_FROM_OPTICAL
     return [float(v) for v in t_body_mount] + rot_to_quat(R)
+
+
+def mount_pitch_to_body_cam(t_body_mount: Sequence[float], pitch_deg: float) -> List[float]:
+    """body -> optical camera for a mount rotated `pitch_deg` about body +y (90 = nadir), ROS-style mount."""
+    a = math.radians(pitch_deg)
+    q = [0.0, math.sin(a / 2), 0.0, math.cos(a / 2)]
+    return mount_to_body_cam(t_body_mount, q)
 
 
 def optical_axis_in_body(T_body_cam: Sequence[float]) -> np.ndarray:
@@ -161,6 +173,8 @@ def main(argv=None):
     ap.add_argument("--heartbeat", type=float, default=0.2)
     ap.add_argument("--nearest-tol", type=float, default=0.02)
     ap.add_argument("--pose-max-gap", type=float, default=0.25)
+    ap.add_argument("--mount-pitch-deg", default=str(MOUNT_PITCH_DEG),
+                    help="mount rotation about body +y in deg (90 = nadir), or 'tf' for tf_static's rotation")
     ap.add_argument("--t-body-cam", type=float, nargs=7, default=None, help="override body->optical camera")
     ap.add_argument("--mission-pose-rate", type=float, default=10.0)
     a = ap.parse_args(argv)
@@ -247,10 +261,16 @@ def main(argv=None):
         g = correct_disparity(disp[k], dcx)
         cnt["disparity_cells_invalid_after_offset"] += int((np.isfinite(disp[k]) & ~np.isfinite(g)).sum())
         disp[k] = g
-    T = list(a.t_body_cam) if a.t_body_cam else mount_to_body_cam(T_static[:3], T_static[3:])
+    if a.t_body_cam:
+        T, chain = list(a.t_body_cam), "--t-body-cam"
+    elif a.mount_pitch_deg == "tf":
+        T, chain = mount_to_body_cam(T_static[:3], T_static[3:]), "tf_static rotation"
+    else:
+        T, chain = mount_pitch_to_body_cam(T_static[:3], float(a.mount_pitch_deg)), \
+            "tf_static lever arm, pitch %s deg (data-verified)" % a.mount_pitch_deg
     cal = Calibration(width=L["width"], height=L["height"], fx=L["P"][0], fy=L["P"][5], cx=L["P"][2],
                       cy=L["P"][6], baseline=baseline, stride=a.stride, T_body_cam=T, frame=WORLD,
-                      note="real flight: body->optical = tf_static body->%s %s * R_ros_from_optical; "
+                      note="real flight: body->optical = " + chain + "; tf_static body->%s %s; R_ros_from_optical; "
                            "baseline from right P[3] in %s; disparity corrected by -(cx_l - cx_r) = %.4f px; "
                            "constant phase %s" % (MOUNT, T_static, unit, -dcx, PHASE))
     gh, gw = cal.grid_shape
@@ -298,7 +318,7 @@ def main(argv=None):
             "tf_static_body_sensor_down": T_static, "clock_offset_s": clock_offset,
             "tf_latency_s_p50_p99": [float(np.percentile(tf_lat, 50)), float(np.percentile(tf_lat, 99))],
             "baseline_m": baseline, "baseline_unit_in_P": unit, "disparity_offset_px_subtracted": dcx, "camera_info_changes": dict(cam_changes),
-            "off_nadir_deg": off_nadir_deg(T), "phase": PHASE, "t_start": t_lo, "t_end": t_hi,
+            "off_nadir_deg": off_nadir_deg(T), "camera_chain": chain, "T_body_cam": T, "phase": PHASE, "t_start": t_lo, "t_end": t_hi,
             "counts": dict(cnt), "pose_invalid_frames": sum(1 for f in frames if not f.pose_valid)}
     w = FrameWriter(os.path.join(a.out, "frames.bin"), cal, meta)
     for f in frames:

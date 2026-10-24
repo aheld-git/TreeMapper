@@ -90,3 +90,10 @@ def test_existing_marker_conversion():
     assert len(t7.outline) == 4 and t7.centre == pytest.approx((1.0, 1.0)) and t7.height == 3.5 and not t7.sprayed
     assert cnt["degenerate_outline"] == 1 and t9.height is None and cnt["no_height"] == 1
     assert t8.height == 1.25 and cnt["height_from_neighbour_message"] == 1
+
+
+def test_mount_pitch_helper_matches_tf_static_form():
+    from treemapper_tools.real_frames import MOUNT_PITCH_DEG, mount_pitch_to_body_cam
+    np.testing.assert_allclose(mount_pitch_to_body_cam(T_MOUNT[0], 75.0), mount_to_body_cam(*T_MOUNT), atol=1e-12)
+    assert off_nadir_deg(mount_pitch_to_body_cam(T_MOUNT[0], MOUNT_PITCH_DEG)) == pytest.approx(90 - MOUNT_PITCH_DEG)
+    assert off_nadir_deg(mount_pitch_to_body_cam(T_MOUNT[0], 90.0)) == pytest.approx(0.0, abs=1e-6)
