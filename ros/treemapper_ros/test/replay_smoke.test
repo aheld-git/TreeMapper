@@ -1,0 +1,14 @@
+<!-- rostest: ~60 s of the recorded Isaac mission (from 2 s before SCAN_APPROACH) at rate 1.0 through
+     treemapper_node + nav_emulator; test/check_live.py asserts a non-empty map, answering services, the
+     heartbeat, and that the node is still alive at the end. Needs /data/isaac and the M1 extraction (tm_dev). -->
+<launch>
+  <include file="$(find treemapper_ros)/launch/replay_isaac.launch">
+    <arg name="start" value="45"/>
+    <arg name="duration" value="60"/>
+    <arg name="rate" value="1.0"/>
+    <arg name="output" value="log"/>
+  </include>
+  <test test-name="replay_smoke" pkg="treemapper_ros" type="check_live.py" time-limit="150.0">
+    <param name="wait_map" value="90.0"/>
+  </test>
+</launch>

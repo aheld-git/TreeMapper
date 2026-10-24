@@ -1,0 +1,27 @@
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 60
+    - Class: rviz/MarkerArray
+      Name: Tree map
+      Enabled: true
+      Marker Topic: /treemapper/markers
+      Queue Size: 10
+    - Class: rviz/TF
+      Name: TF
+      Enabled: true
+      Show Names: true
+  Global Options:
+    Fixed Frame: world
+    Frame Rate: 15
+  Views:
+    Current:
+      Class: rviz/TopDownOrtho
+      Scale: 20

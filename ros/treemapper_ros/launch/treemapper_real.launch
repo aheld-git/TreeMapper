@@ -1,0 +1,43 @@
+<!-- treemapper_node on the drone or on a replayed real flight log.
+     Every frame and topic name is an argument. The real camera mount is the static TF body -> sensor_down
+     (~15 deg off nadir, 75 deg about y in the Jan 2026 farm log); sensor_down is a ROS-convention camera frame
+     (x = optical axis), so the fixed ROS-camera -> optical rotation is appended (camera_frame_is_optical false).
+     UNVERIFIED on hardware: the mount convention and the camera_info frame_id ("sensor" in the log) - see README. -->
+<launch>
+  <arg name="use_sim_time" default="false"/>           <!-- true when replaying a log with rosbag play and its clock -->
+  <arg name="mapper_config_file" default=""/>          <!-- "" = config/treemapper.yaml's pointer -->
+  <arg name="world_frame" default="world_nwu"/>
+  <arg name="body_frame" default="body"/>
+  <arg name="camera_frame" default="sensor_down"/>
+  <arg name="camera_frame_is_optical" default="false"/>
+  <arg name="pose_source" default="tf"/>               <!-- tf | pose_topic -->
+  <arg name="pose_topic" default="/treemapper/drone_pose"/>
+  <arg name="left_camera_info_topic" default="/cam/bottom/left/half/camera_info"/>
+  <arg name="right_camera_info_topic" default="/cam/bottom/right/half/camera_info"/>
+  <arg name="disparity_topic" default="/disparity_image_down_float"/>
+  <arg name="detections_topic" default="/object_detection/detections"/>
+  <arg name="mission_state_topic" default="/mission_state"/>
+  <arg name="hop_target_topic" default="/spray_target"/>
+  <arg name="detection_scale" default="1.0"/>
+  <arg name="output" default="screen"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+  <node pkg="treemapper_ros" type="treemapper_node" name="treemapper" output="$(arg output)" required="true">
+    <rosparam command="load" file="$(find treemapper_ros)/config/treemapper.yaml"/>
+    <param if="$(eval arg('mapper_config_file') != '')" name="mapper_config_file" value="$(arg mapper_config_file)"/>
+    <param name="world_frame" value="$(arg world_frame)"/>
+    <param name="body_frame" value="$(arg body_frame)"/>
+    <param name="camera_mount_source" value="tf"/>
+    <param name="camera_frame" value="$(arg camera_frame)"/>
+    <param name="camera_frame_is_optical" value="$(arg camera_frame_is_optical)"/>
+    <param name="pose_source" value="$(arg pose_source)"/>
+    <param name="pose_topic" value="$(arg pose_topic)"/>
+    <param name="left_camera_info_topic" value="$(arg left_camera_info_topic)"/>
+    <param name="right_camera_info_topic" value="$(arg right_camera_info_topic)"/>
+    <param name="disparity_topic" value="$(arg disparity_topic)"/>
+    <param name="detections_topic" value="$(arg detections_topic)"/>
+    <param name="mission_state_topic" value="$(arg mission_state_topic)"/>
+    <param name="hop_target_topic" value="$(arg hop_target_topic)"/>
+    <param name="detection_scale" value="$(arg detection_scale)"/>
+  </node>
+</launch>

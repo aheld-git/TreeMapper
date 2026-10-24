@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>treemapper_ros</name>
+  <version>0.1.0</version>
+  <description>ROS 1 node around the tree mapper core: stereo disparity + detections + pose + mission phase in,
+    tree map, query / mark-sprayed services, RViz markers, health and drop counters out.</description>
+  <maintainer email="alex000.held@gmail.com">Alex Held</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>roslib</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>topic_tools</depend>
+  <depend>treemapper_msgs</depend>
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>rosbag</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <test_depend>rostest</test_depend>
+  <test_depend>rosunit</test_depend>
+</package>

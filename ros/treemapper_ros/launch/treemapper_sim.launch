@@ -1,0 +1,29 @@
+<!-- treemapper_node in Isaac Sim conventions (live simulator or the recorded Isaac mission).
+     Differences to the real flight are configuration only:
+       * frames world / body (not world_nwu);
+       * the camera mount comes from parameters: Isaac's /tf_static parents the cameras to `world` (their pose AT
+         SPAWN), not to `body`. The mount below is inv(world<-body at spawn) * tf_static, an exact nadir mount with
+         lever arm (0.15, 0.08, 0), verified against ground truth in results/geometry_check.md (optical -> body);
+       * simulated clock (/clock). -->
+<launch>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="mapper_config_file" default=""/>          <!-- "" = config/treemapper.yaml's pointer (config/core/<mapper>.cfg) -->
+  <arg name="hop_target_topic" default="/spray_target"/>
+  <arg name="disparity_quantum_px" default="0.0"/>     <!-- 0.00390625 = the frames.bin cache, for offline A/B -->
+  <arg name="output" default="screen"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+  <node pkg="treemapper_ros" type="treemapper_node" name="treemapper" output="$(arg output)" required="true">
+    <rosparam command="load" file="$(find treemapper_ros)/config/treemapper.yaml"/>
+    <param if="$(eval arg('mapper_config_file') != '')" name="mapper_config_file" value="$(arg mapper_config_file)"/>
+    <param name="world_frame" value="world"/>
+    <param name="body_frame" value="body"/>
+    <param name="pose_source" value="tf"/>
+    <param name="camera_mount_source" value="param"/>
+    <rosparam param="camera_mount">[0.15000002475785956, 0.07999961110446568, -2.6425180287698025e-07,
+                                    -0.7071065073147165, 0.7071070550580697, 1.315609245066774e-07, 5.193386764157588e-07]</rosparam>
+    <param name="camera_frame_is_optical" value="true"/>
+    <param name="hop_target_topic" value="$(arg hop_target_topic)"/>
+    <param name="disparity_quantum_px" value="$(arg disparity_quantum_px)"/>
+  </node>
+</launch>

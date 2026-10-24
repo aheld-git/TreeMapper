@@ -1,0 +1,47 @@
+# treemapper_node parameters shared by every mode (loaded into the node's private namespace).
+# Mode-specific values (frames, pose source, camera mount, clock) are set by launch/treemapper_sim.launch and
+# launch/treemapper_real.launch; every name below can be overridden there.
+#
+# MAPPER CONFIGURATION: single source of truth = the core's config/<mapper>.cfg, the same file the offline
+# replay and the evaluation use. It is NOT copied here; this file only points at it (config/core is a
+# symlink to the repository's config/). A relative path is resolved against this package's directory.
+# test/test_config_agreement.cpp checks that this pointer resolves to <repo>/config/<mapper>.cfg, that the
+# node's reader builds exactly the core file's key/value set, and that the mapper accepts it.
+mapper: cand_obj
+mapper_config_file: config/core/cand_obj.cfg
+mapper_overrides: {}          # key: value on top of the .cfg, each logged as WARN at startup; keep empty in flight
+
+# --- input topics (the existing system's names; identical in the Isaac recording and the real flight)
+left_camera_info_topic: /cam/bottom/left/half/camera_info
+right_camera_info_topic: /cam/bottom/right/half/camera_info
+disparity_topic: /disparity_image_down_float          # sensor_msgs/Image 32FC1, disparity in px of the calibrated image
+detections_topic: /object_detection/detections        # treemapper_msgs/Detection2DArray or spot_spraying_msgs/DetectionResult
+mission_state_topic: /mission_state                   # std_msgs/String from navigation
+hop_target_topic: /spray_target                       # std_msgs/Int32, hop target in THIS mapper's ID space (-1 = none)
+pose_topic: /treemapper/drone_pose                    # geometry_msgs/PoseStamped, only with pose_source: pose_topic
+
+# --- frames / pose
+world_frame: world_nwu        # map frame of the output and of the pose
+body_frame: body              # drone body frame (pose = world_frame <- body_frame)
+pose_source: tf               # tf | pose_topic
+pose_wait: 0.1                # s, how long a frame may wait for its pose to arrive in TF
+pose_max_age: 0.5             # s, max age of the latest pose used for heartbeat frames
+camera_mount_source: tf       # tf (body_frame <- camera_frame from TF) | param (camera_mount below)
+camera_frame: ""              # "" = the left camera_info frame_id
+camera_frame_is_optical: true # false: camera_frame is a ROS camera frame (x = optical axis); the optical rotation is appended
+
+# --- stereo / detections
+disparity_stride: 4           # px, disparity sampling grid (the mapper's StereoCalibration::stride)
+disparity_quantum_px: 0.0     # px, 0 = full precision; 0.00390625 reproduces the frames.bin cache (offline A/B only)
+detection_scale: 1.0          # detector pixels -> calibrated image pixels
+
+# --- detection <-> disparity pairing (same rules as tools/treemapper_tools/bag_frames.py)
+sync_wait: 0.5                # s, a detection waits this long for the disparity with its exact stamp
+sync_nearest_tol: 0.02        # s, then pairs with the nearest cached disparity within this tolerance
+disparity_cache: 400          # disparity frames kept for pairing
+
+# --- cadence
+heartbeat_frame_period: 0.2   # s, empty frame fed to the mapper when no detection frame came for this long
+map_rate: 5.0                 # Hz, ~map / ~markers / ~stage_timing (also on phase changes and sprayed changes)
+health_rate: 2.0              # Hz, ~health heartbeat (published while asleep too)
+input_stale_warn: 2.0         # s, health warning when no camera/detection input arrives in an awake phase

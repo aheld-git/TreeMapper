@@ -1,0 +1,46 @@
+<!-- Replay the recorded Isaac mission (read-only /data/isaac) into treemapper_node with the bag's clock.
+     The recorded /spray_target is in the RECORDED (existing) system's ID space, which means nothing to this map,
+     so it is remapped to /recorded/spray_target and nav_emulator.py plays navigation: it resolves each recorded
+     target to this mapper's ID by its descent point (exactly as core/apps/replay_main.cpp does offline),
+     publishes it on /treemapper/hop_target and calls ~set_tree_sprayed when SPRAYING ends.
+     Optional: record=<file.bag> records the map, target, health and counter topics for scoring
+     (scripts/treemapper_bag_to_jsonl.py converts the map topic to the scorer's JSONL contract). -->
+<launch>
+  <arg name="bag" default="/data/isaac/cloud_bundle_isaac_2026-10-23-15-34-29.bag"/>
+  <arg name="extracted" default="/data/work/extracted/isaac_2026-10-23-15-34-29"/>   <!-- mission.json of the M1 extraction -->
+  <arg name="start" default="45"/>       <!-- s into the bag (bag t = 10 + start); 45 = just before SCAN_APPROACH -->
+  <arg name="duration" default="0"/>     <!-- s of bag to play, 0 = to the end -->
+  <arg name="rate" default="1.0"/>
+  <arg name="delay" default="3"/>        <!-- s before playing, lets the node subscribe first -->
+  <arg name="nav_emulator" default="true"/>
+  <arg name="record" default=""/>
+  <arg name="mapper_config_file" default=""/>
+  <arg name="disparity_quantum_px" default="0.0"/>
+  <arg name="output" default="screen"/>
+  <arg name="tools_path" default="$(find treemapper_ros)/../../tools"/>
+
+  <include file="$(find treemapper_ros)/launch/treemapper_sim.launch">
+    <arg name="use_sim_time" value="true"/>
+    <arg name="mapper_config_file" value="$(arg mapper_config_file)"/>
+    <arg name="hop_target_topic" value="$(eval '/treemapper/hop_target' if arg('nav_emulator') else '/spray_target')"/>
+    <arg name="disparity_quantum_px" value="$(arg disparity_quantum_px)"/>
+    <arg name="output" value="$(arg output)"/>
+  </include>
+
+  <node pkg="rosbag" type="play" name="player" output="log" required="false"
+        args="--clock -d $(arg delay) -s $(arg start) -r $(arg rate) $(eval ('-u %s' % arg('duration')) if float(arg('duration')) > 0 else '') $(arg bag)
+              --topics /cam/bottom/left/half/camera_info /cam/bottom/right/half/camera_info /disparity_image_down_float
+                       /object_detection/detections /mission_state /spray_target /tf /tf_static">
+    <remap if="$(arg nav_emulator)" from="/spray_target" to="/recorded/spray_target"/>
+  </node>
+
+  <node if="$(arg nav_emulator)" pkg="treemapper_ros" type="nav_emulator.py" name="nav_emulator" output="$(arg output)">
+    <param name="mission_json" value="$(arg extracted)/mission.json"/>
+    <param name="tools_path" value="$(arg tools_path)"/>
+    <param name="out_topic" value="/treemapper/hop_target"/>
+  </node>
+
+  <node if="$(eval arg('record') != '')" pkg="rosbag" type="record" name="recorder" output="log"
+        args="-O $(arg record) /treemapper/map /treemapper/hop_target /treemapper/health /treemapper/counters
+              /treemapper/stage_timing /mission_state"/>
+</launch>
