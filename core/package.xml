@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>treemapper_core</name>
+  <version>0.1.0</version>
+  <description>ROS-free C++17 core of the tree mapper (map, fusion, gates). Plain CMake.</description>
+  <maintainer email="alex000.held@gmail.com">Alex Held</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>cmake</buildtool_depend>
+  <test_depend>gtest</test_depend>
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>

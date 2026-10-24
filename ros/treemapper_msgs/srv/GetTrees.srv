@@ -1,0 +1,6 @@
+# Query the map: all trees (id = -1) or one tree by id.
+int32 id
+---
+bool found                        # false if a specific id was requested and is unknown
+TreeEntry[] trees                 # all trees, or the one requested
+string message

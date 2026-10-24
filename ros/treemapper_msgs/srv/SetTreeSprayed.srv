@@ -1,0 +1,6 @@
+# Navigation marks a tree as sprayed (or clears the flag).
+int32 id
+bool sprayed
+---
+bool success                      # false if the id is unknown
+string message
