@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
   std::vector<std::pair<double, TreeId>> targets;
   RecordedFrame fr;
   bool first = true;
-  double next_snap = 0.0, last_t = 0.0;
+  double next_snap = 0.0, last_t = 0.0, last_snap_t = -1e18;
   std::string prev_phase;
   int nav_id = -1;
   double tx = std::nan(""), ty = std::nan("");
@@ -98,9 +98,21 @@ int main(int argc, char** argv) {
       targets.push_back({t, kNoTree});
       first = false;
     }
-    while (next_snap <= t) {  // snapshots reflect every frame received strictly before them
-      writeSnapshot(out, next_snap, mapper.publishedTrees(), mapper.takeStageTiming());
+    // On a phase change, record the map as it stood after the last frame of the previous phase, stamped
+    // with that frame's time. Without it, a tree published by the last SCAN frame first appears in the
+    // next steady-rate snapshot, which already falls in PLANNING. That would be a cadence artefact, not a
+    // tree created after scanning.
+    if (!prev_phase.empty() && fr.phase_name != prev_phase && last_t > last_snap_t) {
+      writeSnapshot(out, last_t, mapper.publishedTrees(), mapper.takeStageTiming());
       ++n_snaps;
+      last_snap_t = last_t;
+    }
+    while (next_snap <= t) {  // snapshots reflect every frame received strictly before them
+      if (next_snap > last_snap_t) {
+        writeSnapshot(out, next_snap, mapper.publishedTrees(), mapper.takeStageTiming());
+        ++n_snaps;
+        last_snap_t = next_snap;
+      }
       next_snap += 1.0 / rate;
     }
     // --- navigation emulator
@@ -132,8 +144,10 @@ int main(int argc, char** argv) {
     last_t = t;
     ++n_frames;
   }
-  writeSnapshot(out, last_t, mapper.publishedTrees(), mapper.takeStageTiming());
-  ++n_snaps;
+  if (last_t > last_snap_t) {
+    writeSnapshot(out, last_t, mapper.publishedTrees(), mapper.takeStageTiming());
+    ++n_snaps;
+  }
   std::fclose(out);
 
   std::ofstream tf(a["--out-targets"]);

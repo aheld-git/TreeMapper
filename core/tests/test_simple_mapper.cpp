@@ -147,6 +147,16 @@ TEST(SimpleMapperRules, NoNewTreesAfterScanning) {
     for (int i = 0; i < 10; ++i) m.integrate(t += 0.1, ph, 0, {square(15, 15, 2.0)});
     EXPECT_EQ(m.publishedTrees().size(), 1u) << toString(ph);
   }
+  // an entry created during SCAN but still unconfirmed must not get published after the list locks
+  {
+    SimpleMapper m(cfg());
+    double t = 0;
+    m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, {square(0, 0, 2.0)});
+    m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, {square(0, 0, 2.0)});
+    for (int i = 0; i < 5; ++i) m.integrate(t += 0.1, MissionPhase::kPlanning, kNoTree, {square(0, 0, 2.0)});
+    EXPECT_TRUE(m.publishedTrees().empty());
+    EXPECT_EQ(m.counters().at("obs_dropped_unconfirmed_locked_phase"), 5u);
+  }
   // ...but an unknown phase behaves as scanning (fail open)
   SimpleMapper m(cfg());
   double t = 0;

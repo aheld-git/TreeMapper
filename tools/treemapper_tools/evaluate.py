@@ -102,7 +102,7 @@ HEADLINE = [
     ("recall (final)", ("final", "detection", "recall"), True),
     ("precision (final)", ("final", "detection", "precision"), True),
     ("published / truth (final)", ("final", "detection", "n_published"), None),
-    ("recall (per-frame, all snapshots)", ("per_frame", "detection", "recall", "mean"), True),
+    ("recall (per-frame mean)", ("per_frame", "detection", "recall", "mean"), True),
     ("mean IoU (final)", ("final", "geometry", "mean_iou"), True),
     ("min IoU (final)", ("final", "geometry", "min_iou"), True),
     ("merged entries (final)", ("final", "detection", "merged_entries"), False),
@@ -125,16 +125,26 @@ HEADLINE = [
     ("  non-target changes in descent", ("safety", "nontarget_changes_in_descent"), False),
     ("  sprayed-tree changes", ("safety", "sprayed_tree_changes"), False),
     ("  new tree inside sprayed", ("safety", "new_tree_inside_sprayed"), False),
+    ("  invalid-entry frames", ("safety", "invalid_entry_frames"), False),
+    ("  duplicate-ID frames", ("safety", "duplicate_id_frames"), False),
+    ("  implausible-height frames", ("safety", "implausible_height_frames"), False),
+    ("  locked ID vanished", ("safety", "locked_id_vanished"), False),
     ("truth trees sprayed", ("final", "spray", "truth_trees_sprayed"), True),
     ("truth trees sprayed twice", ("final", "spray", "truth_trees_sprayed_twice"), False),
     ("scan latency mean s", ("timeliness", "latency_scan_mean_s"), False),
 ]
 
 
+HEIGHT_ROWS = ("height bias m (final)", "height RMSE m (final)")
+
+
 def headline(res: dict) -> Dict[str, Optional[float]]:
+    """Headline numbers. Height error rows are None when the scorer flags the truth heights unreliable
+    (``gt_height_reliable`` false, e.g. the Isaac recording's constant 4.0 m fallback heights)."""
     out = {}
+    reliable = res.get("gt_height_reliable", True) is not False
     for label, path, _ in HEADLINE:
-        out[label] = _n(_g(res, *path))
+        out[label] = _n(_g(res, *path)) if (reliable or label not in HEIGHT_ROWS) else None
     return out
 
 
@@ -232,6 +242,18 @@ def main(argv=None):
                 st = R["aggregate"][label]
                 md.append("| %s | %s | %s | %s |" % (label, _fmt(st["mean"]), _fmt(st["worst"]), _fmt(st["std"]))
                           + (" %s |" % _fmt(floor.get(label)) if floor else ""))
+            groups = {}
+            for name, runs in R["per_dataset"].items():
+                groups.setdefault(name.rsplit("_s", 1)[0], []).append(runs[0]["headline"])
+            if len(groups) > 1:
+                gl = list(groups)
+                md += ["", "Per group (mean / worst):", "", "| Metric | " + " | ".join("%s (n=%d)" % (g, len(groups[g])) for g in gl) + " |",
+                       "|---|" + "---|" * len(gl)]
+                ga = {g: aggregate(groups[g]) for g in gl}
+                for label, _, _ in HEADLINE:
+                    md.append("| %s | " % label + " | ".join("%s / %s" % (_fmt(ga[g][label]["mean"]), _fmt(ga[g][label]["worst"]))
+                                                            for g in gl) + " |")
+                R["per_group"] = ga
             cols = [l for l, _, _ in HEADLINE[:12]]
             md += ["", "Per dataset:", "", "| dataset | " + " | ".join(cols) + " | safety |", "|---|" + "---|" * (len(cols) + 1)]
             for name, runs in R["per_dataset"].items():

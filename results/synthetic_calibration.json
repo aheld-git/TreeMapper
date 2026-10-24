@@ -1,0 +1,59 @@
+{
+ "frames": 1771,
+ "detector": {
+  "fully_visible_tree_instances": 326,
+  "detection_rate_iou30": 1.0,
+  "detection_rate_by_phase": {
+   "SCAN": 1.0,
+   "HOPPING": 1.0
+  },
+  "boxes_per_frame_mean": 1.579,
+  "false_positive_boxes_per_frame": 0.0666,
+  "boxes_covering_two_trees_fraction": 0.0,
+  "centre_error_rel_std_xy": [
+   0.0326,
+   0.0295
+  ],
+  "centre_error_rel_mean_xy": [
+   -0.0046,
+   0.0063
+  ],
+  "size_ratio_mean_wh": [
+   0.9485,
+   0.9619
+  ],
+  "size_ratio_std_wh": [
+   0.0524,
+   0.0706
+  ],
+  "score_tp_p10_p50_p90": [
+   0.872,
+   0.898,
+   0.922
+  ],
+  "score_fp_p10_p50_p90": [
+   0.806,
+   0.828,
+   0.858
+  ],
+  "note": "projected truth = bbox of the outline ring at z=4.0 and z=0.5 m"
+ },
+ "disparity_isaac": {
+  "frames": 355,
+  "valid_fraction_mean": 1.0,
+  "noise_sigma_px_robust_median": 0.0024,
+  "second_diff_gt_1px_fraction": 0.1819
+ },
+ "disparity_real": {
+  "bag": "/data/real/BB_treehopping_farm.bag",
+  "topic": "/disparity_image_down_float",
+  "width_height": [
+   640,
+   400
+  ],
+  "frames": 60,
+  "valid_fraction_mean": 0.9841,
+  "noise_sigma_px_robust_median": 0.0378,
+  "second_diff_gt_1px_fraction": 0.0159
+ }
+}

@@ -164,3 +164,97 @@ outline falls back to a circle (radius, else mean vertex distance), or raises. A
 
 Existing-system scorecard: 1 -> 5 safety violations, all from the 145.98 s absorption. The full old -> new table
 is in `results/baseline_existing_system_notes.md`.
+
+## M2 (2026-10-24, 15:20-; D19 onwards)
+
+**D19. Input contract = one `Frame` per detection message** (`tools/treemapper_tools/frames.py`, mirrored by
+`core/include/treemapper/frame.hpp`). A frame carries the receive time, the image stamp, the body pose in the
+world at the stamp plus a validity flag, the phase string and the hop target. The target comes in navigation's
+own ID space together with its descent point. It also carries the boxes and the disparity sampled on a
+stride-4 grid (160 x 100), in full-resolution pixels. Calibration and `T_body_cam` are stored once per file.
+- File form `frames.bin`: binary, about 32 kB per frame (u16 disparity x 256), readable from Python and C++.
+  The full 1 MB disparity frames are never written; the recorded mission is 226 MB.
+- Heartbeat frames (no boxes, no disparity) are written at every phase change and every 0.2 s while the detector
+  sleeps, so a system can be driven by this stream alone.
+- Alternatives: per-detection depth samples only (rejected: a spatial-evidence candidate or ground modelling
+  needs points outside the boxes); full-resolution disparity on disk (rejected: 29 GB).
+- Assumption: stride 4 loses nothing that matters at 7-15 m. A tree spans 100-300 px, so >= 600 grid points per box.
+
+**D20. Disparity pairing.** About half of the bag's `/disparity_image_down_float` messages are malformed (step
+= width, 256000 bytes of garbage). They are rejected by size and counted; no valid stamp occurs twice.
+Detections are paired by exact stamp: 6268 + 89 late of 7414. 1010 more are paired to the nearest valid
+disparity within 20 ms, with the pose taken at the disparity stamp so depth and pose stay consistent. The box
+offset this causes is <= 3 px at 4 m/s. 47 detections have no disparity and are counted
+(`frames_dropped_no_disparity` in the mapper).
+
+**D21. Camera extrinsic = inv(world->body at spawn) * `/tf_static` world->camera.** This is verified against
+ground truth: ground flat to 0.01 deg and 1 cm, 99.6 % of canopy points inside true canopies
+(`results/geometry_check.md`). M1's guess, the raw transform used as the mount, tilts the camera by 3.37 deg.
+Real flight: `/tf_static` has a proper `body -> sensor_down` (pitched ~75 deg about y). The real-flight reader
+must use it. **Untested.**
+
+**D22. Replay navigation emulator** (in `treemapper_replay`, not in the mapper). It resolves a recorded target to
+the mapper's own ID via the descent point: the published outline containing it, else the nearest centre
+< 3 m. When SPRAYING ends, it calls `markSprayed(resolved target)`. The resolved timeline goes to the scorer
+as `mission.json` targets (`mission_resolved.json`).
+- Alternative: score our map against the recorded IDs. Rejected: meaningless, because the IDs belong to another map.
+- Consequence: on the recording our system flies the existing system's hop plan. No re-planning on our map.
+
+**D23. Simple baseline (`SimpleMapper`), deliberately naive.** Per frame:
+- points from the central 70 % of each box;
+- gates: optical range 0.5-30 m, above drone - 0.3 m, below (per-frame 5th-percentile height + 1 m) = ground;
+- one convex-hull observation per box (>= 25 points, area <= 60 m^2), height = p95 of point world z;
+- association to the nearest entry within 2 m or containing the centroid;
+- grow-only hull union, height = mean of observation heights;
+- published after 3 observations; unconfirmed entries expire after 2 s unseen;
+- in creation phases only, a containment merge (smaller centroid inside the larger, overlap >= 30 % of the
+  smaller); the better-established entry (published > more observations > lower ID) keeps ID and height.
+
+Phase rules live in the pure `phasePolicy()`:
+- SCAN / SCAN_APPROACH / ERROR / unknown: create and merge. Unknown is fail-open with a warning.
+- PLANNING: no creation, no merge, existing trees may grow.
+- HOPPING: additionally only the resolved target may change. No valid target freezes everything (fail closed).
+- SPRAYING / IDLE / RETURN: asleep.
+- An invalid pose holds everything (fail closed).
+- Unconfirmed entries cannot be confirmed in a locked phase. This was a bug found by the synthetic suite: an
+  entry created in SCAN reached 3 observations in PLANNING and was first published in HOPPING. Fixed, with a test.
+- Height = world z of the canopy top (the descent reference in navigation's frame), not height above a ground
+  estimate. On Isaac and on the synthetic data the ground is at about 0. Real flight: world z origin = take-off
+  point (assumption).
+
+**D24. Ground-truth heights of the Isaac recording are not usable.** In-canopy points reach +1.35 m (p90) and
++1.88 m (p99) above the constant 4.0 m truth. The coordinator and the scorer fixer handled this (R13:
+`gt_height_reliable`). Height rows on the recording are n/a in M2's scorecards.
+
+**D25. Synthetic generator** (`tools/treemapper_tools/synth.py`). Heightfield world at 5 cm with irregular dome
+canopies, ray-cast disparity on the same stride-4 grid, three levels. Noise anchored to the recordings
+(`results/synthetic_calibration.md`): real stereo is ~0.1 px per pixel, 2-3 % dropouts, 1/16 px quantisation.
+- easy / medium / hard = 1.5x / 3x / 5x real disparity noise, plus correlated error, fattening, dropouts and
+  outliers, each multiplied 2-4x in corridor turns.
+- The detector simulation is far worse than the recorded one: 8-25 % misses, merged boxes over touching trees,
+  partial boxes, 0.1-0.5 false positives per frame.
+- Frames at 15 Hz while awake, recorded rate ~27 Hz. A cost saving: generation 2 min 40 s for 15 missions on 6
+  processes, 438 MB.
+- Receive time = stamp, so the phase in a frame is the phase in force when the system sees it. With a 30 ms
+  latency, a SCAN frame could arrive after PLANNING began and the scorer would see an unfair new-tree violation.
+- Seeded: same (seed, level) -> byte-identical files (test).
+- Hard is a stress level: 5x noise at 15 m gives sigma_Z ~ 1.5 m, 6 m in turns. Medium is the main
+  discriminating level.
+
+**D26. Noise floor.**
+- The C++ systems and the generator are deterministic. Repeated runs give identical scorecards, so the
+  run-to-run floor is 0. The meaningful floor is seed-to-seed variation; the evaluation tables report std over
+  datasets and per-level mean / worst.
+- Candidates must be compared paired by seed.
+- Isaac: one run only. The existing system was recorded once. Our replay is deterministic, so the number is
+  exact but statistically one sample.
+
+**D27. Environment.** Nothing installed in tm_dev or on the host. numpy, scipy, shapely and rosbag were enough.
+
+**D28. The replay writes an extra snapshot at the last frame of each phase**, besides the steady 5 Hz.
+- Why: the snapshot after a phase change carries the new phase's time. Without the extra snapshot, a tree
+  published by the last SCAN frame first appears in a PLANNING-time snapshot and is scored as a new tree after
+  scanning.
+- This is a cadence artefact. The tree did exist when navigation started planning.
+- Steady-rate snapshots that would fall before the extra one are skipped, so the stream stays monotonic.
+- The scorer's per-frame metrics are time-weighted (R8), so the extra snapshots do not bias them.

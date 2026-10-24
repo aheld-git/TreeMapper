@@ -194,6 +194,9 @@ void SimpleMapper::integrate(double t, MissionPhase phase, TreeId target, const 
       continue;
     }
     if (best->sprayed) { count("obs_dropped_sprayed_tree_frozen"); continue; }
+    // An unconfirmed entry must not become a published tree once the list is locked: publishing it
+    // after scanning would be a new tree navigation never planned against (brief section 6).
+    if (!pol.may_create && !best->published) { count("obs_dropped_unconfirmed_locked_phase"); continue; }
     if (pol.freeze_non_target && best->id != target) { count("obs_dropped_non_target_frozen"); continue; }
     std::vector<Point2> pts = best->outline;
     pts.insert(pts.end(), ob.hull.begin(), ob.hull.end());
