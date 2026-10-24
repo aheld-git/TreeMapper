@@ -71,3 +71,13 @@ Stereo checks that need the images (rectification and the motion-based depth sca
 - The existing system's own chain and configuration in the companion replay.
 - Everything that needs mission phases: locked-phase stability, descent freeze, spraying.
 - No ground truth: all "accuracy" statements are relative to stereo crown peaks and to agreement between systems.
+
+## cand_obj profiles
+
+- `config/cand_obj_real.cfg` is the real-flight profile, used by `treemapper_real.launch`.
+- `config/cand_obj.cfg` is the sim and default profile.
+- On the farm log the default profile over-fragments (102 trees for ~63 crowns). The real profile gives 63.
+- The real profile regresses on the synthetic held-out suite (recall 0.93 -> 0.85, more merges), so both profiles
+  are kept.
+- Sweep and decision: `results/real_flight_profile.md`. Re-run:
+  `python3 -m treemapper_tools.real_profile_sweep --round 1|2 ...` (command in that file).
