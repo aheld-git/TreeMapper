@@ -16,7 +16,9 @@ outline or within `match_radius` of its centre). Each instance owns a local **ev
 cell, how many frames it was that instance's canopy (positive) and how many frames it was seen as ground or as another
 instance's canopy (negative). A cell **latches**, permanently, after `latch_frames` positive frames and when positive in
 at least `latch_ratio` of the judged frames. The published outline is the convex hull of the latched cells; the centre
-is their centroid; the height is the median of the per-frame crown-top samples. There are no 2D tracks anywhere.
+is their centroid; the height is a high quantile (0.99) of the latched cells' fused surface heights (M4; M3 used the
+median of per-frame crown-top samples, see section 10). Published centre and height move at a bounded rate. There are no
+2D tracks anywhere.
 
 ## 2. Why this should beat the simple baseline
 
@@ -45,8 +47,11 @@ to change (SCAN, SCAN_APPROACH, ERROR, unknown: all; PLANNING: confirmed instanc
 climb: the target only; SPRAYING/IDLE/RETURN: asleep). It never shrinks: the published outline is monotone under inclusion
 of every earlier one. Hovering cannot inflate it beyond cells that are canopy in a majority of judged frames.
 
-**Height.** Median of crown-top samples; finite by construction once >= `min_height_samples` samples exist, which is a
-condition of publication (rule 3). A frozen or sprayed instance receives no samples, so its height cannot change.
+**Height (M4).** Every latched cell carries a fused surface height (weighted running mean of its per-frame median z,
+saturating weight 30, outlier gate 2 m once established); the tree height is the 0.99 quantile of those cells, finite by
+construction once >= `min_height_cells` latched cells carry a height, which is a condition of publication (rule 3). Cell
+heights are fused in creation phases only and the published value moves at <= 0.5 m/s, so a locked, frozen or sprayed
+instance's height cannot drift or jump (section 10).
 
 **Identity.** IDs come from a monotonic counter and are never reused (expired tentative IDs and merged-away IDs are
 retired). Matching is geometric (top inside outline / near centre), so detector track changes are invisible. Merges
@@ -61,8 +66,8 @@ fragment inside a large tree merge easily, while two large trees would need half
 |---|---|---|
 | 1 IDs stable, never reused | monotonic `next_id_`; merges keep the established ID | `IdsNeverReusedAndMergeKeepsEstablished` |
 | 2 no silent damage | latch needs >= 3 frames and a majority; latched cells never unlatch; median height | `OneBadFrameNeverCorruptsAPublishedTree`, `HoveringDoesNotInflateTheOutline` |
-| 3 height always real | publication requires >= 3 finite samples; samples NaN / above drone dropped | `PublishesOnlyAfterConfirmationWithFiniteRobustHeight` |
-| 4 one tree one entry | watershed separation; overlap/centre merge with established winner | `TouchingNeighboursStaySeparate`, `IdsNeverReused...`, `SeveralCrownsOnOneTreeAllCount` |
+| 3 height always real | publication requires >= 3 latched cells with a fused height; NaN / near-drone cell heights dropped; the 0.99 quantile of the latched surface is rate-limited | `PublishesOnlyAfterConfirmationWithFiniteRobustHeight`, `HeightFromLatchedSurfaceAndRateLimitedPublication` |
+| 4 one tree one entry | watershed separation; overlap/centre merge with established winner; a crown covering a published tree's cells is that tree (seed guard) | `TouchingNeighboursStaySeparate`, `IdsNeverReused...`, `SeveralCrownsOnOneTreeAllCount`, `FragmentNeverTakesOverAPublishedTree`, `MergeNeverJumpsThePublishedValues` |
 | 5 sprayed protected | sprayed instances get no crowns, no evidence, no merges; crowns inside a sprayed outline never seed | `SprayedTreesFrozenAndProtected` |
 | 6 fail loudly | see the gate table below; every trigger is counted and the first occurrence logged | `HeartbeatsHoldsAndSleepAreCounted`, descent test |
 | 7 every drop counted | `counters()` (points, cells, crowns, height samples, instances; listed below) | all tests read counters |
@@ -187,3 +192,140 @@ IoU 0.76, 1.0 swallowed, 0 false, centre 0.46 m, height 0.19 m, spill 0.19.
   unambiguous (second-best alignment clearly worse, which the row period makes explicit), and then import old trees as
   *tentative* instances with their outlines as prior evidence, so they still need fresh observations before they are
   published with new IDs. Old IDs are never reused (rule 1 across flights).
+
+## 10. M4 changes (hardening, 2026-10-24 19:00-22:00)
+
+Work list: `results/m3_comparison.md` ("M4 work list"). Tuned on suite_v1, the fixed-hover suite_v2 and the recorded
+Isaac mission; the held-out suite was run once at the end with the frozen configuration (`results/cand_obj_m4_holdout.md`,
+`results/cand_obj_m4_isaac.md`, `results/cand_obj_m4_synthetic.md`; all paired against the M3 cand_obj build of commit
+89317b2, cand_grid and simple). Configuration: 45 keys, `config/cand_obj.cfg` == built-in defaults (test).
+
+### 10.1 Height statistic (task 1): quantile of the latched surface
+
+*Problem.* M3's height was the median of per-frame crown-top samples. On the recording two trees published 4.27 / 4.39 m
+against measured canopy tops of 5.4-5.9 m. The map stream shows why: both entered at the swath edge, the first visible
+slice has its own "top" (the highest cell of the slice, not of the tree), those samples fill the median first, and the
+sample buffer is kept centred on the median, so the early low samples never leave. The +-2.5 m tails on medium
+(held-out seed 105, IoU 0.25 / 0.40 entries) are the same mechanism with a neighbour's cells in the slice.
+
+*Change.* Each instance's evidence window now carries, per cell, a fused surface height: a weighted running mean of the
+cell's per-frame median z (cand_grid's `fuseCell` model: weight saturates at `cell_weight_cap` 30 so hovering cannot
+inflate confidence; once a cell has weight >= `gate_min_weight` 3 a frame value more than `outlier_gate_m` 2 m away is
+rejected, three rejections in a row re-initialise it). The tree height is the `height_quantile` 0.99 quantile over the
+latched cells with a height. Height fusion of a cell needs its z below drone z - `height_sample_clearance` (2 m), as
+before per sample. Heights are fused in **creation phases only** (SCAN, SCAN_APPROACH, ERROR, unknown): once the list is
+locked the descent reference does not move, except by the rate limiter finishing a step already in progress.
+
+*Quantile.* 0.97 (cand_grid's value) left synthetic heights biased -0.08 m on easy (the 97 % quantile of a dome's cells
+sits at top x sqrt(0.97)) and the recording at 4.18-5.44 m; 0.99 gives -0.04 / +0.01 / +0.06 m (easy / medium / hard,
+suite_v1) and 4.83-5.74 m on the recording (cand_grid 4.75-5.76, simple 4.8-5.7, p99 point tops 5.4-5.9). The two
+formerly low trees now publish 5.47 and 5.62 m.
+
+*Merges.* The loser's cell heights are merged into the winner's cells (weighted), so the merged surface includes what
+the fragment measured; the published height then moves toward the union's quantile at the bounded rate. The winner keeps
+its ID (rule 4). A union can only raise the quantile relative to "winner keeps its own surface", which is the safe direction.
+
+### 10.2 Publication stability (task 2): rate-limited centre and height
+
+The published centre moves toward the latched centroid at <= `max_centre_rate` 0.8 m/s and the published height toward
+the quantile at <= `max_height_rate` 0.5 m/s (one step per frame, dt capped at 0.5 s, only for instances the phase
+policy lets change; sprayed / frozen instances are never stepped). The outline is not delayed, so the scorer's
+first-publish time (IoU match + finite height) is unchanged by this: centre and height jumps went from 3.2 / 0.6
+(easy), 8.6 / 0.2 (medium), 6.4 / 1.0 (hard) per suite_v1 mission and 7 / 4 on the recording to **0 everywhere**, at no
+latency cost (the latency changes below come from the other items). The observed-peak-neighbourhood gate was not
+adopted: it costs latency and the jumps were already gone.
+
+### 10.3 Relative-height latch (task 3): implemented, shipped off
+
+`latch_rel_h`: a crown cell whose smoothed height above ground is below this fraction of the crown's peak is never
+claimed (unknown for the instance, so it neither latches nor counts against the tree). Measured (suite_v1, 5 seeds;
+recording):
+
+| latch_rel_h | easy IoU | medium IoU | medium spill | hard recall | Isaac IoU | Isaac spill |
+|---|---|---|---|---|---|---|
+| 0 (shipped) | 0.913 | 0.787 | 0.166 | 0.823 | 0.867 | 0.064 |
+| 0.3 | 0.913 | 0.811 | 0.121 | 0.549 | - | - |
+| 0.5 | 0.813 | 0.796 | 0.042 | 0.515 | 0.799 | 0.011 |
+
+It trims spill as advertised, but on hard the per-frame peak height is a noisy maximum, the threshold rises with it and
+trees at the swath edge never reach `min_publish_area` before leaving the view: recall 0.82 -> 0.55. cand_grid applies the
+same rule to a multi-frame fused surface, where it is cheap. Left in as an option at 0.
+
+### 10.4 Weighting (task 4): range, off-axis and rotation rate
+
+Point weight `(z_ref/Z)^4 / (1 + lateral_k rho^2)` (`z_ref` 15 m, `lateral_k` 10) and the frame quality
+`1/(1+(rate/rot_rate_ref)^2)` with a 1.5 s linear recovery after a fast rotation (cand_grid's `frameQuality`, now a pure
+function in cand_obj too). The point weight scales each cell's height contribution; the frame quality scales both the
+height weight and the per-cell evidence increments (`npos` / `nneg` are now quality-weighted frame counts: a frame taken
+in a fast turn counts as a fraction of a frame, `latch_frames` is unchanged for clean frames). `rot_rate_ref` 0.35
+(cand_grid's) cost 0.1-0.2 s latency on every dataset for no geometry gain, so it ships at 1.0 rad/s; switching the
+weighting off entirely (sweep D) was faster still (easy 0.87 vs 1.17 s, Isaac 2.21 vs 2.32 s) but produced split trees
+on easy (0.4 / 0.2 per mission on suite_v1 / suite_v2; turn-blur fragments at the row ends) and lower min IoU
+(0.79 vs 0.87 easy). A split tree is a double target, 0.1-0.3 s is not, so the weighting stays on.
+
+### 10.5 Transient duplicate (task 5): overlap matching and seed guard
+
+*Problem.* On the recording, truth tree 2 was matched by ID 11 -> 12 -> 11 within 0.6 s at 178 s: ID 11 was a 6 m^2
+slice born at the swath edge, the next crowns of the same tree had their top 2.06 m from the slice centroid (outside
+`match_radius` 2.0 and outside the slice's outline), so a second instance (12) was born, published, and merged back
+0.6 s later.
+
+*Change.* A crown that covers >= `match_overlap` 0.5 of an instance's latched cells, with its top within `match_reach`
+3 m of the instance centre, is that instance wherever its top lies; among several such instances the better-established
+one wins (confirmed > frames seen > lower ID), so a tentative fragment can never take a crown away from a published
+tree. **Seed guard:** a crown that would otherwise seed a new instance is credited to a published tree if >= `seed_overlap`
+0.25 of its cells lie on that tree's latched cells (top within reach). Without the guard, the first overlap rule alone
+turned the transient duplicate into a permanent one (the second instance was born from a crown covering only part of
+the slice, then starved once the tree took every later crown, and stayed a published 4 m^2 fragment: precision 0.9 on the
+recording). The reach limit matters on hard (4.5 m spacing): a merged basin whose top is on the neighbour must not be
+credited to the tree (hard recall 0.78 with a 4 m reach, 0.83 with 3 m). Rule test `FragmentNeverTakesOverAPublishedTree`:
+a tree published from a slice, then shown whole with its top > match_radius from the slice centroid and outside the
+slice's outline, gets no second ID. Recording: 0 ID switches after lock, precision 1.0.
+
+### 10.6 Tests (task 6)
+
+20 cand_obj tests (15 M3 + 5 M4: fragment takeover, latched-surface height + rate limit, skirt trim, frame quality
+weighting incl. the pure `frameQuality`, merge without jumps). The config-file test now covers 45 keys. Removed keys:
+`height_buffer`; renamed: `min_height_samples` -> `min_height_cells`.
+
+### 10.7 Held-out verdict (30 missions, run once with the frozen configuration) and what got worse
+
+Paired per seed against the frozen M3 build (`results/cand_obj_m4_holdout.md`; W / L / T = seeds M4 better / worse / equal):
+
+| level | IoU | min IoU | centre RMSE | spill | centre / height jumps | swallowed | split | recall | latency |
+|---|---|---|---|---|---|---|---|---|---|
+| easy | +0.004 (8/2) | -0.008 (4/4) | -0.001 | -0.011 (10/0) | 2.5 / 0.1 -> 0 / 0 | 0 = 0 | 0.1 -> 0.2 | 1 = 1 | -0.03 s |
+| medium | +0.024 (10/0, t 4.0) | +0.093 (7/3) | -0.082 (9/1, t -3.6) | -0.011 (9/1) | 7.4 / 1.1 -> 0 / 0 | 1.0 = 1.0 | 0.4 -> 0.1 | **0.977 -> 0.960** (1/3/6, t -1.2) | **+0.18 s** (1/9) |
+| hard | +0.028 (10/0, t 3.6) | +0.037 (6/4) | -0.044 (7/3) | -0.017 (9/1) | 6.3 / 0.8 -> 0 / 0 | 3.6 -> 2.8 (6/0) | 0.5 -> 0.1 (5/1) | **0.866 -> 0.831** (2/6/2, t -2.2) | **+0.27 s** (3/7) |
+
+Heights (held-out): RMSE 0.050 / 0.257 / 0.480 m -> 0.038 / 0.232 / 0.405 m; matched trees off by > 1 m (under-estimates)
+4 (2) -> 5 (0) on medium and 10 (5) -> 7 (1) on hard; max |error| 2.53 -> 2.09 m (medium), 2.30 -> 1.93 m (hard); bias
++0.02 / +0.06 / +0.18 m by level (M3 +0.02 / +0.02 / +0.11): the remaining tail is on the high side, the safe direction.
+Target height range during its own descent: 0 on every mission (M3 up to 0.62 / 1.79 m on medium / hard, cand_grid
+0.49 / 1.60). Safety: 0 everywhere. Recording: IoU 0.859 -> 0.867, min IoU 0.779 -> 0.817, ID switches 2 -> 0, centre /
+height jumps 7 / 4 -> 0 / 0, heights 4.27-5.83 -> 4.83-5.74 m, height drift since lock 0.03 -> 0 m.
+
+**Worse, and why:**
+
+- **Recall**: medium -0.018 (within seed noise, but the worst seed drops from 0.94 to 0.82: medium_s100 publishes 14 of
+  16 trees, M3 15) and hard -0.035 (t -2.2; 6 seeds lose 1-3 trees, 2 gain one). In every losing seed the published count
+  is lower while swallowed neighbours are equal or lower: the missing trees were never confirmed, not merged away. Two
+  mechanisms, both deliberate: the frame-quality weighting makes cells latch later at the row ends (latency up on the
+  same seeds, e.g. medium_s100 2.45 -> 3.77 s, hard_s104 1.91 -> 3.53 s), so a tree seen only around a turn can leave
+  the view before `min_publish_area`; and the seed guard credits a crown that lies >= 25 % on a published tree's cells to
+  that tree, which on hard (4.5 m spacing, merged boxes) sometimes is a neighbour's first slice. Against cand_grid the
+  hard recall advantage is kept (+0.073, 8/0; swallowed -2.5, false trees -0.8, precision +0.048).
+- **Latency**: medium +0.18 s, hard +0.27 s, recording 2.23 -> 2.32 s (cand_grid 2.30 s). Easy is 0.03 s faster. Still
+  below cand_grid on every held-out level (1.14 / 2.02 / 2.51 vs 1.40 / 2.38 / 2.66 s); on the recording 0.02 s above it.
+  The rate limiter itself costs nothing (sweep D without the frame weighting: Isaac 2.21 s, easy 0.87 s, but split trees).
+- **Max height drift since lock** is not 0 on the synthetic suites (0.82 m worst on medium, 1.21 m on hard; M3 1.37 /
+  1.91): those missions re-enter SCAN for a second corridor, where heights are fused again by design (the scorer counts
+  from the first locked phase). On the recording and inside every descent it is 0.
+- **Spill on the recording** 0.052 -> 0.064 (neighbour spill 0.022 -> 0.056): the overlap matching lets a tree's crown
+  reach the known cells a little earlier; still a third of cand_grid's 0.093.
+- **Cost**: `chm` 0.93 ms per frame vs 0.85 (x86).
+
+### 10.8 Cost
+
+`chm` 0.93 ms (was 0.85) per processed frame on x86 (point weights, three more per-cell arrays); `instances` 0.01 ms.
+Memory per live instance: 28 x 28 cells x (2 x 4 B evidence + 1 B latched + 4 B height + 4 B weight + 1 B gate) ~ 14 kB.
