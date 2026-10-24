@@ -1,20 +1,29 @@
-// cand_obj: object-centric tree instance mapper (milestone M3 candidate).
+// cand_obj: object-centric tree instance mapper (milestone M3 candidate, hardened in M4).
 //
 // Per frame, the stereo grid is turned into a canopy height model (CHM) on a fixed world lattice: per
 // cell a robust (median) height, a per-frame ground plane, 3x3 smoothing. Canopy cells are split into
 // crowns by a watershed on the smoothed CHM (steepest ascent to a local maximum, then low-prominence
 // basins are merged into their neighbours). A crown whose peak lies inside a detection box is an
-// observation of one tree. Observations are matched to tree INSTANCES by 3D position (peak inside the
-// instance's outline or near its centre): there are no 2D tracks to lose or to jump.
+// observation of one tree. Observations are matched to tree INSTANCES by 3D position (the crown covers
+// the instance's latched cells, or its peak lies inside the instance's outline or near its centre):
+// there are no 2D tracks to lose or to jump.
 //
-// Each instance owns a local evidence grid on the same lattice: per cell the number of frames the cell
-// was its canopy (positive) and the number of frames the cell was seen as ground or as another
-// instance's canopy (negative). A cell is LATCHED, permanently, when it has been positive in at least
-// `latch_frames` frames and in at least `latch_ratio` of the frames it was judged. The published outline
-// is the convex hull of the latched cells: it can only grow (rule 2), and no single frame can add a cell
-// to it. Height = median of per-frame crown-top samples (rule 3: published only once there are enough
-// finite samples). Identity: IDs are monotonic; a merge keeps the better-established instance's ID and
-// height (rule 4); sprayed instances never change (rule 5). Every drop is counted by reason (rule 7).
+// Each instance owns a local evidence grid on the same lattice: per cell the (frame-quality weighted)
+// number of frames the cell was its canopy (positive) and the number of frames the cell was seen as
+// ground or as another instance's canopy (negative). A cell is LATCHED, permanently, when it has been
+// positive in at least `latch_frames` frames and in at least `latch_ratio` of the frames it was judged;
+// cells below `latch_rel_h` of the crown's peak height (the low skirt) are never claimed. The published
+// outline is the convex hull of the latched cells: it can only grow (rule 2), and no single frame can add
+// a cell to it.
+//
+// Height (M4): every latched cell carries a fused surface height (range / off-axis / rotation-rate
+// weighted running mean with a saturating weight and an outlier gate); the tree height is a high
+// quantile (`height_quantile`) of the latched cells' surface, so a partial first view (crown entering at
+// the swath edge) cannot pin the height to the top of the visible slice. Published height and centre are
+// rate-limited (`max_height_rate`, `max_centre_rate`), so they never jump; sprayed and frozen instances
+// are never stepped. Rule 3: published only once enough latched cells carry a finite height. Identity:
+// IDs are monotonic; a merge keeps the better-established instance's ID (rule 4); sprayed instances never
+// change (rule 5). Every drop is counted by reason (rule 7).
 #pragma once
 
 #include <cstdint>
@@ -39,11 +48,16 @@ struct Config {
   double max_range{30.0};           ///< m
   double above_drone_margin{0.5};   ///< m, drop points higher than drone z - margin
   double max_frame_noise{2.0};      ///< m, frame dropped when 1.4826 * median per-cell MAD of z exceeds this (noise burst)
-  double height_sample_clearance{2.0};  ///< m, a crown top closer than this to the drone altitude gives no height
+  double height_sample_clearance{2.0};  ///< m, a cell closer than this to the drone altitude gives no height
                                         ///< sample (the above-drone cap may have cut the real top: a shoulder would be sampled)
   double cell{0.4};                 ///< m, world lattice cell (shared by the frame CHM and every instance)
   int min_cell_points{2};           ///< fewer valid points -> cell unknown
   int max_grid{160};                ///< cap of the per-frame CHM window, cells per side
+  // --- point and frame weighting (M4, from cand_grid): enters the height fusion and the evidence
+  double z_ref{15.0};               ///< m, range of unit point weight (weight ~ (z_ref/Z)^4: sigma_Z ~ Z^2)
+  double lateral_k{10.0};           ///< point weight /= 1 + k*rho^2 (rho = off-axis tangent; lateral error ~ rho*sigma_Z)
+  double rot_rate_ref{0.35};        ///< rad/s; frame quality = 1/(1+(rate/ref)^2) (turn blur / noise bursts)
+  double quality_recover_s{1.5};    ///< s, frame quality recovers linearly to 1 after a fast rotation
   // --- ground plane (per frame, from the lowest cells)
   double ground_low_fraction{0.4};  ///< fit the plane to this lowest fraction of the cells
   double ground_inlier_band{0.6};   ///< m, refit with cells within +- band of the first plane
@@ -61,15 +75,24 @@ struct Config {
                                     ///< cells start latching early; it cannot publish until real tops are sampled)
   int window{28};                   ///< cells per side of an instance's evidence window (anchored at birth)
   double match_radius{2.0};         ///< m, a peak this close to an instance centre is that instance
+  double match_overlap{0.5};        ///< a crown covering this fraction of an instance's latched cells (top within
+                                    ///< max_cell_radius of its centre) is that instance, wherever its top is
   double max_cell_radius{4.0};      ///< m, cells farther from the instance centre are not credited (spill guard)
-  int latch_frames{5};              ///< positive frames before a cell latches
-  double latch_ratio{0.75};          ///< ... and positive in at least this fraction of the judged frames
+  double latch_rel_h{0.5};          ///< a cell is claimed only if its height above ground >= this x the crown's peak (skirt trim)
+  int latch_frames{5};              ///< positive (quality-weighted) frames before a cell latches
+  double latch_ratio{0.75};         ///< ... and positive in at least this fraction of the judged frames
   int confirm_frames{3};            ///< frames with a matched crown before an instance may publish
-  int min_height_samples{3};        ///< finite crown-top samples before an instance may publish
+  int min_height_cells{3};          ///< latched cells with a fused height before an instance may publish
   double min_publish_area{3.0};     ///< m^2 of latched cells before an instance may publish
   double min_tree_height{1.5};      ///< m above ground, smaller crowns never seed an instance
   double tentative_timeout{1.5};    ///< s, unconfirmed instances unseen this long are deleted
-  int height_buffer{64};            ///< crown-top samples kept per instance (median of them)
+  // --- height model (M4)
+  double cell_weight_cap{30.0};     ///< a cell's fused-height weight saturates here (hovering cannot inflate it)
+  double outlier_gate_m{2.0};       ///< m, a frame height this far from an established cell's value is rejected
+  double gate_min_weight{3.0};      ///< ... once the cell has this much weight (3 rejections in a row re-initialise it)
+  double height_quantile{0.97};     ///< published height = this quantile of the latched cells' fused surface
+  double max_height_rate{0.5};      ///< m/s a published height may move (no jumps)
+  double max_centre_rate{0.8};      ///< m/s a published centre may move (no jumps; the outline is not delayed)
   // --- merges (rule 4)
   double merge_overlap{0.5};        ///< latched overlap / smaller latched area
   double merge_centre_dist{1.5};    ///< m, or centres closer than this
@@ -84,15 +107,20 @@ struct Config {
 /// Key/value -> Config (keys = field names); unknown keys throw std::invalid_argument.
 Config configFrom(const MapperConfig& config);
 /// Number of tunables, for the config-file test.
-constexpr int kConfigKeyCount = 32;
+constexpr int kConfigKeyCount = 43;
+
+/// Frame quality from the body rotation rate (rad/s) and the time since the last fast rotation.
+/// Unknown rate (< 0) -> 1 (fail open). Pure, tested.
+double frameQuality(double rot_rate, double since_fast_s, const Config& c);
 
 /// One crown observation handed to the instance layer (built by the CHM stage, or by tests).
 struct Crown {
   std::vector<std::pair<int, int>> cells;  ///< lattice cells (i, j) of the crown
   Point2 peak;                             ///< world xy of the crown top
-  double peak_z{0.0};                      ///< world z of the crown top (height sample)
+  double peak_z{0.0};                      ///< world z of the crown top (tests: the height of every crown cell)
+  double peak_hag{0.0};                    ///< smoothed height above ground at the top (0 = unknown: no skirt trim)
   bool boxed{true};                        ///< peak lies inside a detection box
-  bool truncated{false};                   ///< top too close to the image border (no seed, no height sample)
+  bool truncated{false};                   ///< top too close to the image border (no seed)
 };
 
 /// The per-frame view the instance layer needs besides the crowns: which lattice cells were judged.
@@ -100,6 +128,9 @@ struct FrameView {
   int i0{0}, j0{0}, w{0}, h{0};      ///< lattice window of the CHM
   std::vector<std::uint8_t> state;  ///< per window cell: 0 unknown, 1 ground, 2 canopy
   std::vector<int> crown;           ///< per window cell: crown index or -1
+  std::vector<float> z;             ///< per window cell: median world z (empty = none: no height fusion)
+  std::vector<float> hwt;           ///< per window cell: height weight (empty = frame quality everywhere)
+  std::vector<float> hag;           ///< per window cell: smoothed height above ground (empty = no skirt trim)
   bool valid() const { return w > 0 && h > 0 && state.size() == static_cast<std::size_t>(w * h); }
 };
 
@@ -116,12 +147,13 @@ class CandObj : public Mapper {
   const std::map<std::string, std::uint64_t>& counters() const override { return counters_; }
   void setLogger(std::function<void(const std::string&)> log) override { log_ = std::move(log); }
 
-  /// Stage 1+2: points -> CHM -> crowns. Exposed for tests.
-  void extractCrowns(const FrameInput& frame, FrameView* view, std::vector<Crown>* crowns);
+  /// Stage 1+2: points -> CHM -> crowns. Exposed for tests. `quality` scales the cells' height weights.
+  void extractCrowns(const FrameInput& frame, FrameView* view, std::vector<Crown>* crowns, double quality = 1.0);
   /// Stage 3: crowns -> instances under the phase policy. Exposed for rule tests (a test builds its own
-  /// crowns and view). `drone_z` gates height samples; `drone_xy` drives the post-spray hold.
+  /// crowns and view). `pose.z` gates height fusion; `pose.xy` drives the post-spray hold; `quality`
+  /// (0..1, from the rotation rate) weights this frame's evidence.
   void integrate(double t, MissionPhase phase, TreeId hop_target, const DronePose& pose, const FrameView& view,
-                 std::vector<Crown>& crowns);
+                 std::vector<Crown>& crowns, double quality = 1.0);
 
   State state() const { return state_; }
   const Config& config() const { return cfg_; }
@@ -131,31 +163,39 @@ class CandObj : public Mapper {
   struct Instance {
     TreeId id{kNoTree};
     int ai{0}, aj{0};                    ///< lattice origin of the evidence window
-    std::vector<std::uint16_t> npos, nneg;
+    std::vector<float> npos, nneg;       ///< quality-weighted positive / negative frames per cell
     std::vector<std::uint8_t> latched;
+    std::vector<float> hz, hw;           ///< per cell: fused surface height, its saturating weight
+    std::vector<std::uint8_t> hrej;      ///< per cell: consecutive rejected frame heights
     int n_latched{0};
     double lat_sum_x{0.0}, lat_sum_y{0.0};  ///< sum of latched cell centres (world)
     double peak_sum_x{0.0}, peak_sum_y{0.0};
     int n_peaks{0};
     int frames_seen{0};
     double first_seen{0.0}, last_seen{0.0};
-    std::vector<double> heights;  ///< sorted
     bool confirmed{false};
     bool sprayed{false};
     bool hull_dirty{true};
     Polygon2 hull;
-    Point2 centre;                ///< latched centroid, else running peak mean
-    double height() const { return heights.empty() ? 0.0 : heights[heights.size() / 2]; }
-    bool hasHeight(int min_samples) const { return static_cast<int>(heights.size()) >= min_samples; }
+    Point2 centre;                ///< latched centroid, else running peak mean (internal, instantaneous)
+    Point2 centre_pub;            ///< published centre: rate-limited toward `centre`
+    double height_target{0.0};    ///< quantile of the latched cells' fused heights (NaN until enough cells)
+    double height_pub{0.0};       ///< published height: rate-limited toward `height_target`
+    int n_height_cells{0};        ///< latched cells with a fused height
+    double last_step_t{0.0};      ///< time of the last rate-limit step
+    double height() const { return height_pub; }
   };
 
   void count(const std::string& k, std::uint64_t n = 1) { counters_[k] += n; }
   void warnOnce(const std::string& key, const std::string& msg);
-  int findInstanceForPeak(const Point2& peak) const;
+  int findInstanceForCrown(const Crown& c) const;
   bool insideSprayed(const Point2& p) const;
   void creditCrown(Instance& in, const Crown& c, std::vector<int>& cell_owner, const FrameView& view);
-  void updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner, int self_index);
+  void updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner, int self_index,
+                      double quality, double z_cap);
   void refreshHull(Instance& in);
+  void refreshHeight(Instance& in);
+  void stepPublished(Instance& in, double t);
   void mergeInstances(double t);
   void absorb(Instance& keep, const Instance& lose);
   double latchedArea(const Instance& in) const { return in.n_latched * cfg_.cell * cfg_.cell; }
@@ -170,14 +210,19 @@ class CandObj : public Mapper {
   bool hover_known_{false};
   double hover_x_{0.0}, hover_y_{0.0};
   MissionPhase prev_phase_{MissionPhase::kUnknown};
+  // pose history for the rotation-rate frame quality
+  bool have_prev_{false};
+  double prev_stamp_{0.0}, last_fast_t_{-1e9};
+  double pqx_{0}, pqy_{0}, pqz_{0}, pqw_{1};
   std::map<std::string, std::uint64_t> counters_;
   std::map<std::string, double> stage_ms_;
   int stage_frames_{0};
   std::map<std::string, bool> warned_;
   std::function<void(const std::string&)> log_;
   // scratch buffers (per frame)
-  std::vector<double> px_, py_, pz_, pu_, pv_;
+  std::vector<double> px_, py_, pz_, pu_, pv_, pw_;
   std::vector<char> pok_;
+  std::vector<float> hbuf_;
 };
 
 }  // namespace cand_obj

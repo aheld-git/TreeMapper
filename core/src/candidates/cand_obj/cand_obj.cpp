@@ -20,6 +20,8 @@ double msSince(Clock::time_point t0) {
 }
 double dist(const Point2& a, const Point2& b) { return std::hypot(a.x - b.x, a.y - b.y); }
 int floorDiv(double v, double cell) { return static_cast<int>(std::floor(v / cell)); }
+constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+constexpr double kMaxStepDt = 0.5;  ///< s, the rate limiter never takes one step longer than this
 
 template <typename T>
 T clampLog(const char* name, T v, T lo, T hi, const std::function<void(const std::string&)>& log) {
@@ -55,6 +57,10 @@ Config Config::sanitized(const std::function<void(const std::string&)>& log) con
   c.cell = clampLog("cell", c.cell, 0.1, 2.0, log);
   c.min_cell_points = clampLog("min_cell_points", c.min_cell_points, 1, 1000, log);
   c.max_grid = clampLog("max_grid", c.max_grid, 16, 1024, log);
+  c.z_ref = clampLog("z_ref", c.z_ref, 0.1, 1000.0, log);
+  c.lateral_k = clampLog("lateral_k", c.lateral_k, 0.0, 1000.0, log);
+  c.rot_rate_ref = clampLog("rot_rate_ref", c.rot_rate_ref, 1e-3, 100.0, log);
+  c.quality_recover_s = clampLog("quality_recover_s", c.quality_recover_s, 0.0, 60.0, log);
   c.ground_low_fraction = clampLog("ground_low_fraction", c.ground_low_fraction, 0.05, 0.9, log);
   c.ground_inlier_band = clampLog("ground_inlier_band", c.ground_inlier_band, 0.05, 5.0, log);
   c.ground_max_slope = clampLog("ground_max_slope", c.ground_max_slope, 0.0, 2.0, log);
@@ -65,15 +71,22 @@ Config Config::sanitized(const std::function<void(const std::string&)>& log) con
   c.peak_border_px = clampLog("peak_border_px", c.peak_border_px, 0.0, 1000.0, log);
   c.window = clampLog("window", c.window, 4, 256, log);
   c.match_radius = clampLog("match_radius", c.match_radius, 0.0, 50.0, log);
+  c.match_overlap = clampLog("match_overlap", c.match_overlap, 0.0, 1.0, log);
   c.max_cell_radius = clampLog("max_cell_radius", c.max_cell_radius, 0.0, 50.0, log);
+  c.latch_rel_h = clampLog("latch_rel_h", c.latch_rel_h, 0.0, 1.0, log);
   c.latch_frames = clampLog("latch_frames", c.latch_frames, 1, 10000, log);
   c.latch_ratio = clampLog("latch_ratio", c.latch_ratio, 0.0, 1.0, log);
   c.confirm_frames = clampLog("confirm_frames", c.confirm_frames, 1, 10000, log);
-  c.min_height_samples = clampLog("min_height_samples", c.min_height_samples, 1, 10000, log);
+  c.min_height_cells = clampLog("min_height_cells", c.min_height_cells, 1, 10000, log);
   c.min_publish_area = clampLog("min_publish_area", c.min_publish_area, 0.0, 1000.0, log);
   c.min_tree_height = clampLog("min_tree_height", c.min_tree_height, 0.0, 50.0, log);
   c.tentative_timeout = clampLog("tentative_timeout", c.tentative_timeout, 0.0, 1000.0, log);
-  c.height_buffer = clampLog("height_buffer", c.height_buffer, 1, 100000, log);
+  c.cell_weight_cap = clampLog("cell_weight_cap", c.cell_weight_cap, 1.0, 1e6, log);
+  c.outlier_gate_m = clampLog("outlier_gate_m", c.outlier_gate_m, 0.0, 100.0, log);
+  c.gate_min_weight = clampLog("gate_min_weight", c.gate_min_weight, 0.0, 1e6, log);
+  c.height_quantile = clampLog("height_quantile", c.height_quantile, 0.0, 1.0, log);
+  c.max_height_rate = clampLog("max_height_rate", c.max_height_rate, 0.0, 1000.0, log);
+  c.max_centre_rate = clampLog("max_centre_rate", c.max_centre_rate, 0.0, 1000.0, log);
   c.merge_overlap = clampLog("merge_overlap", c.merge_overlap, 0.0, 1.0, log);
   c.merge_centre_dist = clampLog("merge_centre_dist", c.merge_centre_dist, 0.0, 50.0, log);
   c.post_spray_hold_radius = clampLog("post_spray_hold_radius", c.post_spray_hold_radius, 0.0, 100.0, log);
@@ -91,6 +104,10 @@ Config configFrom(const MapperConfig& config) {
   c.cell = r.getDouble("cell", c.cell);
   c.min_cell_points = r.getInt("min_cell_points", c.min_cell_points);
   c.max_grid = r.getInt("max_grid", c.max_grid);
+  c.z_ref = r.getDouble("z_ref", c.z_ref);
+  c.lateral_k = r.getDouble("lateral_k", c.lateral_k);
+  c.rot_rate_ref = r.getDouble("rot_rate_ref", c.rot_rate_ref);
+  c.quality_recover_s = r.getDouble("quality_recover_s", c.quality_recover_s);
   c.ground_low_fraction = r.getDouble("ground_low_fraction", c.ground_low_fraction);
   c.ground_inlier_band = r.getDouble("ground_inlier_band", c.ground_inlier_band);
   c.ground_max_slope = r.getDouble("ground_max_slope", c.ground_max_slope);
@@ -103,20 +120,37 @@ Config configFrom(const MapperConfig& config) {
   c.seed_truncated = r.getBool("seed_truncated", c.seed_truncated);
   c.window = r.getInt("window", c.window);
   c.match_radius = r.getDouble("match_radius", c.match_radius);
+  c.match_overlap = r.getDouble("match_overlap", c.match_overlap);
   c.max_cell_radius = r.getDouble("max_cell_radius", c.max_cell_radius);
+  c.latch_rel_h = r.getDouble("latch_rel_h", c.latch_rel_h);
   c.latch_frames = r.getInt("latch_frames", c.latch_frames);
   c.latch_ratio = r.getDouble("latch_ratio", c.latch_ratio);
   c.confirm_frames = r.getInt("confirm_frames", c.confirm_frames);
-  c.min_height_samples = r.getInt("min_height_samples", c.min_height_samples);
+  c.min_height_cells = r.getInt("min_height_cells", c.min_height_cells);
   c.min_publish_area = r.getDouble("min_publish_area", c.min_publish_area);
   c.min_tree_height = r.getDouble("min_tree_height", c.min_tree_height);
   c.tentative_timeout = r.getDouble("tentative_timeout", c.tentative_timeout);
-  c.height_buffer = r.getInt("height_buffer", c.height_buffer);
+  c.cell_weight_cap = r.getDouble("cell_weight_cap", c.cell_weight_cap);
+  c.outlier_gate_m = r.getDouble("outlier_gate_m", c.outlier_gate_m);
+  c.gate_min_weight = r.getDouble("gate_min_weight", c.gate_min_weight);
+  c.height_quantile = r.getDouble("height_quantile", c.height_quantile);
+  c.max_height_rate = r.getDouble("max_height_rate", c.max_height_rate);
+  c.max_centre_rate = r.getDouble("max_centre_rate", c.max_centre_rate);
   c.merge_overlap = r.getDouble("merge_overlap", c.merge_overlap);
   c.merge_centre_dist = r.getDouble("merge_centre_dist", c.merge_centre_dist);
   c.post_spray_hold_radius = r.getDouble("post_spray_hold_radius", c.post_spray_hold_radius);
   r.finish("cand_obj");
   return c;
+}
+
+double frameQuality(double rot_rate, double since_fast_s, const Config& c) {
+  if (!(rot_rate >= 0.0)) return 1.0;  // unknown rate: fail open (normal weight)
+  const double r = rot_rate / c.rot_rate_ref;
+  double q = 1.0 / (1.0 + r * r);
+  if (c.quality_recover_s > 0.0 && since_fast_s >= 0.0 && since_fast_s < c.quality_recover_s) {
+    q = std::min(q, 0.1 + 0.9 * since_fast_s / c.quality_recover_s);
+  }
+  return q;
 }
 
 // ------------------------------------------------------------------------------------------ lifecycle
@@ -148,12 +182,14 @@ void CandObj::process(const FrameInput& f) {
   if (!pol.awake) {
     state_ = State::kSleeping;
     count("frames_skipped_sleeping");
+    have_prev_ = false;
     return;
   }
   if (!f.pose.valid) {
     state_ = State::kHoldingNoPose;
     count("frames_held_no_pose");
     warnOnce("pose", "drone pose not valid: holding all processing (fail closed)");
+    have_prev_ = false;
     return;
   }
   state_ = State::kAwake;
@@ -161,20 +197,37 @@ void CandObj::process(const FrameInput& f) {
     count(f.boxes.empty() ? "frames_heartbeat_only" : "frames_dropped_no_disparity");
     return;
   }
+  // frame quality from the body rotation rate between consecutive frames (turn blur / noise bursts)
+  double rate = -1.0;
+  if (have_prev_) {
+    const double dt = f.stamp - prev_stamp_;
+    if (dt > 1e-4 && dt <= 0.5) {
+      const double dot = std::fabs(pqx_ * f.pose.qx + pqy_ * f.pose.qy + pqz_ * f.pose.qz + pqw_ * f.pose.qw);
+      rate = 2.0 * std::acos(std::min(1.0, dot)) / dt;
+    }
+  }
+  if (rate < 0.0) count("frames_quality_unknown_rate");
+  have_prev_ = true;
+  prev_stamp_ = f.stamp;
+  pqx_ = f.pose.qx; pqy_ = f.pose.qy; pqz_ = f.pose.qz; pqw_ = f.pose.qw;
+  if (rate > cfg_.rot_rate_ref) last_fast_t_ = f.stamp;
+  const double q = frameQuality(rate, f.stamp - last_fast_t_, cfg_);
+  if (q < 0.5) count("frames_downweighted_rotation");
+
   const auto t0 = Clock::now();
   FrameView view;
   std::vector<Crown> crowns;
-  extractCrowns(f, &view, &crowns);
+  extractCrowns(f, &view, &crowns, q);
   stage_ms_["chm"] += msSince(t0);
   const auto t1 = Clock::now();
-  integrate(f.t, f.phase, f.hop_target, f.pose, view, crowns);
+  integrate(f.t, f.phase, f.hop_target, f.pose, view, crowns, q);
   stage_ms_["instances"] += msSince(t1);
   ++stage_frames_;
 }
 
 // ------------------------------------------------------------------------------------------ CHM + crowns
 
-void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Crown>* crowns) {
+void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Crown>* crowns, double quality) {
   crowns->clear();
   *view = FrameView{};
   const int gw = f.grid_w, gh = f.grid_h;
@@ -186,7 +239,7 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
   const Transform world_cam = world_body.compose(cal_.body_cam);
   const int s = std::max(1, cal_.stride), o = s / 2;
   const std::size_t n = static_cast<std::size_t>(gw * gh);
-  px_.assign(n, 0); py_.assign(n, 0); pz_.assign(n, 0); pu_.assign(n, 0); pv_.assign(n, 0); pok_.assign(n, 0);
+  px_.assign(n, 0); py_.assign(n, 0); pz_.assign(n, 0); pu_.assign(n, 0); pv_.assign(n, 0); pw_.assign(n, 0); pok_.assign(n, 0);
   const double z_cap = f.pose.z - cfg_.above_drone_margin;
   double xmin = 1e300, xmax = -1e300, ymin = 1e300, ymax = -1e300;
   std::size_t n_ok = 0;
@@ -199,7 +252,11 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
       if (po.z < cfg_.min_range || po.z > cfg_.max_range) { count("points_dropped_range"); continue; }
       const Vec3 w = world_cam.apply(po);
       if (w.z > z_cap) { count("points_dropped_above_drone"); continue; }
+      // point weight: stereo depth error ~ Z^2, its lateral component ~ rho * sigma_Z (rho = off-axis tangent)
+      const double rho2 = (po.x * po.x + po.y * po.y) / (po.z * po.z);
+      const double zr = cfg_.z_ref / po.z;
       px_[k] = w.x; py_[k] = w.y; pz_[k] = w.z; pu_[k] = u; pv_[k] = v; pok_[k] = 1;
+      pw_[k] = zr * zr * zr * zr / (1.0 + cfg_.lateral_k * rho2);
       xmin = std::min(xmin, w.x); xmax = std::max(xmax, w.x);
       ymin = std::min(ymin, w.y); ymax = std::max(ymax, w.y);
       ++n_ok;
@@ -211,7 +268,7 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
   const int W = std::min(cfg_.max_grid, floorDiv(xmax, cell) - i0 + 1);
   const int H = std::min(cfg_.max_grid, floorDiv(ymax, cell) - j0 + 1);
   const int NC = W * H;
-  // --- bin points into cells (counting sort), per cell: count, mean pixel, median z
+  // --- bin points into cells (counting sort), per cell: count, mean pixel, mean weight, median z
   std::vector<int> cnt(NC, 0), cell_of(n, -1);
   for (std::size_t k = 0; k < n; ++k) {
     if (!pok_[k]) continue;
@@ -224,12 +281,12 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
   for (int c = 0; c < NC; ++c) off[c + 1] = off[c] + cnt[c];
   std::vector<double> zs(static_cast<std::size_t>(off[NC]));
   std::vector<int> fill(off.begin(), off.end() - 1);
-  std::vector<double> su(NC, 0.0), sv(NC, 0.0);
+  std::vector<double> su(NC, 0.0), sv(NC, 0.0), sw(NC, 0.0);
   for (std::size_t k = 0; k < n; ++k) {
     const int c = cell_of[k];
     if (c < 0) continue;
     zs[static_cast<std::size_t>(fill[c]++)] = pz_[k];
-    su[c] += pu_[k]; sv[c] += pv_[k];
+    su[c] += pu_[k]; sv[c] += pv_[k]; sw[c] += pw_[k];
   }
   std::vector<double> z(NC, 0.0);
   std::vector<std::uint8_t> valid(NC, 0);
@@ -322,6 +379,9 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
   view->i0 = i0; view->j0 = j0; view->w = W; view->h = H;
   view->state.assign(NC, 0);
   view->crown.assign(NC, -1);
+  view->z.assign(NC, std::numeric_limits<float>::quiet_NaN());
+  view->hwt.assign(NC, 0.0f);
+  view->hag.assign(NC, 0.0f);
   for (int c : vc) {
     const int i = c % W, j = c / W;
     double sum = 0; int m = 0;
@@ -336,6 +396,9 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
     }
     hs[c] = sum / m;
     view->state[c] = hs[c] >= cfg_.min_above_ground ? 2 : 1;
+    view->z[c] = static_cast<float>(z[c]);
+    view->hwt[c] = static_cast<float>(quality * sw[c] / cnt[c]);
+    view->hag[c] = static_cast<float>(hs[c]);
   }
   // --- watershed: steepest ascent among canopy cells
   std::vector<int> up(NC, -1);
@@ -447,6 +510,7 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
     }
     cr.peak = {(i0 + pk % W + 0.5) * cell, (j0 + pk / W + 0.5) * cell};
     cr.peak_z = z[pk];
+    cr.peak_hag = hs[pk];
     cr.boxed = false;
     const double um = su[pk] / cnt[pk], vm = sv[pk] / cnt[pk];
     const double bpx = cfg_.peak_border_px;
@@ -478,13 +542,42 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
 
 // ------------------------------------------------------------------------------------------ instances
 
-int CandObj::findInstanceForPeak(const Point2& peak) const {
+int CandObj::findInstanceForCrown(const Crown& c) const {
+  // 1. the crown covers an instance's latched cells (or is covered by them): it is that instance, even when
+  //    its top lies far from the instance's current (partial) centroid. This is what stops a second
+  //    instance being born on a published tree whose first view was a slice at the swath edge.
   int best = -1;
+  if (cfg_.match_overlap > 0.0 && !c.cells.empty()) {
+    // among the covered instances the better-established one wins (confirmed > frames seen > lower ID):
+    // a tentative fragment can never take a crown away from a published tree
+    auto better = [](const Instance& a, const Instance& b) {
+      return a.confirmed != b.confirmed ? a.confirmed : a.frames_seen != b.frames_seen ? a.frames_seen > b.frames_seen : a.id < b.id;
+    };
+    for (std::size_t k = 0; k < instances_.size(); ++k) {
+      const Instance& in = instances_[k];
+      if (in.n_latched == 0) continue;
+      int ov = 0;
+      for (const auto& ij : c.cells) {
+        const int li = ij.first - in.ai, lj = ij.second - in.aj;
+        if (li < 0 || lj < 0 || li >= cfg_.window || lj >= cfg_.window) continue;
+        if (in.latched[static_cast<std::size_t>(lj * cfg_.window + li)]) ++ov;
+      }
+      if (ov == 0) continue;
+      // the crown must contain the instance's known cells (fraction of the LATCHED set) and its top must
+      // be within the instance's own reach: a neighbour's crown touching the tree's edge cells, or a
+      // merged basin whose top is on the neighbour, is not credited to this tree
+      const double frac = static_cast<double>(ov) / static_cast<double>(in.n_latched);
+      if (frac < cfg_.match_overlap || dist(in.centre, c.peak) > cfg_.max_cell_radius) continue;
+      if (best < 0 || better(in, instances_[static_cast<std::size_t>(best)])) best = static_cast<int>(k);
+    }
+    if (best >= 0) return best;
+  }
+  // 2. the crown top inside the instance's outline, or near its centre
   double bd = std::numeric_limits<double>::infinity();
   for (std::size_t k = 0; k < instances_.size(); ++k) {
     const Instance& in = instances_[k];
-    const double d = dist(in.centre, peak);
-    const bool inside = in.hull.size() >= 3 && pointInPolygon(in.hull, peak);
+    const double d = dist(in.centre, c.peak);
+    const bool inside = in.hull.size() >= 3 && pointInPolygon(in.hull, c.peak);
     if ((d < cfg_.match_radius || inside) && d < bd) { bd = d; best = static_cast<int>(k); }
   }
   return best;
@@ -501,6 +594,8 @@ bool CandObj::insideSprayed(const Point2& p) const {
 
 void CandObj::creditCrown(Instance& in, const Crown& c, std::vector<int>& cell_owner, const FrameView& view) {
   const int self = static_cast<int>(&in - instances_.data());
+  const bool trim = cfg_.latch_rel_h > 0.0 && c.peak_hag > 0.0 && view.hag.size() == view.state.size();
+  const float min_hag = static_cast<float>(cfg_.latch_rel_h * c.peak_hag);
   for (const auto& ij : c.cells) {
     const int li = ij.first - in.ai, lj = ij.second - in.aj;
     if (li < 0 || lj < 0 || li >= cfg_.window || lj >= cfg_.window) { count("cells_dropped_outside_window"); continue; }
@@ -508,13 +603,22 @@ void CandObj::creditCrown(Instance& in, const Crown& c, std::vector<int>& cell_o
     if (dist(cc, in.centre) > cfg_.max_cell_radius) { count("cells_dropped_too_far_from_centre"); continue; }
     const int vi = ij.first - view.i0, vj = ij.second - view.j0;
     if (vi < 0 || vj < 0 || vi >= view.w || vj >= view.h) continue;
-    cell_owner[vj * view.w + vi] = self;
+    const int vk = vj * view.w + vi;
+    // the low skirt (stereo smear of the crown edge into occluded ground) is never claimed: it stays
+    // unknown for this instance, so it can neither latch nor count against the tree
+    if (trim && view.hag[static_cast<std::size_t>(vk)] < min_hag) { count("cells_skipped_low_relative_height"); continue; }
+    cell_owner[static_cast<std::size_t>(vk)] = self;
   }
 }
 
-void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner, int self) {
+void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner, int self,
+                             double quality, double z_cap) {
   const int li0 = std::max(in.ai, view.i0), lj0 = std::max(in.aj, view.j0);
   const int li1 = std::min(in.ai + cfg_.window, view.i0 + view.w), lj1 = std::min(in.aj + cfg_.window, view.j0 + view.h);
+  const float q = static_cast<float>(std::clamp(quality, 0.0, 1.0));
+  const bool have_z = view.z.size() == view.state.size();
+  const bool have_w = view.hwt.size() == view.state.size();
+  const float cap = static_cast<float>(cfg_.cell_weight_cap);
   for (int j = lj0; j < lj1; ++j) {
     for (int i = li0; i < li1; ++i) {
       const int vk = (j - view.j0) * view.w + (i - view.i0);
@@ -523,13 +627,34 @@ void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vec
       if (st == 0) continue;  // unknown: no evidence either way
       const int owner = cell_owner[vk];
       if (owner == self) {
-        if (in.npos[lk] < 65535) ++in.npos[lk];
+        in.npos[lk] = std::min(65535.0f, in.npos[lk] + q);
+        // height fusion of this instance's canopy cell (weighted running mean, saturating, gated)
+        if (have_z) {
+          const float zc = view.z[vk];
+          const float wf = have_w ? view.hwt[vk] : q;
+          if (!std::isfinite(zc) || zc >= z_cap) {
+            count(std::isinf(z_cap) ? "height_cells_skipped_locked_phase" : "height_cells_dropped_near_drone_or_nan");
+          } else if (!(wf > 0.0f)) {
+            count("height_cells_dropped_zero_weight");
+          } else if (in.hw[lk] >= cfg_.gate_min_weight && std::fabs(zc - in.hz[lk]) > cfg_.outlier_gate_m) {
+            count("height_cells_rejected_outlier");
+            if (++in.hrej[lk] >= 3) {  // the established value was the outlier: start over
+              in.hz[lk] = zc; in.hw[lk] = wf; in.hrej[lk] = 0;
+              count("height_cells_reset");
+            }
+          } else {
+            const float wn = in.hw[lk] + wf;
+            in.hz[lk] = (in.hz[lk] * in.hw[lk] + zc * wf) / wn;
+            in.hw[lk] = std::min(wn, cap);
+            in.hrej[lk] = 0;
+          }
+        }
       } else if (st == 1 || owner >= 0) {
-        if (in.nneg[lk] < 65535) ++in.nneg[lk];  // ground, or another tree's canopy
+        in.nneg[lk] = std::min(65535.0f, in.nneg[lk] + q);  // ground, or another tree's canopy
       } else {
-        continue;  // canopy nobody claimed (unboxed / tiny crown): unknown
+        continue;  // canopy nobody claimed (unboxed / tiny crown / skirt): unknown
       }
-      if (!in.latched[lk] && in.npos[lk] >= cfg_.latch_frames &&
+      if (!in.latched[lk] && in.npos[lk] >= static_cast<float>(cfg_.latch_frames) &&
           in.npos[lk] >= cfg_.latch_ratio * (in.npos[lk] + in.nneg[lk])) {
         in.latched[lk] = 1;
         ++in.n_latched;
@@ -567,22 +692,65 @@ void CandObj::refreshHull(Instance& in) {
   in.hull = pts.size() >= 3 ? convexHull(std::move(pts)) : Polygon2{};
 }
 
+void CandObj::refreshHeight(Instance& in) {
+  // the tree height is a high quantile of the latched cells' fused surface: a partial first view cannot
+  // pin it to the top of the visible slice, and no single cell (or frame) defines it
+  hbuf_.clear();
+  const std::size_t n = static_cast<std::size_t>(cfg_.window) * cfg_.window;
+  for (std::size_t k = 0; k < n; ++k) {
+    if (in.latched[k] && in.hw[k] > 0.0f && std::isfinite(in.hz[k])) hbuf_.push_back(in.hz[k]);
+  }
+  in.n_height_cells = static_cast<int>(hbuf_.size());
+  if (in.n_height_cells < cfg_.min_height_cells) { in.height_target = kNaN; return; }
+  const std::size_t i = static_cast<std::size_t>(std::floor(cfg_.height_quantile * static_cast<double>(hbuf_.size() - 1) + 0.5));
+  std::nth_element(hbuf_.begin(), hbuf_.begin() + static_cast<long>(i), hbuf_.end());
+  in.height_target = hbuf_[i];
+}
+
+void CandObj::stepPublished(Instance& in, double t) {
+  // published centre and height move toward their targets at a bounded rate (rule 2: no jumps); the
+  // outline itself is never delayed. Called only for instances the phase policy allows to change.
+  const double dt = std::clamp(t - in.last_step_t, 0.0, kMaxStepDt);
+  in.last_step_t = t;
+  if (!in.confirmed) return;
+  if (std::isfinite(in.height_target)) {
+    const double d = in.height_target - in.height_pub;
+    const double lim = cfg_.max_height_rate * dt;
+    if (std::fabs(d) > lim) count("height_steps_clamped");
+    in.height_pub += std::clamp(d, -lim, lim);
+  }
+  const double dx = in.centre.x - in.centre_pub.x, dy = in.centre.y - in.centre_pub.y;
+  const double dd = std::hypot(dx, dy), lim = cfg_.max_centre_rate * dt;
+  if (dd > lim) {
+    count("centre_steps_clamped");
+    if (dd > 0.0) { in.centre_pub.x += dx * lim / dd; in.centre_pub.y += dy * lim / dd; }
+  } else {
+    in.centre_pub = in.centre;
+  }
+}
+
 bool CandObj::publishable(const Instance& in) const {
-  return in.confirmed && in.hull.size() >= 3 && in.hasHeight(cfg_.min_height_samples) && std::isfinite(in.height()) &&
-         std::isfinite(in.centre.x) && std::isfinite(in.centre.y);
+  return in.confirmed && in.hull.size() >= 3 && in.n_height_cells >= cfg_.min_height_cells && std::isfinite(in.height_pub) &&
+         std::isfinite(in.centre_pub.x) && std::isfinite(in.centre_pub.y);
 }
 
 void CandObj::absorb(Instance& keep, const Instance& lose) {
+  const float cap = static_cast<float>(cfg_.cell_weight_cap);
   for (int lj = 0; lj < cfg_.window; ++lj) {
     for (int li = 0; li < cfg_.window; ++li) {
       const int lk = lj * cfg_.window + li;
-      if (!lose.npos[lk] && !lose.nneg[lk] && !lose.latched[lk]) continue;
+      if (lose.npos[lk] <= 0.0f && lose.nneg[lk] <= 0.0f && !lose.latched[lk]) continue;
       const int gi = lose.ai + li, gj = lose.aj + lj;
       const int ki = gi - keep.ai, kj = gj - keep.aj;
       if (ki < 0 || kj < 0 || ki >= cfg_.window || kj >= cfg_.window) { count("merge_cells_dropped_outside_window"); continue; }
       const int kk = kj * cfg_.window + ki;
-      keep.npos[kk] = static_cast<std::uint16_t>(std::min(65535, keep.npos[kk] + lose.npos[lk]));
-      keep.nneg[kk] = static_cast<std::uint16_t>(std::min(65535, keep.nneg[kk] + lose.nneg[lk]));
+      keep.npos[kk] = std::min(65535.0f, keep.npos[kk] + lose.npos[lk]);
+      keep.nneg[kk] = std::min(65535.0f, keep.nneg[kk] + lose.nneg[lk]);
+      if (lose.hw[lk] > 0.0f) {  // the loser's surface measurements of cells the winner had not measured
+        const float wn = keep.hw[kk] + lose.hw[lk];
+        keep.hz[kk] = (keep.hz[kk] * keep.hw[kk] + lose.hz[lk] * lose.hw[lk]) / wn;
+        keep.hw[kk] = std::min(wn, cap);
+      }
       if (lose.latched[lk] && !keep.latched[kk]) {
         keep.latched[kk] = 1;
         ++keep.n_latched;
@@ -594,7 +762,8 @@ void CandObj::absorb(Instance& keep, const Instance& lose) {
   keep.frames_seen = std::max(keep.frames_seen, lose.frames_seen);
   keep.first_seen = std::min(keep.first_seen, lose.first_seen);
   keep.last_seen = std::max(keep.last_seen, lose.last_seen);
-  keep.hull_dirty = true;  // the loser's height samples are dropped: the winner keeps its height (rule 4)
+  keep.hull_dirty = true;  // the winner keeps its ID, its published height and centre (rule 4); both move
+                           // toward the union's values only at the bounded rate
 }
 
 void CandObj::mergeInstances(double t) {
@@ -632,6 +801,8 @@ void CandObj::mergeInstances(double t) {
         Instance& keep = a_keeps ? ea : eb;
         const std::size_t lose_idx = a_keeps ? b : a;
         absorb(keep, instances_[lose_idx]);
+        refreshHull(keep);
+        refreshHeight(keep);
         instances_.erase(instances_.begin() + static_cast<long>(lose_idx));  // its ID is retired forever (rule 1)
         count("instances_merged");
         merged = true;
@@ -641,7 +812,7 @@ void CandObj::mergeInstances(double t) {
 }
 
 void CandObj::integrate(double t, MissionPhase phase, TreeId target, const DronePose& pose, const FrameView& view,
-                        std::vector<Crown>& crowns) {
+                        std::vector<Crown>& crowns, double quality) {
   PhasePolicy pol = phasePolicy(phase, target);
   if (!pol.awake) { count("crowns_dropped_sleeping", crowns.size()); return; }
   // post-spray climb hold (see process()): freeze non-targets until the drone has left the hover point
@@ -677,7 +848,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
   for (std::size_t ci = 0; ci < crowns.size(); ++ci) {
     Crown& c = crowns[ci];
     if (!c.boxed) { count("crowns_dropped_unboxed"); continue; }
-    int k = findInstanceForPeak(c.peak);
+    int k = findInstanceForCrown(c);
     if (k < 0) {
       if (insideSprayed(c.peak)) { count("crowns_dropped_inside_sprayed"); continue; }
       if (!pol.may_create) { count("crowns_dropped_new_tree_locked_phase"); continue; }
@@ -688,13 +859,14 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
       in.ai = floorDiv(c.peak.x, cfg_.cell) - cfg_.window / 2;
       in.aj = floorDiv(c.peak.y, cfg_.cell) - cfg_.window / 2;
       const std::size_t n = static_cast<std::size_t>(cfg_.window) * cfg_.window;
-      in.npos.assign(n, 0); in.nneg.assign(n, 0); in.latched.assign(n, 0);
-      in.centre = c.peak;
-      in.first_seen = in.last_seen = t;
+      in.npos.assign(n, 0.0f); in.nneg.assign(n, 0.0f); in.latched.assign(n, 0);
+      in.hz.assign(n, 0.0f); in.hw.assign(n, 0.0f); in.hrej.assign(n, 0);
+      in.centre = in.centre_pub = c.peak;
+      in.height_target = in.height_pub = kNaN;
+      in.first_seen = in.last_seen = in.last_step_t = t;
       instances_.push_back(std::move(in));
       seen.push_back(0);
       updatable.push_back(1);
-      cell_owner.resize(view.state.size(), -1);
       k = static_cast<int>(instances_.size()) - 1;
       count("instances_created");
     }
@@ -707,37 +879,33 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
     seen[static_cast<std::size_t>(k)] = 1;
     creditCrown(in, c, cell_owner, view);
     in.peak_sum_x += c.peak.x; in.peak_sum_y += c.peak.y; ++in.n_peaks;
-    if (!c.truncated) {
-      if (std::isfinite(c.peak_z) && c.peak_z < z_cap) {
-        auto pos = std::upper_bound(in.heights.begin(), in.heights.end(), c.peak_z);
-        in.heights.insert(pos, c.peak_z);
-        if (static_cast<int>(in.heights.size()) > cfg_.height_buffer) {
-          // keep the buffer centred on the median: drop the extreme farther from it
-          const double med = in.heights[in.heights.size() / 2];
-          if (med - in.heights.front() > in.heights.back() - med) in.heights.erase(in.heights.begin());
-          else in.heights.pop_back();
-        }
-      } else {
-        count("height_samples_dropped_near_drone_or_nan");
-      }
-    } else {
-      count("height_samples_skipped_truncated_crown");
-    }
   }
-  // 2. evidence update for every updatable instance in view
+  // 2. evidence + height update for every updatable instance in view; rate-limited publication step
   for (std::size_t k = 0; k < instances_.size(); ++k) {
     if (!updatable[k]) continue;
     Instance& in = instances_[k];
     if (seen[k]) { ++in.frames_seen; in.last_seen = t; }
-    if (in.ai + cfg_.window <= view.i0 || in.aj + cfg_.window <= view.j0 || in.ai >= view.i0 + view.w || in.aj >= view.j0 + view.h) continue;
-    updateEvidence(in, view, cell_owner, static_cast<int>(k));
-    refreshHull(in);
-    if (!in.confirmed && pol.may_create && in.frames_seen >= cfg_.confirm_frames && in.hasHeight(cfg_.min_height_samples) &&
+    const bool in_view = !(in.ai + cfg_.window <= view.i0 || in.aj + cfg_.window <= view.j0 ||
+                           in.ai >= view.i0 + view.w || in.aj >= view.j0 + view.h);
+    if (in_view) {
+      // the latched surface's heights are fused in creation phases only: once the list is locked the
+      // descent reference must not drift (a close, oblique look at a shoulder during the approach would
+      // re-measure cells the scan saw from above); outlines keep growing under the phase policy
+      updateEvidence(in, view, cell_owner, static_cast<int>(k), quality, pol.may_create ? z_cap : -std::numeric_limits<double>::infinity());
+      refreshHull(in);
+      if (pol.may_create) refreshHeight(in);
+    }
+    if (!in.confirmed && pol.may_create && in.frames_seen >= cfg_.confirm_frames && std::isfinite(in.height_target) &&
         latchedArea(in) >= cfg_.min_publish_area && in.hull.size() >= 3) {
       if (insideSprayed(in.centre)) { count("instances_refused_confirm_inside_sprayed"); continue; }
       in.confirmed = true;
+      in.height_pub = in.height_target;  // first publication: no previous value to rate-limit from
+      in.centre_pub = in.centre;
+      in.last_step_t = t;
       count("instances_confirmed");
+      continue;
     }
+    stepPublished(in, t);
   }
   // 3. tentative instances that stopped being seen are noise / false positives
   for (auto it = instances_.begin(); it != instances_.end();) {
@@ -762,7 +930,7 @@ std::vector<TreeEntry> CandObj::publishedTrees() const {
     TreeEntry te;
     te.id = in.id;
     te.outline = in.hull;
-    te.centre = in.centre;
+    te.centre = in.centre_pub;
     te.height = in.height();
     te.sprayed = in.sprayed;
     out.push_back(std::move(te));

@@ -2,6 +2,7 @@
 // Each rule test would fail if the rule were broken.
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <set>
@@ -42,11 +43,34 @@ FrameView viewOf(const std::vector<Crown>& crowns, double margin_m = 6.0) {
   v.i0 = i0 - m; v.j0 = j0 - m; v.w = i1 - i0 + 1 + 2 * m; v.h = j1 - j0 + 1 + 2 * m;
   v.state.assign(static_cast<std::size_t>(v.w * v.h), 1);
   v.crown.assign(static_cast<std::size_t>(v.w * v.h), -1);
+  v.z.assign(static_cast<std::size_t>(v.w * v.h), 0.0f);  // ground at z = 0, every crown cell at the crown's top
   for (std::size_t k = 0; k < crowns.size(); ++k)
     for (const auto& ij : crowns[k].cells) {
       const int idx = (ij.second - v.j0) * v.w + (ij.first - v.i0);
       v.state[static_cast<std::size_t>(idx)] = 2;
       v.crown[static_cast<std::size_t>(idx)] = static_cast<int>(k);
+      v.z[static_cast<std::size_t>(idx)] = static_cast<float>(crowns[k].peak_z);
+    }
+  return v;
+}
+
+// A dome of top `top` and radius r around (cx, cy): per-cell z follows the dome profile (for height tests),
+// optionally only the part with x < x_max (a slice seen at the swath edge).
+Crown dome(double cx, double cy, double r, double top, double x_max = 1e9) {
+  Crown c = disc(cx, cy, r, top);
+  std::vector<std::pair<int, int>> kept;
+  for (const auto& ij : c.cells) if ((ij.first + 0.5) * kCell < x_max) kept.push_back(ij);
+  c.cells = kept;
+  return c;
+}
+FrameView domeView(const std::vector<Crown>& crowns, const std::vector<std::array<double, 4>>& domes) {
+  FrameView v = viewOf(crowns);
+  for (std::size_t k = 0; k < crowns.size(); ++k)
+    for (const auto& ij : crowns[k].cells) {
+      const int idx = (ij.second - v.j0) * v.w + (ij.first - v.i0);
+      const double x = (ij.first + 0.5) * kCell, y = (ij.second + 0.5) * kCell;
+      const double rho = std::hypot(x - domes[k][0], y - domes[k][1]) / domes[k][2];
+      v.z[static_cast<std::size_t>(idx)] = static_cast<float>(domes[k][3] * std::sqrt(std::max(0.0, 1.0 - rho * rho)));
     }
   return v;
 }
@@ -113,10 +137,12 @@ MapperConfig readCfgFile(const std::string& path) {
 
 #define CAND_OBJ_FIELDS(X)                                                                                  \
   X(min_range) X(max_range) X(above_drone_margin) X(max_frame_noise) X(height_sample_clearance) X(cell) X(min_cell_points) X(max_grid)                     \
+  X(z_ref) X(lateral_k) X(rot_rate_ref) X(quality_recover_s)                                                \
   X(ground_low_fraction) X(ground_inlier_band) X(ground_max_slope) X(min_above_ground) X(min_prominence)     \
-  X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(seed_truncated) X(window) X(match_radius) X(max_cell_radius) X(latch_frames) \
-  X(latch_ratio) X(confirm_frames) X(min_height_samples) X(min_publish_area) X(min_tree_height)             \
-  X(tentative_timeout) X(height_buffer) X(merge_overlap) X(merge_centre_dist) X(post_spray_hold_radius)
+  X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(seed_truncated) X(window) X(match_radius) X(match_overlap) \
+  X(max_cell_radius) X(latch_rel_h) X(latch_frames) X(latch_ratio) X(confirm_frames) X(min_height_cells) X(min_publish_area) X(min_tree_height) \
+  X(tentative_timeout) X(cell_weight_cap) X(outlier_gate_m) X(gate_min_weight) X(height_quantile) X(max_height_rate) X(max_centre_rate) \
+  X(merge_overlap) X(merge_centre_dist) X(post_spray_hold_radius)
 
 TEST(CandObjConfig, ShippedFileEqualsBuiltInDefaults) {
   const std::string path = repoRoot() + "/config/cand_obj.cfg";
@@ -175,10 +201,12 @@ TEST(CandObjRules, PublishesOnlyAfterConfirmationWithFiniteRobustHeight) {
   ASSERT_EQ(trees.size(), 1u);
   EXPECT_TRUE(std::isfinite(trees[0].height));
   EXPECT_NEAR(trees[0].height, 4.0, 1e-9);
-  EXPECT_EQ(cnt(m, "height_samples_dropped_near_drone_or_nan"), 2u);
-  // one wild height sample does not move the median
+  EXPECT_GT(cnt(m, "height_cells_dropped_near_drone_or_nan"), 0u) << dump(m);
+  // one wild frame (every cell 5 m higher) does not move the height: established cells reject it, and
+  // the published value is rate-limited anyway
   step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 9.0)});
   EXPECT_NEAR(m.publishedTrees()[0].height, 4.0, 1e-9);
+  EXPECT_GT(cnt(m, "height_cells_rejected_outlier"), 0u) << dump(m);
   // an all-NaN tree never publishes
   CandObj n;
   double tn = 0;
@@ -234,8 +262,8 @@ TEST(CandObjRules, IdsNeverReusedAndMergeKeepsEstablished) {
   ASSERT_EQ(trees.size(), 1u);
   EXPECT_EQ(trees[0].id, 1);
   EXPECT_EQ(cnt(m, "instances_expired_unconfirmed"), 1u) << dump(m);
-  // a fragment of the same tree is born 2.5 m away, outside the match range, with a wrong height (ID 2)
-  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 1.2, 4.0), disc(2.5, 0, 1.3, 7.0)});
+  // a fragment of the same tree is born 2.5 m away, outside the match range, with a wrong (low) height (ID 2)
+  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 1.2, 4.0), disc(2.5, 0, 1.3, 2.0)});
   trees = m.publishedTrees();
   ASSERT_EQ(trees.size(), 2u);
   EXPECT_EQ(trees[1].id, 2);
@@ -465,4 +493,140 @@ TEST(CandObjCHM, NoiseBurstFramesAreDroppedAndCounted) {
   m.extractCrowns(f, &view, &crowns);
   EXPECT_EQ(cnt(m, "frames_dropped_noise_burst"), 1u);
   EXPECT_EQ(cnt(m, "frames_without_canopy"), 1u) << dump(m);
+}
+
+// ------------------------------------------------------------------------------- M4 hardening
+
+// A tentative or new instance can never take over a published tree's match (Isaac 178 s transient
+// duplicate): a crown that covers a published tree's latched cells is that tree, even when its top lies
+// farther from the tree's (still partial) centroid than match_radius.
+TEST(CandObjM4, FragmentNeverTakesOverAPublishedTree) {
+  CandObj m;
+  double t = 0;
+  // the tree enters at the swath edge: only the slice x < -1.6 of a dome centred at (0, 0) is seen
+  for (int i = 0; i < 8; ++i) step(m, t, MissionPhase::kScan, kNoTree, {dome(0, 0, 3.0, 5.0, -1.6)});
+  auto trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 1u) << dump(m);
+  const TreeId id = trees[0].id;
+  EXPECT_LT(trees[0].centre.x, -1.6);  // the slice's centroid
+  // now the whole crown is visible: its top (0, 0) is > match_radius from the slice centroid (about -2.3, 0)
+  // and outside the slice's outline, so the old peak rule alone would have seeded a second instance
+  EXPECT_GT(std::hypot(trees[0].centre.x, trees[0].centre.y), m.config().match_radius);
+  EXPECT_FALSE(pointInPolygon(trees[0].outline, Point2{0.0, 0.0}));
+  // (the test view marks the unseen part of the dome as ground, so those cells carry 8 negative frames
+  // and need 24 positive ones before they latch: evidence is symmetric)
+  for (int i = 0; i < 40; ++i) step(m, t, MissionPhase::kScan, kNoTree, {dome(0, 0, 3.0, 5.0)});
+  trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 1u) << dump(m);
+  EXPECT_EQ(trees[0].id, id);
+  EXPECT_EQ(cnt(m, "instances_created"), 1u) << dump(m);  // no second instance was ever born
+  EXPECT_GT(area(trees[0]), 3.0 * M_PI * 1.0 * 1.0);         // and the known tree grew over the full crown
+  EXPECT_NEAR(trees[0].centre.x, 0.0, 1.0);  // still converging: far cells enter only as the centroid moves (max_cell_radius)
+}
+
+// Height = high quantile of the latched surface, not the top of the first visible slice; the published
+// height and centre move at a bounded rate only (no jumps), and the height never ends up biased low.
+TEST(CandObjM4, HeightFromLatchedSurfaceAndRateLimitedPublication) {
+  CandObj m;
+  double t = 0;
+  const std::vector<std::array<double, 4>> d{{0, 0, 2.6, 5.0}};
+  for (int i = 0; i < 8; ++i) {
+    std::vector<Crown> c{dome(0, 0, 2.6, 5.0, -1.0)};
+    m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, poseAt(0, 0), domeView(c, d), c);
+  }
+  auto trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 1u) << dump(m);
+  const double h_slice = trees[0].height;
+  EXPECT_LT(h_slice, 4.7);  // the slice x < -1 of a 5 m dome tops out at 5 * sqrt(1 - (1/2.6)^2) = 4.6 m
+  double prev_h = h_slice;
+  Point2 prev_c = trees[0].centre;
+  double max_dh = 0.0, max_dc = 0.0;
+  for (int i = 0; i < 60; ++i) {
+    std::vector<Crown> c{dome(0, 0, 2.6, 5.0)};
+    m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, poseAt(0, 0), domeView(c, d), c);
+    trees = m.publishedTrees();
+    ASSERT_EQ(trees.size(), 1u);
+    max_dh = std::max(max_dh, std::fabs(trees[0].height - prev_h));
+    max_dc = std::max(max_dc, std::hypot(trees[0].centre.x - prev_c.x, trees[0].centre.y - prev_c.y));
+    prev_h = trees[0].height;
+    prev_c = trees[0].centre;
+  }
+  EXPECT_NEAR(trees[0].height, 4.92, 0.12) << dump(m);  // the whole dome: 3 % of a dome's cells lie above 5 * sqrt(0.97) = 4.92 m
+  EXPECT_GT(trees[0].height, h_slice + 0.2);
+  EXPECT_LE(max_dh, 0.5 * 0.1 + 1e-6);                 // max_height_rate 0.5 m/s at 10 Hz
+  EXPECT_LE(max_dc, 0.8 * 0.1 + 1e-6);                 // max_centre_rate 0.8 m/s
+  EXPECT_NEAR(trees[0].centre.x, 0.0, 0.3);            // and the centre has converged to the true centre
+  EXPECT_GT(cnt(m, "height_steps_clamped") + cnt(m, "centre_steps_clamped"), 0u);
+}
+
+// Skirt trim: crown cells below latch_rel_h x the crown's peak height above ground are never claimed, so
+// the stereo smear of the crown edge cannot latch.
+TEST(CandObjM4, SkirtCellsBelowRelativeHeightNeverLatch) {
+  CandObj m;
+  double t = 0;
+  for (int i = 0; i < 10; ++i) {
+    std::vector<Crown> c{disc(0, 0, 2.5, 4.0)};
+    c[0].peak_hag = 4.0;
+    FrameView v = viewOf(c);
+    v.hag.assign(v.state.size(), 0.0f);
+    for (const auto& ij : c[0].cells) {
+      const double r = std::hypot((ij.first + 0.5) * kCell, (ij.second + 0.5) * kCell);
+      v.hag[static_cast<std::size_t>((ij.second - v.j0) * v.w + (ij.first - v.i0))] = r <= 1.5 ? 4.0f : 1.0f;  // skirt: 25 % of the peak
+    }
+    m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, poseAt(0, 0), v, c);
+  }
+  const auto trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 1u) << dump(m);
+  EXPECT_LT(area(trees[0]), M_PI * 1.7 * 1.7);
+  EXPECT_GT(area(trees[0]), M_PI * 1.2 * 1.2);
+  EXPECT_GT(cnt(m, "cells_skipped_low_relative_height"), 0u);
+}
+
+// Frame quality weights the evidence: a frame taken in a fast turn counts as a fraction of a frame.
+TEST(CandObjM4, LowQualityFramesCarryLessEvidence) {
+  Config c;
+  EXPECT_DOUBLE_EQ(frameQuality(-1.0, 100.0, c), 1.0);          // unknown rate: fail open
+  EXPECT_NEAR(frameQuality(c.rot_rate_ref, 100.0, c), 0.5, 1e-9);
+  EXPECT_NEAR(frameQuality(0.0, 0.0, c), 0.1, 1e-9);            // right after a fast rotation
+  EXPECT_NEAR(frameQuality(0.0, 0.75, c), 0.55, 1e-9);          // half recovered
+  EXPECT_DOUBLE_EQ(frameQuality(0.0, 2.0, c), 1.0);
+  CandObj m;
+  double t = 0;
+  for (int i = 0; i < 12; ++i) {
+    std::vector<Crown> cr{disc(0, 0, 2.0, 4.0)};
+    m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, poseAt(0, 0), viewOf(cr), cr, 0.2);
+  }
+  EXPECT_TRUE(m.publishedTrees().empty()) << dump(m);  // 12 x 0.2 = 2.4 < latch_frames
+  for (int i = 0; i < 3; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 4.0)});
+  EXPECT_EQ(m.publishedTrees().size(), 1u) << dump(m);  // 2.4 + 3 >= 5
+}
+
+// Rule 4 + M4: a merge keeps the winner's ID and does not jump its published height or centre; the
+// loser's measured surface still counts, so the merged height cannot end below what either side saw.
+TEST(CandObjM4, MergeNeverJumpsThePublishedValues) {
+  CandObj m;
+  double t = 0;
+  addTree(m, t, 0, 0, 1.2, 4.0, 8);                                     // ID 0
+  for (int i = 0; i < 6; ++i) step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 1.2, 4.0), disc(2.6, 0, 1.2, 5.0)});  // ID 1, taller part
+  auto trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 2u) << dump(m);
+  double prev_h = find(trees, 0)->height;
+  Point2 prev_c = find(trees, 0)->centre;
+  double max_dh = 0.0, max_dc = 0.0;
+  for (int i = 0; i < 60; ++i) {
+    step(m, t, MissionPhase::kScan, kNoTree, {disc(1.0, 0, 2.6, 5.0)});
+    trees = m.publishedTrees();
+    const TreeEntry* e = find(trees, 0);
+    ASSERT_TRUE(e) << dump(m);
+    max_dh = std::max(max_dh, std::fabs(e->height - prev_h));
+    max_dc = std::max(max_dc, std::hypot(e->centre.x - prev_c.x, e->centre.y - prev_c.y));
+    prev_h = e->height;
+    prev_c = e->centre;
+  }
+  ASSERT_EQ(trees.size(), 1u) << dump(m);
+  EXPECT_EQ(trees[0].id, 0);
+  EXPECT_GE(cnt(m, "instances_merged"), 1u);
+  EXPECT_LE(max_dh, 0.05 + 1e-6);
+  EXPECT_LE(max_dc, 0.08 + 1e-6);
+  EXPECT_NEAR(trees[0].height, 5.0, 0.05);  // converged to the taller measured surface, not stuck at 4.0
 }
