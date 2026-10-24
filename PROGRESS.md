@@ -261,7 +261,7 @@ The JSON (`paired` key) carries the per-seed difference for every headline metri
   everything is deterministic). For more seeds: `python3 -m treemapper_tools.synth --out /data/work/synthetic/suite_v2 --seeds 0-9`,
   then `./scripts/evaluate.sh <system> suite_v2`. About 18 s per mission per core; mind the 40 GB budget, 30 MB per mission.
 - **Medium is the discriminating level**: touching canopies, 3x real stereo noise. **Hard** is a stress test: 5x
-  noise gives sigma_Z ~1.5 m at 15 m and ~6 m in turns. Tune on synthetic, report on the recording (held out).
+  noise gives sigma_Z ~1.5 m at 15 m and ~6 m in turns. Tune on synthetic, report on the recording (later also tuned on: used during tuning; not an unbiased test).
 - **Where the simple baseline fails**, i.e. what M3 must beat:
   - merges across touching canopies and merged boxes;
   - false trees from noise, FP boxes and partial boxes;

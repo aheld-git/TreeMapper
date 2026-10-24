@@ -3,7 +3,9 @@
 Extracted by M5 (no new runs) from the M4a final evaluation that produced `results/cand_obj_m4_holdout.md`:
 `/data/work/eval/m4a/final/holdout_{easy,medium,hard}.md` (run by `/data/work/eval/m4a/final_runs.sh final
 <M4 build of commit f8a78c0> simple,cand_obj,cand_grid simple`, i.e. `treemapper_tools.evaluate --reference simple`
-once per level on `/data/work/holdout/suite_holdout`, 30 missions, seeds 100-109, never used for tuning).
+once per level on `/data/work/holdout/suite_holdout`, 30 missions, seeds 100-109, not used for parameter tuning).
+Caveat: the suite was inspected several times (M3 selection, M4a verdict, M4c real-profile check, R14 effect), so it is
+a validation set, not an unbiased test; use a fresh seed range for future claims. JSON: `results/final_holdout_vs_simple.json`.
 `cand_obj` below is the shipped M4 build with `config/cand_obj.cfg`. `results/cand_obj_m4_holdout.md` already holds the paired comparisons
 against the frozen M3 cand_obj and against cand_grid; this one adds the shipped system's own per-level card with the
 **seed-to-seed spread** (std over the 10 datasets) and its **paired comparison against `simple`**.

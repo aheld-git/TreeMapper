@@ -162,7 +162,7 @@ Expect several times the x86 figure on the Orin (not measured); the budget of 10
 
 ## 8. Results (final frozen configuration; details in `results/cand_obj_*.md`)
 
-Recorded Isaac mission (held out from parameter tuning): recall 9/9 (simple 8, existing 7), mean / min IoU 0.86 / 0.78
+Recorded Isaac mission (used during tuning; not an unbiased test; it was tuned on, section 5): recall 9/9 (simple 8, existing 7), mean / min IoU 0.86 / 0.78
 (0.73 / 0.46, 0.63 / 0.39), 0 swallowed neighbours (1, 2), centre RMSE 0.21 m (1.10, 1.36), spill 0.05 (0.14, 0.16),
 **0 safety violations** (0, 5), 7 trees sprayed, latency 2.2 s (2.4, 1.2), 0.85 ms per frame.
 

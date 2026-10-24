@@ -1,4 +1,8 @@
-# cand_obj M4 on the held-out suite (30 missions, seeds 100-109 x easy / medium / hard; never used for tuning)
+# cand_obj M4 on the held-out suite (30 missions, seeds 100-109 x easy / medium / hard; not used for parameter tuning)
+
+> Caveat (final review): this suite was inspected several times (M3 selection, this M4a verdict, the M4c real-profile
+> check, the R14 scorer-fix effect), so it is a validation set, no longer an unbiased test. Use a fresh seed range for
+> future claims. Machine-readable numbers: `results/cand_obj_m4_holdout.json`.
 
 Systems: `simple`, `cand_obj M3` (frozen build of commit 89317b2, verified to reproduce the M3 Isaac map byte-for-byte),
 `cand_obj M4` (this milestone, commit f8a78c0, `config/cand_obj.cfg` == built-in defaults), `cand_grid` (unchanged since M3).

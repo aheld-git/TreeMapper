@@ -7,10 +7,11 @@ Definitions of every metric: `docs/SCORER.md` and `tools/treemapper_tools/score.
 
 ## 1. Headline
 
-- **Recorded Isaac mission (held out from tuning) against the existing system**: 9 / 9 trees found vs 7 / 9, mean outline
+- **Recorded Isaac mission (used during tuning; not an unbiased test) against the existing system**: 9 / 9 trees found vs 7 / 9, mean outline
   IoU 0.867 vs 0.629, 0 neighbours swallowed vs 2, centre RMSE 0.19 vs 1.36 m, **0 safety violations vs 5**, 0 centre /
   height jumps vs 8 / 19, 7 truth trees sprayed by each. Worse: scan latency 2.32 s vs 1.19 s. (`results/cand_obj_m4_isaac.md`)
-- **Held-out synthetic suite** (30 missions never used for tuning): beats the simple baseline on every level on recall,
+- **Held-out synthetic suite** (30 missions not used for parameter tuning, but inspected several times since, see
+  section 3: no longer an untouched test set): beats the simple baseline on every level on recall,
   precision, IoU, swallowed neighbours, false trees, centre error and spill (10/0 seeds on most rows); against the
   alternative `cand_grid` it is a tie on medium and wins the hard worst cases (recall +0.073, 8/0; swallowed -2.5, 8/1;
   false trees -0.8). Safety 0 on all 30 missions. (`results/final_holdout_vs_simple.md`, `results/cand_obj_m4_holdout.md`)
@@ -56,8 +57,12 @@ rows, mean IoU 0.865 vs 0.867, scan latency 2.335 vs 2.319 s.
 ## 3. Held-out synthetic suite: shipped system vs simple baseline vs cand_grid
 
 Suite `/data/work/holdout/suite_holdout`: 30 missions, seeds 100-109 x easy / medium / hard (1.5x / 3x / 5x real stereo
-noise, a hostile detector: misses, false positives, merged and partial boxes, D25), generated before M3 and never used for
-tuning; run once per frozen configuration. Cells: **mean / worst seed** (worst = min for recall, precision, IoU, sprayed;
+noise, a hostile detector: misses, false positives, merged and partial boxes, D25), generated before M3 and not used for
+parameter tuning. **It is no longer untouched**: its results were looked at for the M3 selection, the M4a verdict, the M4c
+real-profile check and the effect of the R14 scorer fix, and each look could have steered a design choice. Treat the
+numbers below as a validation set, not an unbiased test; any future claim should come from a fresh seed range (for
+example seeds 200-209, generated after this report and scored once). The recorded Isaac mission was **used during tuning**
+(M3 and M4a tuned on it, D32-D39, `docs/candidates/cand_obj.md` section 5), so it is not an unbiased test either. Cells: **mean / worst seed** (worst = min for recall, precision, IoU, sprayed;
 max otherwise). W/L/T = seeds where cand_obj is better / worse / equal, paired by seed. Sources: means, worsts and the paired
 comparison with cand_grid `results/cand_obj_m4_holdout.md`; paired comparison with simple `results/final_holdout_vs_simple.md`
 (same runs).
@@ -306,7 +311,7 @@ M4a / M4c runs; the generator, replay and mappers are deterministic, D26), and a
 | M2 | Synthetic orchard generator, noise calibrated against both recordings and made 1.5-5x harder; a **deliberately simple baseline** (raw box hulls, grow-only). Already 0 safety violations on Isaac, but it merges touching trees and invents trees as noise rises. | `results/synthetic_calibration.md`, `results/simple_baseline_isaac.md`, `results/simple_baseline_synthetic.md`, D19-D29 |
 | M3 | **Two genuinely different candidates**: `cand_obj` (per-instance crowns + per-cell evidence latching) and `cand_grid` (one fused 2.5D DSM + persistence watershed + latched instances), developed in parallel behind one Mapper interface, tuned on suite_v1 + the recording. | `docs/candidates/cand_obj.md`, `docs/candidates/cand_grid.md`, `results/cand_obj_{isaac,synthetic}.md`, `results/cand_grid_{isaac,synthetic}.md` |
 | M3 selection | **Held-out comparison** (30 new missions + the recording, frozen configs, paired by seed). Safety tie (0 / 0); medium within noise; cand_obj chosen on hard worst cases (recall +0.108, 9/1), a stable descent reference on the recording (cand_grid's locked heights sank by up to 1.75 m), easy / Isaac outline quality, latency, bounded memory. Conceded to cand_grid: publication stability and the height tail, which became the M4 work list. A scorer fix (R14) was needed first. | `results/m3_comparison.md`, D30, D31, R14 |
-| M4a | **Hardening of cand_obj**, carrying cand_grid's strengths over: latched-surface height quantile, heights frozen outside creation phases, rate-limited centre / height, range / off-axis / rotation weighting, overlap matching + seed guard. Held-out run once at the end: jumps 0 everywhere, IoU and centre better, recall slightly lower. | `docs/candidates/cand_obj.md` section 10, `results/cand_obj_m4_holdout.md`, `results/cand_obj_m4_isaac.md`, `results/cand_obj_m4_synthetic.md`, D32-D39 |
+| M4a | **Hardening of cand_obj**, carrying cand_grid's strengths over: latched-surface height quantile, heights frozen outside creation phases, rate-limited centre / height, range / off-axis / rotation weighting, overlap matching + seed guard. Held-out run once at the end of M4a (the suite had already been looked at for M3 and R14): jumps 0 everywhere, IoU and centre better, recall slightly lower. | `docs/candidates/cand_obj.md` section 10, `results/cand_obj_m4_holdout.md`, `results/cand_obj_m4_isaac.md`, `results/cand_obj_m4_synthetic.md`, D32-D39 |
 | M4d | Generator fix (the descent hover cleared only the target) and a new tuning suite suite_v2; held-out suites untouched. | D40 |
 | M4b | **ROS 1 wrapper** + launch files for sim and real; ROS path reproduces the offline replay on the full Isaac mission. | `ros/treemapper_ros/README.md`, `results/ros_replay_isaac.md`, D41-D47 |
 | M4c | **Real flight**: frame reader, camera chain verified from data (82 deg mount, 4.30 px offset), no-GT scorecard of all systems; found the over-fragmentation and tuned a real profile. | `docs/REAL_FLIGHT.md`, `results/real_flight_geometry.md`, `results/real_flight_scorecard.md`, D48-D54 |

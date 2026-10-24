@@ -1,5 +1,8 @@
 # cand_obj M4 on the recorded Isaac mission (9 trees, 7 hops)
 
+> Caveat (final review): the recording was **used during tuning** (M3 and M4a tuned on it); these numbers are not an
+> unbiased test. Machine-readable numbers: `results/cand_obj_m4_isaac.json`.
+
 Systems: `simple`, `cand_obj M3` (frozen build of commit 89317b2, verified to reproduce the M3 Isaac map byte-for-byte),
 `cand_obj M4` (this milestone, commit f8a78c0, `config/cand_obj.cfg` == built-in defaults), `cand_grid` (unchanged since M3).
 Runs: `treemapper_tools.evaluate` with the M4 build (`/data/work/build_m4a`) for simple / cand_obj M4 / cand_grid and the frozen build
