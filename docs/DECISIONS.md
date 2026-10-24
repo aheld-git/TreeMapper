@@ -2,6 +2,23 @@
 
 Each entry: decision, alternatives, evidence, assumptions. Newest at the bottom.
 
+**Numbering (consolidated in M5).** One monotonic series **D1-D57** for the build, plus the separate scorer-review series
+**R1-R14** (the scorer belongs to its own owner; results files cite R13 / R14 by those numbers, so they are kept). The ROS
+entries written as D-R1..D-R7 are D41-D47 (each heading keeps its old name). M4a's hardening decisions were recorded in
+`docs/candidates/cand_obj.md` section 10; they are D32-D39 here, each citing its subsection, which keeps the full evidence.
+
+| Milestone | Entries | Topic |
+|---|---|---|
+| M1 | D1-D18 | environment, repo layout, contract format, scorer definitions, bag facts |
+| scorer review (M1-M3) | R1-R14 | scorer fixes found by an independent review; R14 truth-aware implausible heights (M3) |
+| M2 | D19-D29 | input contract, pairing, camera geometry, replay emulator, simple baseline, generator, noise floor, Mapper registry |
+| M3 | D30-D31 | generator hover flaw, the selection of cand_obj |
+| M4a (cand_obj hardening) | D32-D39 | height model, rate limits, skirt trim, weighting, seed guard, tests, held-out verdict |
+| M4d (generator) | D40 | hover clears every canopy; suite_v2 |
+| M4b (ROS wrapper) | D41-D47 | core linkage, config pointer, pairing, gates, emulator, frame time, real launch defaults |
+| M4c (real flight) | D48-D54 | real frame reader, camera chain, disparity offset, no-GT scoring, existing-map conversion, real profile |
+| M5 (handoff) | D55-D57 | final evidence sources, verification, what ships |
+
 ## M1 (2026-10-24, 15:00–)
 
 **D1. Execution environment: everything in `tm_dev`.** At the start of M1 I created a host venv under
@@ -312,8 +329,59 @@ seen by either candidate) + the recording, frozen configs, paired by seed (`resu
 - Tooling: `tools/treemapper_tools/m3_compare.py` merges per-level evaluate outputs and adds the cand_grid vs cand_obj
   pairing from the same runs (no re-run), plus height-error tails and descent-height ranges.
 
+## M4a: cand_obj hardening (2026-10-24, 19:00-20:00; D32-D39)
 
-## M4d generator fix (2026-10-24, 19:00-; D40)
+Recorded by M4a in `docs/candidates/cand_obj.md` section 10 (the full tables and reasoning stay there); consolidated
+here in M5. Tuned on suite_v1, suite_v2 and the recording; the held-out suite was run once at the end with the frozen
+configuration (`results/cand_obj_m4_holdout.md`, `results/cand_obj_m4_isaac.md`, `results/cand_obj_m4_synthetic.md`, all
+paired against the frozen M3 build of commit 89317b2, cand_grid and simple).
+
+**D32. Height = 0.99 quantile of a fused latched surface, not the median of crown-top samples** (cand_obj.md 10.1).
+M3's median of per-frame crown-top samples published two Isaac trees at 4.27 / 4.39 m against measured tops of 5.4-5.9 m:
+trees entering at the swath edge filled the median with the first visible slice's "top". Now each latched cell carries a
+weighted running mean of its per-frame median z (cand_grid's `fuseCell`: weight cap 30, 2 m outlier gate from weight 3,
+three rejections re-initialise), and the tree height is the 0.99 quantile over latched cells with a height. 0.97
+(cand_grid's) biased easy -0.08 m; 0.99 gives -0.04 / +0.01 / +0.06 m (suite_v1) and 4.83-5.74 m on the recording. On a
+merge the loser's cell heights are folded into the winner's cells, which can only raise the quantile (safe direction).
+
+**D33. Heights are fused in creation phases only** (cand_obj.md 10.1). Once the list is locked the descent reference
+does not move (except the rate limiter finishing a step in progress). Effect: target height range during its own
+descent 0 on every held-out mission (M3 up to 0.62 / 1.79 m medium / hard), height drift since lock 0 on the recording.
+Accepted cost: synthetic missions re-enter SCAN for a second corridor, where heights are fused again by design
+(max drift since the first lock 0.82 / 1.21 m medium / hard).
+
+**D34. Published centre and height are rate-limited** (cand_obj.md 10.2): <= 0.8 m/s and <= 0.5 m/s, one step per frame,
+dt capped at 0.5 s, only for instances the phase policy lets change. The outline is not delayed, so first publication is
+unchanged. Centre / height jumps went to 0 on every suite, the recording and the real flight. The alternative, requiring
+an observed peak neighbourhood before publication, was not adopted (latency, and the jumps were already gone).
+
+**D35. Relative-height skirt trim (`latch_rel_h`) implemented but shipped off (0)** (cand_obj.md 10.3). It trims spill
+(medium 0.166 -> 0.121 at 0.3) but the per-frame peak is a noisy maximum on hard, so swath-edge trees never reach
+`min_publish_area`: hard recall 0.82 -> 0.55. cand_grid applies it to a multi-frame surface, where it is cheap.
+
+**D36. Range / off-axis point weights and a rotation-rate frame quality, at `rot_rate_ref` 1.0 rad/s** (cand_obj.md 10.4).
+Point weight `(z_ref/Z)^4 / (1 + 10 rho^2)` scales height contributions; frame quality `1/(1+(rate/ref)^2)` with 1.5 s
+recovery scales height weights and evidence increments. cand_grid's 0.35 rad/s cost 0.1-0.2 s latency everywhere for no
+geometry gain; switching the weighting off was faster but produced split trees on easy (turn-blur fragments). A split tree
+is a double target, 0.1-0.3 s is not, so the weighting stays on.
+
+**D37. Overlap matching with a reach limit, plus a seed guard** (cand_obj.md 10.5). A crown covering >= 50 % of an
+instance's latched cells with its top within 3 m is that instance; among several, the better-established wins. A crown
+that would seed a new instance is credited to a published tree when >= 25 % of its cells lie on its latched cells. Fixes
+the Isaac transient duplicate (ID 11 -> 12 -> 11 at 178 s); without the guard the overlap rule alone made it permanent
+(precision 0.9). Reach 3 m, not 4 m: hard recall 0.83 vs 0.78. Test `FragmentNeverTakesOverAPublishedTree`.
+
+**D38. Tests and configuration** (cand_obj.md 10.6). 20 cand_obj tests (5 new in M4). Config grew to 45 keys,
+`config/cand_obj.cfg` == built-in defaults (test); `height_buffer` removed, `min_height_samples` renamed `min_height_cells`.
+
+**D39. Held-out verdict: ship M4, accepting a small recall and latency loss** (cand_obj.md 10.7). Against the frozen M3
+build: mean IoU +0.024 / +0.028 (medium / hard, 10/0), centre RMSE -0.082 m medium (9/1), centre and height jumps to 0,
+hard swallowed 3.6 -> 2.8; but recall -0.018 medium (1/3/6, within seed noise) and -0.035 hard (2/6/2, t -2.2), latency
++0.18 / +0.27 s. The lost trees were never confirmed (frame weighting delays latching at row ends; the seed guard
+sometimes credits a neighbour's first slice at 4.5 m spacing), not merged away. Against cand_grid the hard recall
+advantage is kept (+0.073, 8/0). Stable descent references and 0 jumps were judged worth more than 0.02-0.04 recall.
+
+## M4d: generator fix (2026-10-24, 19:00-; D40)
 
 **D40. Generator hover clears every canopy in the footprint (fixes D30).** `synth.py` used z = max(ground + 7,
 target top + 1.5) for the spray hover, which only cleared the target. Now the transit, descent and hover use
@@ -347,37 +415,79 @@ neighbour within 8 m; an air-frame needs far less, a nadir camera at 7 m sees ab
   height 0.5-2 m above the highest truth top in the world (e.g. 8.67 m vs 8.19 m), the simple baseline's merged / false
   entries. The drone clears every truth canopy by >= 1.5 m, the scorer's own definition of a real error.
 
-## M4b: ROS wrapper (2026-10-24, 19:00-22:00; D-R1 onwards, separate numbering to avoid collisions)
+## M4b: ROS wrapper (2026-10-24, 19:00-20:15; D41-D47, written as D-R1..D-R7 and renumbered in M5)
 
-**D-R1. The node consumes the core by `add_subdirectory`, statically linked.** The registry reaches candidates through
+**D41. (formerly D-R1) The node consumes the core by `add_subdirectory`, statically linked.** The registry reaches candidates through
 weak symbols, so executables must take the registry's object files (`tm_link_registry`); an installed static core would
 silently drop every candidate. The core is located through the package's real path (`../../core`) or `-DTM_CORE_DIR`.
 No change to core/CMakeLists.txt.
 
-**D-R2. Mapper config: the yaml points at `config/<mapper>.cfg`, it never copies values.** One source of truth for the
+**D42. (formerly D-R2) Mapper config: the yaml points at `config/<mapper>.cfg`, it never copies values.** One source of truth for the
 replay, the evaluation and the drone; overrides exist (`mapper_overrides`) but are logged as WARN and must be empty in
 the shipped yaml (test). Unknown keys still fail at node start (dry-run `createMapper`).
 
-**D-R3. Pairing identical to the offline reader, released in detection order, plus early resolve.** Order keeps the
+**D43. (formerly D-R3) Pairing identical to the offline reader, released in detection order, plus early resolve.** Order keeps the
 mapper's input sequence equal to the replay's; early resolve (a newer disparity than stamp + 20 ms has arrived) avoids a
 0.5 s stall per unpaired detection (+0.35 s scan latency before) without changing which disparity a frame gets. It
 assumes in-order disparity stamps (one publisher); `sync_early_resolve: false` turns it off.
 
-**D-R4. Gates on missing information (rule 6).** Calibration, mount, pose: fail closed (no mapper / held frames,
+**D44. (formerly D-R4) Gates on missing information (rule 6).** Calibration, mount, pose: fail closed (no mapper / held frames,
 counted, health HOLDING or FAULT). Mission phase missing or unknown: fail open (scanning), warned once, listed in
 health. `set_tree_sprayed(false)` is refused (sprayed trees are protected). Heartbeat on a wall timer so it survives a
 paused sim clock; SLEEPING in IDLE / SCAN_APPROACH / SPRAYING / RETURN, frames still reach the mapper (its phase policy
 decides), so the ROS path equals the offline replay.
 
-**D-R5. Replay-only navigation emulator.** A recorded `/spray_target` is in the recorded system's ID space; feeding it
+**D45. (formerly D-R5) Replay-only navigation emulator.** A recorded `/spray_target` is in the recorded system's ID space; feeding it
 to the node would freeze the wrong tree. `replay_isaac.launch` remaps it and `nav_emulator.py` resolves targets by
 descent point exactly like `replay_main.cpp`, and marks trees sprayed at the end of SPRAYING.
 
-**D-R6. Frame time is monotonic and the replay clock runs at 1 kHz.** cand_obj's rate limits integrate over frame `t`;
+**D46. (formerly D-R6) Frame time is monotonic and the replay clock runs at 1 kHz.** cand_obj's rate limits integrate over frame `t`;
 rosbag play's 100 Hz clock and a phase heartbeat fed before older pending frames made the live run diverge
 (latency 2.80 vs 2.32 s). Fixed in the node; on the drone the wall clock is continuous anyway.
 
-**D-R7. Real launch defaults follow M4c's data-derived chain** (mount pitch 82 deg, not tf_static's 75; disparity
+**D47. (formerly D-R7) Real launch defaults follow M4c's data-derived chain** (mount pitch 82 deg, not tf_static's 75; disparity
 offset 4.30 px, not camera_info's 4.92), both from one flight without ground truth; `camera_mount_source:=tf` and
 `disparity_offset:=auto` restore the recorded values.
 
+
+## M4c: real flight (2026-10-24, 19:00-; D48-D54)
+
+M4c recorded its choices in `docs/REAL_FLIGHT.md` and the result files it owns (`results/real_flight_*`); they are
+consolidated here by M5 with citations. The real flight has no ground truth, no mission phase and no hop target.
+
+**D48. Real-flight frame reader = flight bag + companion bag, one frame per companion detection message**
+(`tools/treemapper_tools/real_frames.py`, `docs/REAL_FLIGHT.md` "What the reader does"). `t` = companion bag time (the
+same clock as the flight bag's bag time, the map stream and `mission.json`); `stamp` = header stamp + one constant clock
+offset (+6554596.89 s: header stamps are flight time, Oct 2025, the bags were re-recorded in Jan 2026). Pairing as D20
+(exact header stamp, else nearest within 20 ms, else no disparity, counted); pose from `/tf` `world_nwu -> body` at the
+disparity stamp, a missing pose gives `pose_valid = false` and a counter. Phase = constant SCAN, target -1, so the lock,
+descent and spray rules cannot be exercised on this flight (the scorer reports them as n/a). Result: 7164 frames, 7145
+paired exactly, 12 without disparity, 7 heartbeats, 0 invalid poses (`results/real_flight_geometry.md`).
+
+**D49. Mount pitch 82 deg about body +y, not tf_static's 75 deg** (`results/real_flight_geometry.md`). Chosen from
+competing camera-chain hypotheses (A-F plus a pitch sweep) by ground tilt and by crown position drift between passes at
+different altitudes: with 75 deg the ground tilts ~7 deg and crowns move about 0.15 m per metre of altitude along the
+heading (about 1 m between the 11.5 m and 18.5 m passes). The cause may be the mount itself or a constant attitude bias
+(the body reads +3.2 deg nose-down while hovering); the stereo fits 82 deg either way. Lever arm (0.30, 0.08, -0.20) m
+from tf_static, unverified (below the noise); roll unverified beyond +-2 deg. `--mount-pitch-deg tf` / the launch's
+`camera_mount_source:=tf` restore the recorded value. This is also D47's launch default.
+
+**D50. Disparity offset 4.30 px, not camera_info's cx_l - cx_r = 4.918 px** (`results/real_flight_geometry.md`,
+`results/real_flight_stereo_check.json`). A pose-based motion test puts the depth scale at 0.99 with 4.30 px; with 4.918
+depths come out 7-16 % too long. Likely cause: the raw images are not rectified, so the disparity node rectified
+differently from camera_info. Baseline 0.1606 m from right `P[3]` in millimetres (same unit convention as Isaac).
+`--disparity-offset calib` / the launch's `disparity_offset:=auto` restore the calibration value.
+
+**D51. No-ground-truth scoring of the real flight** (`tools/treemapper_tools/real_score.py`, `results/real_flight_scorecard.md`).
+The scorer's no-GT mode (R13) gives stability, safety and cost; tree-level quality is judged against a **proxy**: stereo
+crown peaks (local maxima of the stereo canopy-height model, CHM > 1.5 m, at least 3 m apart; 63 on this flight), with
+"outlines with 0 peaks" = fragments / false trees and "2+ peaks" = merged crowns, plus agreement between the systems'
+final maps. Every build is a clean `git archive` export so uncommitted work cannot leak in. Known artefact: about 57
+"above the drone" implausible-height frames per system come from the landing (t > 500 s, drone below 7.5 m over 7-8 m
+crowns) because a stream without phases has no end of mission window; not a mapping error.
+
+**D52. The existing system's real-flight map is reconstructed from its RViz topics** (`tools/treemapper_tools/real_existing.py`,
+`docs/REAL_FLIGHT.md`). Per MarkerArray the `ns=polygon` LINE_STRIPs are outlines (ID = marker ID); height = the
+`/object_fusion/fused_bboxes` median feature height of the same ID (the only height in the companion bag), so its heights
+are not comparable in absolute terms with our canopy tops; sprayed = false; frame world_nwu. Its own chain and
+configuration in the companion replay are unknown (presumably tf_static's 75 deg and the 4.918 px offset).
