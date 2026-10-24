@@ -165,6 +165,17 @@ outline falls back to a circle (radius, else mean vertex distance), or raises. A
 Existing-system scorecard: 1 -> 5 safety violations, all from the 145.98 s absorption. The full old -> new table
 is in `results/baseline_existing_system_notes.md`.
 
+**R14. Implausible heights are judged against the truth top when truth heights are reliable (M3, 2026-10-24).**
+Both candidates showed the old test (finite height above the drone's altitude) flags accurate heights: the synthetic
+descent hover can sit below a neighbouring canopy top (D30). Now, with reliable truth heights, an above-the-drone
+height counts only if it is also above its truth top + `implausible_truth_tol_m` (0.5 m); truth top = the tallest truth
+tree holding >= `own_min` (20 %) of the entry; an entry no truth tree owns keeps the plain test; `<= 0` always counts.
+No truth, or unreliable truth (constant heights, the Isaac recording): unchanged. New field
+`implausible_height_excused_entries`. Tests: `test_implausible_height_uses_truth_top_when_reliable`,
+`test_implausible_height_merged_entry_uses_tallest_owner`. Effect (held-out suite, old -> new frames): cand_obj hard
+624 -> 0, cand_grid hard 527 -> 0, simple unchanged (1605 hard + 65 medium). Existing-system baseline and the pinned
+test: unchanged (Isaac truth unreliable); `results/baseline_existing_system.*` regenerated (label text only).
+
 ## M2 (2026-10-24, 15:20-; D19 onwards)
 
 **D19. Input contract = one `Frame` per detection message** (`tools/treemapper_tools/frames.py`, mirrored by
@@ -278,3 +289,26 @@ canopies, ray-cast disparity on the same stride-4 grid, three levels. Noise anch
 - `evaluate.py` validates system names against `treemapper_replay --list-systems` up front and adds a paired
   comparison (per seed, against `--reference`) when given 2+ systems, because run-to-run noise is 0 and
   seed-to-seed variance dominates (D26).
+
+## M3 selection (2026-10-24, 18:00-19:00; D30 onwards)
+
+**D30. Known generator flaw (for M4): the descent hover clears only the target.** `synth.py` flies the spray hover at
+z = max(ground under the target + 7 m, target top + 1.5 m). A neighbour that is taller or stands on higher ground can
+top out above the hovering drone (hard_s100 at 61.4 s: drone 7.31 m, neighbour top 7.48 m within 8 m; hard_s103 at
+103.9 s: 6.28 m vs 6.79 m). Real navigation would not fly that. R14 makes the scorer robust to it; the generator itself
+is not changed here and no suite was regenerated. M4: hover z = max over trees within the footprint / rotor reach of
+(top + clearance), then generate a fresh suite (leave `suite_holdout` untouched).
+
+**D31. M3 selection: cand_obj is hardened in M4 (close call).** Held-out suite (30 missions, seeds 100-109, never
+seen by either candidate) + the recording, frozen configs, paired by seed (`results/m3_comparison.md`).
+- Safety: 0 for both everywhere (simple 1670 frames on 11 held-out missions; existing 5 on the recording).
+- Medium: within seed noise. cand_obj recall +0.016 (3/0); cand_grid spill -0.016, min IoU +0.10, height tail
+  (0 vs 4 trees off by > 1 m). Swallowed, false trees, centre: ties.
+- Decided by: hard worst cases (cand_obj recall +0.108, t 4.8, 9/1; swallowed 3.6 vs 5.3; false trees 0 vs 0.8);
+  the descent reference on the recording (cand_grid's locked heights sink by up to 1.75 m, its target moves 0.64 m in
+  its own descent; cand_obj <= 0.03 m); easy / Isaac outline quality; latency -0.39 s; bounded memory; simpler code.
+- Conceded to cand_grid: publication stability (centre jumps 0.7 vs 7.4 per medium mission, height jumps 0 vs 1.1),
+  the medium height tail, and range / off-axis / rotation weighting. These are the M4 work list (results/m3_comparison.md).
+- Tooling: `tools/treemapper_tools/m3_compare.py` merges per-level evaluate outputs and adds the cand_grid vs cand_obj
+  pairing from the same runs (no re-run), plus height-error tails and descent-height ranges.
+

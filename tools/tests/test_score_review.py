@@ -382,6 +382,39 @@ def test_implausible_heights():
     assert sa["implausible_height_frames"] == 1
 
 
+def test_implausible_height_uses_truth_top_when_reliable():
+    # reliable (varying) truth heights; the drone hovers at 6.0 m, below tree 1's 7.0 m canopy top
+    gt = [g(0, 0, 0, H=4.0), g(1, 6, 0, H=7.0), g(2, 12, 0, H=5.0)]
+    m = Mission(phases=[(0.0, "SCAN")], targets=[(0.0, -1)], pose=[(0.0, 0.0, 0.0, 6.0)])
+    r = score([Snapshot(1.0, [t(11, 6, 0, H=7.2)])], gt, m)          # accurate tall tree under a low hover
+    assert r["gt_height_reliable"]
+    sa = r["safety"]
+    assert sa["implausible_height_frames"] == 0 and sa["implausible_height_excused_entries"] == 1
+    assert sa["total_violations"] == 0
+    sa = score([Snapshot(1.0, [t(11, 6, 0, H=7.6)])], gt, m)["safety"]   # > truth top + 0.5 and above the drone
+    assert sa["implausible_height_frames"] == 1
+    assert sa["implausible_height_events"][0]["entries"][0]["truth_top"] == pytest.approx(7.0)
+    sa = score([Snapshot(1.0, [t(10, 0, 0, H=6.5)])], gt, m)["safety"]   # over-estimate (4.0 m tree) above drone
+    assert sa["implausible_height_frames"] == 1
+    sa = score([Snapshot(1.0, [t(13, 30, 30, H=6.5)])], gt, m)["safety"]  # owned by no truth tree: plain test
+    assert sa["implausible_height_frames"] == 1
+    sa = score([Snapshot(1.0, [t(11, 6, 0, H=0.0)])], gt, m)["safety"]   # <= 0 is always implausible
+    assert sa["implausible_height_frames"] == 1
+    sa = score([Snapshot(1.0, [t(11, 6, 0, H=5.9)])], gt, m)["safety"]   # below the drone: never flagged
+    assert sa["implausible_height_frames"] == 0
+    sa = score([Snapshot(1.0, [t(11, 6, 0, H=7.6)])], None, m)["safety"]  # no truth: plain above-drone test
+    assert sa["implausible_height_frames"] == 1 and sa["implausible_height_excused_entries"] is None
+
+
+def test_implausible_height_merged_entry_uses_tallest_owner():
+    gt = [g(0, 0, 0, H=4.0), g(1, 4, 0, H=7.0), g(2, 12, 0, H=5.0)]
+    m = Mission(phases=[(0.0, "SCAN")], targets=[(0.0, -1)], pose=[(0.0, 0.0, 0.0, 6.0)])
+    merged = t(10, 2, 0, outline=[(-2, -2), (6, -2), (6, 2), (-2, 2)])
+    merged = Tree(10, merged.outline, merged.centre, 7.1, False)
+    sa = score([Snapshot(1.0, [merged])], gt, m)["safety"]
+    assert sa["implausible_height_frames"] == 0
+
+
 def test_recall_in_view_denominator():
     cam = {"left": {"K": [100.0, 0, 50, 0, 100.0, 50, 0, 0, 1], "width": 100, "height": 100}}
     pose = [(0.0, 0.0, 0.0, 11.0)]                       # footprint radius ~4.95 m: sees tree 0 and 1 only

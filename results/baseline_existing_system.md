@@ -83,7 +83,7 @@ Per ID: max lost fraction, centre drift from first / since lock, height drift fr
 | Frames publishing an undefined height | 0 |
 | Frames with an invalid entry (non-finite centre/outline, < 3 vertices, zero area) | 0 |
 | Frames with a duplicate ID | 0 |
-| Frames with an implausible height (<= 0 or above the drone) | 0 |
+| Frames with an implausible height (<= 0, or above the drone) | 0 |
 | New (or reused) IDs while the list is locked (PLANNING/HOPPING/SPRAYING) | 0 |
 | IDs vanished while the list is locked (of which the hop target) | 1 (1) |
 | Non-target changes during descent (553 snapshots judged: approach 230, spraying 140, climb-out 183) | 3 |
@@ -155,7 +155,7 @@ modified.
 | IDs vanished while the list is locked | — | **1** | new metric: target ID 8 vanished at 145.98 s (HOPPING) while navigation held it |
 | Sprayed tree changed / vanished / lost flag | 1 | 1 | ID 7 at 145.98 s, now judged against the record taken when it was first sprayed |
 | **Total safety violations** | **1** | **5** | 1 sprayed change + 1 locked-ID vanish + 3 non-target changes; the same event at 145.98 s and its consequences |
-| Centre jumps | 2 | **8** | now > 1 m within any 1 s window (rate-independent), counted per onset. The extra 6 are 1.0-1.5 m moves spread over several 0.2 s updates during the first scans (77-81 s) and the second scan (179-182 s) |
+| Centre jumps | 2 | **8** | now > 1 m within any 1 s window (rate-independent), counted per onset. The extra 6 are 1.00-1.54 m moves spread over several 0.2 s updates during the first scans (77-81 s) and the second scan (179-182 s) |
 | Height jumps | 14 | **19** | same windowing, and compared with the last finite value; the +2.35 / -2.6 m pair at 113.4 s is now one onset |
 | Max height drift per ID since lock | — | **4.21 m** (ID 31) | new; ID 10 drifts 2.60 m, ID 1 1.82 m: the descent reference of a locked tree is not stable |
 | Max centre drift per ID since lock | — | 1.44 m (ID 7, the absorption) | new |

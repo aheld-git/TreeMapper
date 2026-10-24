@@ -14,6 +14,7 @@
   "reuse_overlap_max": 0.1,
   "inside_sprayed_min": 0.3,
   "undefined_height_error_m": 15.0,
+  "implausible_truth_tol_m": 0.5,
   "sample_dt_s": 0.2,
   "locked_phases": [
    "PLANNING",
@@ -932,6 +933,7 @@
   "duplicate_id_events": [],
   "implausible_height_frames": 0,
   "implausible_height_events": [],
+  "implausible_height_excused_entries": null,
   "implausible_height_definition": "finite height <= 0, or above the drone altitude inside the mission window",
   "sprayed_tree_changes": 1,
   "sprayed_tree_change_kinds": {

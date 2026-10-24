@@ -66,7 +66,11 @@ Stability (whole stream, per ID, independent of publish rate):
 Safety (must all be zero; ``None`` = not judgeable from the inputs given):
   * undefined_height_frames, invalid_entry_frames, duplicate_id_frames.
   * implausible_height_frames: a finite height <= 0, or (pose given, inside the
-    mission window) above the drone's altitude.
+    mission window) above the drone's altitude. With reliable truth heights an entry
+    above the drone is flagged only if it is also above the truth top + 
+    implausible_truth_tol_m, where the truth top is the highest truth tree holding
+    >= own_min of the entry (an entry owned by no truth tree keeps the plain test):
+    a descent hover at or below a tall tree's canopy top is not a height error.
   * new_trees_after_scan: IDs first published -- or reused -- in a locked phase.
   * locked_id_vanished: an ID present in the previous snapshot is gone while the
     phase is locked (``*_targets`` = it was the hop target).
@@ -133,6 +137,7 @@ class ScoreConfig:
     reuse_overlap_max: float = 0.10  # reappearing ID overlapping its pre-gap outline less = reused
     inside_sprayed_min: float = 0.30  # new entry with >= this share inside sprayed outlines
     undefined_height_error_m: float = 15.0  # height error charged for an undefined height (~scan altitude)
+    implausible_truth_tol_m: float = 0.5  # above-the-drone heights within this of the truth top are not flagged
     sample_dt_s: float = 0.2         # per-frame sampling grid (5 Hz)
     locked_phases: Tuple[str, ...] = ("PLANNING", "HOPPING", "SPRAYING")
     approach_phases: Tuple[str, ...] = ("HOPPING",)
@@ -596,7 +601,11 @@ def score(snaps: List[Snapshot], gt: Optional[List[GroundTruthTree]] = None, mis
             ever_merged |= set(d["merged_tree_ids"])
         res["stability"]["truth_trees_ever_split"] = sorted(ever_split)
         res["stability"]["truth_trees_ever_in_a_merged_entry"] = sorted(ever_merged)
-    res["safety"] = safety_metrics(views, births, mission, cfg, t0, t1)
+    truth_tops = None
+    if frames is not None and res.get("gt_height_reliable"):
+        truth_tops = [[max((f.gt[j].height for j in range(len(f.gt)) if f.share[i, j] >= cfg.own_min), default=None)
+                       for i in range(len(f.trees))] for f in frames]
+    res["safety"] = safety_metrics(views, births, mission, cfg, t0, t1, truth_tops)
     res["cost"] = cost_metrics(snaps)
     res["ids_ever_published"] = sorted({t.id for s in snaps for t in s.trees})
     return res
@@ -825,7 +834,10 @@ def stability_metrics(views: List[SnapView], frames: Optional[List[Frame]], birt
 
 
 def safety_metrics(views: List[SnapView], births, mission: Mission, cfg: ScoreConfig,
-                   t0: Optional[float], t1: Optional[float]) -> dict:
+                   t0: Optional[float], t1: Optional[float],
+                   truth_tops: Optional[List[List[Optional[float]]]] = None) -> dict:
+    """``truth_tops[k][i]``: the truth top under entry i of snapshot k (None = no owning truth tree);
+    ``truth_tops`` None = no reliable truth heights (plain above-the-drone test)."""
     out: dict = {}
     # ---- per-snapshot hygiene: undefined heights, invalid entries, duplicate IDs, implausible heights
     pl = PoseLookup(mission.pose)
@@ -834,7 +846,8 @@ def safety_metrics(views: List[SnapView], births, mission: Mission, cfg: ScoreCo
     und_f = und_i = inv_f = dup_f = imp_f = 0
     und_ev, inv_ev, dup_ev, imp_ev = [], [], [], []
     inv_reasons: Dict[str, int] = {}
-    for v in views:
+    imp_excused = 0
+    for k, v in enumerate(views):
         bad = [tr.id for tr in v.trees if not _finite(tr.height)]
         if bad:
             und_f += 1
@@ -854,8 +867,21 @@ def safety_metrics(views: List[SnapView], births, mission: Mission, cfg: ScoreCo
             if len(dup_ev) < MAX_EVENTS:
                 dup_ev.append({"t": round(v.t, 3), "ids": v.dup_ids})
         p = pl.at(v.t) if (mission.pose and t0 is not None and t0 <= v.t < t_end) else None
-        imp = [{"id": tr.id, "height": round(tr.height, 3)} for tr in v.trees if _finite(tr.height) and
-               (tr.height <= 0 or (p is not None and tr.height > p[3]))]
+        imp = []
+        for i, tr in enumerate(v.trees):
+            if not _finite(tr.height):
+                continue
+            if tr.height <= 0:
+                imp.append({"id": tr.id, "height": round(tr.height, 3)})
+            elif p is not None and tr.height > p[3]:
+                top = truth_tops[k][i] if truth_tops is not None else None
+                if top is not None and tr.height <= top + cfg.implausible_truth_tol_m:
+                    imp_excused += 1           # accurate height of a tree whose top is above the hover
+                    continue
+                e = {"id": tr.id, "height": round(tr.height, 3)}
+                if top is not None:
+                    e["truth_top"] = round(top, 3)
+                imp.append(e)
         if imp:
             imp_f += 1
             if len(imp_ev) < MAX_EVENTS:
@@ -865,9 +891,13 @@ def safety_metrics(views: List[SnapView], births, mission: Mission, cfg: ScoreCo
                 "invalid_entry_frames": inv_f, "invalid_entry_reasons": inv_reasons, "invalid_entry_events": inv_ev,
                 "duplicate_id_frames": dup_f, "duplicate_id_events": dup_ev,
                 "implausible_height_frames": imp_f, "implausible_height_events": imp_ev,
-                "implausible_height_definition": ("finite height <= 0, or above the drone altitude inside the "
-                                                  "mission window" if mission.pose else
-                                                  "finite height <= 0 (no pose: drone-altitude test not run)")})
+                "implausible_height_excused_entries": imp_excused if truth_tops is not None else None,
+                "implausible_height_definition": (
+                    "finite height <= 0 (no pose: drone-altitude test not run)" if not mission.pose else
+                    "finite height <= 0, or above the drone altitude inside the mission window" +
+                    ("" if truth_tops is None else
+                     " and above the owning truth top + %.2f m (no owning truth tree: drone test only)"
+                     % cfg.implausible_truth_tol_m))})
 
     # ---- sprayed protection (persistent record per sprayed ID) + new trees inside sprayed outlines
     records: Dict[int, dict] = {}
@@ -1167,7 +1197,11 @@ def to_markdown(res: dict, title: str) -> str:
           "| Frames publishing an undefined height | %d |" % sa["undefined_height_frames"],
           "| Frames with an invalid entry (non-finite centre/outline, < 3 vertices, zero area) | %d |" % sa["invalid_entry_frames"],
           "| Frames with a duplicate ID | %d |" % sa["duplicate_id_frames"],
-          "| Frames with an implausible height (<= 0 or above the drone) | %d |" % sa["implausible_height_frames"],
+          "| Frames with an implausible height (<= 0, or above the drone%s) | %d |" % (
+              "" if sa.get("implausible_height_excused_entries") is None else
+              " and above truth top + %.1f m; %d accurate entries excused" % (
+                  cfgd["implausible_truth_tol_m"], sa["implausible_height_excused_entries"]),
+              sa["implausible_height_frames"]),
           "| New (or reused) IDs while the list is locked (%s) | %s |" % ("/".join(cfgd["locked_phases"]), _f(sa.get("new_trees_after_scan"))),
           "| IDs vanished while the list is locked (of which the hop target) | %s (%s) |" % (_f(sa.get("locked_id_vanished")), _f(sa.get("locked_id_vanished_targets"))),
           "| Non-target changes during descent (%s snapshots judged: approach %s, spraying %s, climb-out %s) | %s |" % (

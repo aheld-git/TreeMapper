@@ -3,7 +3,7 @@
 The scorer (`tools/treemapper_tools/score.py`) judges **any** system that writes the output contract as files.
 It never looks at how a map was made. The module docstring is the authoritative definition list, and `ScoreConfig`
 holds every threshold. This page is the summary, with reasons. Decisions R1-R13 in `docs/DECISIONS.md` (scorer review series) record
-the 2026-10-24 review fixes.
+the 2026-10-24 review fixes; R14 the truth-aware implausible-height test (M3).
 
 ## Commands (inside tm_dev)
 
@@ -93,7 +93,7 @@ Second variant: from the first non-empty snapshot to the window end.
 | `undefined_height_frames` | snapshots with any non-finite / missing height |
 | `invalid_entry_frames` | snapshots with an invalid entry (see above) |
 | `duplicate_id_frames` | snapshots with an ID used twice |
-| `implausible_height_frames` | a finite height <= 0, or (pose given, inside the mission window) above the drone's altitude |
+| `implausible_height_frames` | a finite height <= 0, or (pose given, inside the mission window) above the drone's altitude. With **reliable** truth heights (R14) an above-the-drone entry counts only if it is also above its truth top + 0.5 m (`implausible_truth_tol_m`); truth top = the tallest truth tree holding >= 20 % of the entry, and an entry no truth tree owns keeps the plain test. Without truth, or with unreliable truth heights (the Isaac recording), the plain definition applies. Excused entries: `implausible_height_excused_entries` |
 | `new_trees_after_scan` | IDs first published, **or reused**, while the phase is PLANNING / HOPPING / SPRAYING |
 | `locked_id_vanished` | an ID present in the previous snapshot is gone while the phase is locked (`_targets`: it was the hop target) |
 | `nontarget_changes_in_descent` | in a descent-window snapshot, any tree other than the current target changes outline, centre or height, vanishes, or appears |

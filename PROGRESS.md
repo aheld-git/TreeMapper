@@ -10,8 +10,8 @@ Autonomous, time-boxed build of the on-board tree mapper (see `docs/PROJECT_BRIE
 |---|---|---|---|
 | M1 | 15:00–17:00 | Repo skeleton (core lib, tools package, msgs package, test runner); bag extraction; scorer; **baseline scorecard of the existing system** | **done** |
 | M2 | 17:00–18:30 | Synthetic orchard generator (hard noise, seeded, full missions) + a deliberately simple baseline system; both scored on synthetic and recorded data | **done** (15:20-16:15) |
-| M3 | 18:30–21:30 | >= 2 genuinely different architectures (e.g. per-object tracking+fusion vs spatial evidence grid), compared with the scorer over many seeds + noise floor; pick one | next |
-| M4 | 21:30–23:10 | Hardening of the chosen design; a test per rule of brief section 7; single config file + defaults test; ROS 1 wrappers + launch files (real-log and sim modes) built in tm_dev | |
+| M3 | 18:30–21:30 | >= 2 genuinely different architectures (e.g. per-object tracking+fusion vs spatial evidence grid), compared with the scorer over many seeds + noise floor; pick one | **done** — **cand_obj chosen** (D31, `results/m3_comparison.md`) |
+| M4 | next (19:00–23:10) | Hardening of the chosen design; a test per rule of brief section 7; single config file + defaults test; ROS 1 wrappers + launch files (real-log and sim modes) built in tm_dev | |
 | M5 | 23:10–00:00 | Handoff: README, results report, design doc (section 10 answers), decision log; everything committed | |
 
 If behind: cut alternatives, never the scorer, the safety-rule tests or the handoff.
@@ -241,6 +241,46 @@ The JSON (`paired` key) carries the per-seed difference for every headline metri
   bag) is still to be written; the stride-4 disparity grid and calibration path should carry over. Its disparity
   is 1/16 px quantised, ~0.1 px noise, 97-98 % valid.
 - Python stays 3.8-compatible. Scorer files belong to the scorer owner: change them only with a decision-log entry.
+
+## M3 delivered (selection, 2026-10-24 18:00-19:00)
+
+- Candidates (frozen, commit d5ce8be): `cand_obj` (per-instance crowns + evidence latching, `docs/candidates/cand_obj.md`)
+  and `cand_grid` (fused 2.5D DSM + persistence watershed, `docs/candidates/cand_grid.md`).
+- **Scorer R14**: implausible heights judged against the truth top + 0.5 m when truth heights are reliable (tests added;
+  baseline pin unchanged). Candidates' hard-level "violations" (624 / 527 frames) were all accurate heights under a
+  low hover -> 0; simple's 1670 remain.
+- **Final comparison on the held-out suite** `/data/work/holdout/suite_holdout` (30 missions) + the recording:
+  `results/m3_comparison.{md,json}`; rerun: per level `python3 -m treemapper_tools.evaluate --system simple,cand_obj,cand_grid
+  --suite <level dir of symlinks> --reference simple`, then `python3 -m treemapper_tools.m3_compare --eval <dir>`.
+
+| held-out, mean (medium / hard) | simple | cand_obj | cand_grid |
+|---|---|---|---|
+| recall | 0.39 / 0.11 | 0.98 / 0.87 | 0.96 / 0.76 |
+| precision | 0.48 / 0.12 | 0.98 / 0.99 | 0.99 / 0.95 |
+| mean IoU | 0.32 / 0.34 | 0.76 / 0.59 | 0.77 / 0.64 |
+| neighbours swallowed | 14.3 / 29.3 | 1.0 / 3.6 | 0.7 / 5.3 |
+| false trees | 10 / 18.7 | 0 / 0 | 0 / 0.8 |
+| height RMSE m | 0.59 / 0.86 | 0.26 / 0.48 | 0.15 / 0.42 |
+| spill | 0.68 / 0.81 | 0.17 / 0.25 | 0.15 / 0.24 |
+| centre jumps | 15 / 24 | 7.4 / 6.3 | 0.7 / 3.7 |
+| safety violations | 6.5 / 160.5 | 0 / 0 | 0 / 0 |
+| scan latency s | 1.18 / 0.80 | 1.85 / 2.24 | 2.38 / 2.66 |
+
+Recording: cand_obj / cand_grid / simple / existing recall 1 / 1 / 0.89 / 0.78, IoU 0.86 / 0.85 / 0.73 / 0.63, safety
+0 / 0 / 0 / 5, latency 2.23 / 2.30 / 2.39 / 1.19 s.
+
+## What M4 must do (cand_obj hardening)
+
+Work list with evidence in `results/m3_comparison.md` ("M4 work list"); in short:
+1. Height statistic: high quantile of latched surface instead of the crown-top-cell median (two Isaac trees published
+   ~1.1-1.5 m below the others; +-2.5 m tails on medium_s105), keep locked heights frozen.
+2. Publication stability from cand_grid: rate-limit centre/height motion and/or require an observed peak
+   neighbourhood (7.4 centre jumps per medium mission vs 0.7).
+3. cand_grid's relative-height latch (0.6 x peak CHM) for spill; its range / off-axis / rotation-rate weighting.
+4. Test that a fragment can never take over a published tree's match (Isaac transient duplicate at 178 s).
+5. Fix the generator's hover altitude (D30), generate a new tuning suite; never touch `suite_holdout`.
+6. Then the original M4 scope: a test per brief section 7 rule, single config + defaults test, ROS 1 wrappers + launch
+   files (real-log and sim) built in tm_dev.
 
 ## M1 notes: bag facts and contract details (still valid)
 
