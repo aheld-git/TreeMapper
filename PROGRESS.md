@@ -94,11 +94,16 @@ optional `stage_ms` per snapshot for cost. The synthetic generator should write 
 `mission.json`, `camera_info.json` in the same formats so `score.py` works unchanged.
 
 **Watch out / unverified:**
-- `/tf_static` in the bag parents `bottom_left_camera`/`bottom_right_camera` directly to `world` (Isaac quirk);
-  the camera->body extrinsic for reprojection has to be worked out (or assume nadir, image axes vs body yaw
-  unknown). Not investigated in M1.
-- `/disparity_image_down_float` has 28874 messages vs 14975 left images (~2x): probably two publishers or
-  duplicates; check stamps before using it. Detection stamps vs image stamps not checked.
+- `/tf_static` in the bag parents `bottom_left_camera`/`bottom_right_camera` directly to `world` (Isaac quirk).
+  The translation (0.146, ±0.080, 0.071) is clearly the mount offset relative to `body`, and the rotation
+  (q = 0.707, -0.707, 0.021, -0.021) maps optical z to -z (nadir). Likely meaning: parent should be `body`.
+  **Unverified** — check by reprojecting disparity of a known tree against the truth before relying on it.
+  Images and disparity carry frame_id `body_bottom`, 640x400 (mono8 / 32FC1).
+- Stamps (checked in M1, one pass over the bag): left 14975 / right 15115 images (~54 Hz, unique stamps);
+  `/disparity_image_down_float` 28874 messages but only 14630 unique stamps — **every disparity frame is
+  published ~twice** (one publisher, `/depth_to_disparity_node`, i.e. simulator depth, not stereo matching);
+  de-duplicate by stamp. 90 % of disparity stamps equal a left-image stamp exactly (max offset 32.5 ms).
+  Detections (~27 Hz when awake): 99.5 % of stamps equal a left-image stamp exactly (max 32.5 ms).
 - The detector in the recording sleeps outside SCAN/PLANNING/HOPPING (no detections in SCAN_APPROACH/SPRAYING).
 - Scorer thresholds (`ScoreConfig`) are fixed for comparability; change them only with a decision-log entry and
   re-score every system.
