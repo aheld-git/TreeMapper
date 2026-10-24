@@ -21,6 +21,26 @@ This file **overrides** the cloud assumptions in `PROJECT_BRIEF.md`. Everything 
   Always mount the data read-only (`:ro`) exactly as shown: the container runs as root and would otherwise bypass file permissions. Files the container writes into `/ws` are owned by root, so pass `--user $(id -u):$(id -g)` when you can. Use it to build and test the ROS wrappers, and to read bags with the real `rosbag` API if you want that. Pure-Python bag reading on the host, for example `rosbags` in a venv under `work/`, is also fine.
 - **Target hardware:** the Jetson Orin Nano is **not available during this run**. Do not ssh anywhere. Design for it as the brief says (C++17, arm64-friendly dependencies, a modest CPU budget), and list what needs on-device verification in the handoff.
 
+## The dev container: run EVERYTHING inside it
+
+All building, testing, scoring, data extraction and package installs run inside the dedicated container **`tm_dev`**. The host stays untouched: no host venv, no host pip, no host builds. The container is already running:
+
+```
+docker exec tm_dev bash -lc 'source /opt/ros/noetic/setup.bash && cd /ws && <command>'
+```
+
+- **Image:** Ubuntu 20.04 with ROS Noetic desktop-full. It is the same OS and ROS stack as the target Orin. It ships g++ 9.4 (C++17), CMake 3.16, gtest under `/usr/src/googletest`, Python 3.8, `rosbag`, numpy, shapely 2.0 and CGAL 5.5.
+- **Mounts:**
+  - `/ws` is the repo (read-write);
+  - `/data/isaac` and `/data/real` are the bags, **read-only**;
+  - `/data/work` is scratch (read-write).
+
+  The container runs as uid 1000 with `HOME=/data/work/home`.
+- **Limits:** 8 CPUs and 16 GB RAM. Its network is not the host network, so it cannot collide with any ROS master. It has no access to the Docker socket.
+- **Python packages:** if you need one that isn't there, install it with `pip install --user` inside the container; it lands under `/data/work/home`. Or create a venv under `/data/work` with `--system-site-packages`, so `rosbag` stays visible. Record every addition in `docs/DECISIONS.md` and keep a `requirements` file in the repo, so the environment can be rebuilt.
+- **Hands off the container itself.** Never stop, remove or recreate `tm_dev`. Your file edits happen in the repo on the host (`/home/alex/SUIND/TreeMapper`, the same files as `/ws`). Commands run in the container.
+- **Other containers:** the earlier `docker run --rm --name tm_*` example is superseded; use `tm_dev`.
+
 ## Hard rules: never break these
 
 1. **Don't touch other work.** Do not stop, remove, restart or exec into containers you did not start. `mlflow` and `wasp_sim` belong to other work. Never run `docker compose`, `docker stop/kill/rm/rmi/prune` on anything but your own `tm_*` containers. Never touch `/home/alex/SUIND/*` other than `TreeMapper`, and never touch `/media/alex/waspsim/*` other than `cloud_build_bundle/work`.
