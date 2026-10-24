@@ -64,7 +64,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.6769230769230765
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5116924418604651, \"p95_ms\": 0.61687, \"max_ms\": 0.6776, \"n\": 344}, \"integrate\": {\"mean_ms\": 0.011706395348837207, \"p95_ms\": 0.04155499999999999, \"max_ms\": 0.0651, \"n\": 344}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5122636627906977, \"p95_ms\": 0.61998, \"max_ms\": 0.6866, \"n\": 344}, \"integrate\": {\"mean_ms\": 0.01165436046511628, \"p95_ms\": 0.04207999999999997, \"max_ms\": 0.0652, \"n\": 344}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s00_r0"
      },
      {
@@ -103,7 +103,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.6769230769230765
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5167703488372093, \"p95_ms\": 0.62428, \"max_ms\": 0.683, \"n\": 344}, \"integrate\": {\"mean_ms\": 0.011809593023255814, \"p95_ms\": 0.042185, \"max_ms\": 0.0651, \"n\": 344}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5155854651162791, \"p95_ms\": 0.61758, \"max_ms\": 0.7727, \"n\": 344}, \"integrate\": {\"mean_ms\": 0.011912790697674421, \"p95_ms\": 0.042085, \"max_ms\": 0.0668, \"n\": 344}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s00_r1"
      }
     ],
@@ -144,7 +144,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5499999999999997
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5289501400560224, \"p95_ms\": 0.6383, \"max_ms\": 0.6903, \"n\": 357}, \"integrate\": {\"mean_ms\": 0.012385434173669467, \"p95_ms\": 0.036039999999999996, \"max_ms\": 0.0507, \"n\": 357}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5249647058823529, \"p95_ms\": 0.63356, \"max_ms\": 0.6859, \"n\": 357}, \"integrate\": {\"mean_ms\": 0.012403921568627452, \"p95_ms\": 0.03596, \"max_ms\": 0.0504, \"n\": 357}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s01_r0"
      },
      {
@@ -183,7 +183,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5499999999999997
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5344655462184873, \"p95_ms\": 0.64964, \"max_ms\": 0.7529, \"n\": 357}, \"integrate\": {\"mean_ms\": 0.012452941176470587, \"p95_ms\": 0.0373, \"max_ms\": 0.0515, \"n\": 357}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5313310924369749, \"p95_ms\": 0.64754, \"max_ms\": 0.7014, \"n\": 357}, \"integrate\": {\"mean_ms\": 0.012635574229691875, \"p95_ms\": 0.03732, \"max_ms\": 0.0516, \"n\": 357}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s01_r1"
      }
     ],
@@ -224,7 +224,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5357142857142857
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4117074675324675, \"p95_ms\": 0.5089, \"max_ms\": 0.5626, \"n\": 308}, \"integrate\": {\"mean_ms\": 0.012193506493506494, \"p95_ms\": 0.034889999999999984, \"max_ms\": 0.0483, \"n\": 308}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4092237012987013, \"p95_ms\": 0.501865, \"max_ms\": 0.59, \"n\": 308}, \"integrate\": {\"mean_ms\": 0.012130194805194805, \"p95_ms\": 0.03419499999999999, \"max_ms\": 0.0495, \"n\": 308}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s02_r0"
      },
      {
@@ -263,7 +263,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5357142857142857
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4106253246753247, \"p95_ms\": 0.5038199999999999, \"max_ms\": 0.7324, \"n\": 308}, \"integrate\": {\"mean_ms\": 0.01216525974025974, \"p95_ms\": 0.03432999999999999, \"max_ms\": 0.0485, \"n\": 308}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.41294383116883115, \"p95_ms\": 0.5018849999999999, \"max_ms\": 0.6944, \"n\": 308}, \"integrate\": {\"mean_ms\": 0.012372727272727273, \"p95_ms\": 0.03492499999999999, \"max_ms\": 0.0495, \"n\": 308}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s02_r1"
      }
     ],
@@ -304,7 +304,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.6285714285714287
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5134049723756907, \"p95_ms\": 0.6255550000000001, \"max_ms\": 0.7613, \"n\": 362}, \"integrate\": {\"mean_ms\": 0.011637845303867404, \"p95_ms\": 0.037485, \"max_ms\": 0.063, \"n\": 362}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5107977900552486, \"p95_ms\": 0.61488, \"max_ms\": 0.7251, \"n\": 362}, \"integrate\": {\"mean_ms\": 0.011475966850828728, \"p95_ms\": 0.037279999999999994, \"max_ms\": 0.052, \"n\": 362}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s03_r0"
      },
      {
@@ -343,7 +343,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.6285714285714287
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5120975138121547, \"p95_ms\": 0.617475, \"max_ms\": 0.7373, \"n\": 362}, \"integrate\": {\"mean_ms\": 0.011638121546961326, \"p95_ms\": 0.03934999999999999, \"max_ms\": 0.0523, \"n\": 362}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5104687845303867, \"p95_ms\": 0.611475, \"max_ms\": 0.728, \"n\": 362}, \"integrate\": {\"mean_ms\": 0.011678453038674035, \"p95_ms\": 0.03920499999999998, \"max_ms\": 0.068, \"n\": 362}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s03_r1"
      }
     ],
@@ -384,7 +384,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5866666666666664
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.41161017441860465, \"p95_ms\": 0.5192249999999998, \"max_ms\": 0.6002, \"n\": 344}, \"integrate\": {\"mean_ms\": 0.013595058139534882, \"p95_ms\": 0.04960999999999998, \"max_ms\": 0.0659, \"n\": 344}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.41365901162790697, \"p95_ms\": 0.528685, \"max_ms\": 0.6156, \"n\": 344}, \"integrate\": {\"mean_ms\": 0.013791279069767442, \"p95_ms\": 0.0519, \"max_ms\": 0.074, \"n\": 344}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s04_r0"
      },
      {
@@ -423,7 +423,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5866666666666664
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4060127906976745, \"p95_ms\": 0.5062399999999999, \"max_ms\": 0.5884, \"n\": 344}, \"integrate\": {\"mean_ms\": 0.013517732558139536, \"p95_ms\": 0.04942999999999994, \"max_ms\": 0.0659, \"n\": 344}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.41468284883720924, \"p95_ms\": 0.5112049999999999, \"max_ms\": 0.6136, \"n\": 344}, \"integrate\": {\"mean_ms\": 0.013747093023255814, \"p95_ms\": 0.051594999999999905, \"max_ms\": 0.0692, \"n\": 344}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/easy_s04_r1"
      }
     ],
@@ -464,7 +464,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.8111111111111111
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4177273148148148, \"p95_ms\": 0.612235, \"max_ms\": 0.7781, \"n\": 432}, \"integrate\": {\"mean_ms\": 0.024721990740740742, \"p95_ms\": 0.09316999999999999, \"max_ms\": 0.135, \"n\": 432}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.41308287037037034, \"p95_ms\": 0.60627, \"max_ms\": 0.7641, \"n\": 432}, \"integrate\": {\"mean_ms\": 0.024303472222222223, \"p95_ms\": 0.09187, \"max_ms\": 0.1316, \"n\": 432}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s00_r0"
      },
      {
@@ -503,7 +503,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.8111111111111111
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.41640648148148146, \"p95_ms\": 0.6014599999999999, \"max_ms\": 0.7674, \"n\": 432}, \"integrate\": {\"mean_ms\": 0.024736805555555557, \"p95_ms\": 0.09362999999999998, \"max_ms\": 0.1415, \"n\": 432}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4107050925925926, \"p95_ms\": 0.593475, \"max_ms\": 0.7773, \"n\": 432}, \"integrate\": {\"mean_ms\": 0.02432222222222222, \"p95_ms\": 0.092095, \"max_ms\": 0.1318, \"n\": 432}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s00_r1"
      }
     ],
@@ -544,7 +544,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5956521739130433
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3457428223844282, \"p95_ms\": 0.5099, \"max_ms\": 0.631, \"n\": 411}, \"integrate\": {\"mean_ms\": 0.04338248175182482, \"p95_ms\": 0.17235, \"max_ms\": 0.4281, \"n\": 411}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.34567664233576645, \"p95_ms\": 0.5186, \"max_ms\": 0.6905, \"n\": 411}, \"integrate\": {\"mean_ms\": 0.04368661800486618, \"p95_ms\": 0.1736, \"max_ms\": 0.4355, \"n\": 411}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s01_r0"
      },
      {
@@ -583,7 +583,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5956521739130433
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3462693430656934, \"p95_ms\": 0.5078499999999999, \"max_ms\": 0.6128, \"n\": 411}, \"integrate\": {\"mean_ms\": 0.043664963503649644, \"p95_ms\": 0.1787, \"max_ms\": 0.4289, \"n\": 411}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3457352798053528, \"p95_ms\": 0.51135, \"max_ms\": 0.6057, \"n\": 411}, \"integrate\": {\"mean_ms\": 0.04338467153284671, \"p95_ms\": 0.1725, \"max_ms\": 0.426, \"n\": 411}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s01_r1"
      }
     ],
@@ -624,7 +624,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5999999999999998
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4216671497584541, \"p95_ms\": 0.594705, \"max_ms\": 0.6673, \"n\": 414}, \"integrate\": {\"mean_ms\": 0.03765458937198068, \"p95_ms\": 0.13807, \"max_ms\": 0.2705, \"n\": 414}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4188294685990338, \"p95_ms\": 0.5884699999999999, \"max_ms\": 0.6664, \"n\": 414}, \"integrate\": {\"mean_ms\": 0.03765289855072464, \"p95_ms\": 0.14037499999999997, \"max_ms\": 0.2686, \"n\": 414}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s02_r0"
      },
      {
@@ -663,7 +663,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.5999999999999998
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.42354009661835745, \"p95_ms\": 0.5974949999999998, \"max_ms\": 0.8113, \"n\": 414}, \"integrate\": {\"mean_ms\": 0.038254589371980674, \"p95_ms\": 0.144705, \"max_ms\": 0.2769, \"n\": 414}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.41769057971014495, \"p95_ms\": 0.5883099999999999, \"max_ms\": 0.6766, \"n\": 414}, \"integrate\": {\"mean_ms\": 0.037243961352657, \"p95_ms\": 0.137605, \"max_ms\": 0.2691, \"n\": 414}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s02_r1"
      }
     ],
@@ -704,7 +704,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.9263157894736846
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.40549080188679243, \"p95_ms\": 0.5708949999999999, \"max_ms\": 0.6811, \"n\": 424}, \"integrate\": {\"mean_ms\": 0.04173490566037735, \"p95_ms\": 0.16611999999999988, \"max_ms\": 0.2965, \"n\": 424}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4038757075471698, \"p95_ms\": 0.572855, \"max_ms\": 0.7663, \"n\": 424}, \"integrate\": {\"mean_ms\": 0.041542924528301876, \"p95_ms\": 0.16430999999999998, \"max_ms\": 0.3087, \"n\": 424}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s03_r0"
      },
      {
@@ -743,7 +743,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.9263157894736846
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4057834905660378, \"p95_ms\": 0.57421, \"max_ms\": 0.6783, \"n\": 424}, \"integrate\": {\"mean_ms\": 0.0413931603773585, \"p95_ms\": 0.16526499999999997, \"max_ms\": 0.2919, \"n\": 424}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.40466957547169813, \"p95_ms\": 0.57075, \"max_ms\": 0.7662, \"n\": 424}, \"integrate\": {\"mean_ms\": 0.04115825471698113, \"p95_ms\": 0.16324, \"max_ms\": 0.2909, \"n\": 424}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s03_r1"
      }
     ],
@@ -784,7 +784,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.7857142857142861
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3855047210300429, \"p95_ms\": 0.5707, \"max_ms\": 0.7401, \"n\": 466}, \"integrate\": {\"mean_ms\": 0.028236480686695282, \"p95_ms\": 0.099825, \"max_ms\": 0.1625, \"n\": 466}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.38905407725321883, \"p95_ms\": 0.5752, \"max_ms\": 0.7398, \"n\": 466}, \"integrate\": {\"mean_ms\": 0.0282675965665236, \"p95_ms\": 0.099975, \"max_ms\": 0.1584, \"n\": 466}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s04_r0"
      },
      {
@@ -823,7 +823,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.7857142857142861
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3852740343347639, \"p95_ms\": 0.5711250000000001, \"max_ms\": 0.733, \"n\": 466}, \"integrate\": {\"mean_ms\": 0.028364163090128756, \"p95_ms\": 0.09975, \"max_ms\": 0.162, \"n\": 466}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3829010729613734, \"p95_ms\": 0.5605249999999999, \"max_ms\": 0.7758, \"n\": 466}, \"integrate\": {\"mean_ms\": 0.028565665236051502, \"p95_ms\": 0.101375, \"max_ms\": 0.1634, \"n\": 466}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/hard_s04_r1"
      }
     ],
@@ -864,7 +864,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 1.29375
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.48967441253263705, \"p95_ms\": 0.6066699999999999, \"max_ms\": 0.7284, \"n\": 383}, \"integrate\": {\"mean_ms\": 0.01825822454308094, \"p95_ms\": 0.0777, \"max_ms\": 0.1098, \"n\": 383}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.49523603133159266, \"p95_ms\": 0.62657, \"max_ms\": 0.7546, \"n\": 383}, \"integrate\": {\"mean_ms\": 0.018451697127937337, \"p95_ms\": 0.07825999999999998, \"max_ms\": 0.111, \"n\": 383}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s00_r0"
      },
      {
@@ -903,7 +903,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 1.29375
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5088242819843343, \"p95_ms\": 0.6500299999999999, \"max_ms\": 0.8836, \"n\": 383}, \"integrate\": {\"mean_ms\": 0.019240731070496085, \"p95_ms\": 0.08275999999999994, \"max_ms\": 0.128, \"n\": 383}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.49011906005221934, \"p95_ms\": 0.60203, \"max_ms\": 0.7034, \"n\": 383}, \"integrate\": {\"mean_ms\": 0.01829556135770235, \"p95_ms\": 0.07748, \"max_ms\": 0.1139, \"n\": 383}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s00_r1"
      }
     ],
@@ -944,7 +944,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.6117647058823529
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4925207182320442, \"p95_ms\": 0.6062099999999999, \"max_ms\": 0.6774, \"n\": 362}, \"integrate\": {\"mean_ms\": 0.02430082872928177, \"p95_ms\": 0.092485, \"max_ms\": 0.1256, \"n\": 362}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.48590635359116024, \"p95_ms\": 0.591585, \"max_ms\": 0.6464, \"n\": 362}, \"integrate\": {\"mean_ms\": 0.024036740331491713, \"p95_ms\": 0.091955, \"max_ms\": 0.1254, \"n\": 362}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s01_r0"
      },
      {
@@ -983,7 +983,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.6117647058823529
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.48540856353591155, \"p95_ms\": 0.5915, \"max_ms\": 0.6381, \"n\": 362}, \"integrate\": {\"mean_ms\": 0.024216022099447506, \"p95_ms\": 0.09247999999999999, \"max_ms\": 0.1281, \"n\": 362}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4894298342541436, \"p95_ms\": 0.59569, \"max_ms\": 0.6881, \"n\": 362}, \"integrate\": {\"mean_ms\": 0.02422403314917127, \"p95_ms\": 0.09149, \"max_ms\": 0.1271, \"n\": 362}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s01_r1"
      }
     ],
@@ -1024,7 +1024,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.7187500000000001
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5076446524064171, \"p95_ms\": 0.64601, \"max_ms\": 0.8832, \"n\": 374}, \"integrate\": {\"mean_ms\": 0.014083689839572195, \"p95_ms\": 0.0498, \"max_ms\": 0.1277, \"n\": 374}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5103294117647059, \"p95_ms\": 0.6482749999999999, \"max_ms\": 0.7059, \"n\": 374}, \"integrate\": {\"mean_ms\": 0.014203475935828876, \"p95_ms\": 0.050969999999999994, \"max_ms\": 0.1059, \"n\": 374}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s02_r0"
      },
      {
@@ -1063,7 +1063,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.7187500000000001
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5117433155080214, \"p95_ms\": 0.6450449999999999, \"max_ms\": 0.7121, \"n\": 374}, \"integrate\": {\"mean_ms\": 0.014135294117647057, \"p95_ms\": 0.04953999999999999, \"max_ms\": 0.1061, \"n\": 374}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5072093582887701, \"p95_ms\": 0.64504, \"max_ms\": 1.028, \"n\": 374}, \"integrate\": {\"mean_ms\": 0.01402245989304813, \"p95_ms\": 0.049439999999999984, \"max_ms\": 0.1071, \"n\": 374}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s02_r1"
      }
     ],
@@ -1104,7 +1104,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.7666666666666665
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.39532631578947375, \"p95_ms\": 0.529365, \"max_ms\": 0.653, \"n\": 342}, \"integrate\": {\"mean_ms\": 0.019987426900584793, \"p95_ms\": 0.08021999999999997, \"max_ms\": 0.1158, \"n\": 342}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.38694707602339173, \"p95_ms\": 0.51169, \"max_ms\": 0.5967, \"n\": 342}, \"integrate\": {\"mean_ms\": 0.019821345029239767, \"p95_ms\": 0.07927, \"max_ms\": 0.1141, \"n\": 342}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s03_r0"
      },
      {
@@ -1143,7 +1143,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.7666666666666665
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3957090643274855, \"p95_ms\": 0.5255, \"max_ms\": 0.6017, \"n\": 342}, \"integrate\": {\"mean_ms\": 0.020272222222222223, \"p95_ms\": 0.08093499999999999, \"max_ms\": 0.1167, \"n\": 342}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3897938596491228, \"p95_ms\": 0.5130899999999999, \"max_ms\": 0.6094, \"n\": 342}, \"integrate\": {\"mean_ms\": 0.01983245614035088, \"p95_ms\": 0.07908, \"max_ms\": 0.114, \"n\": 342}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s03_r1"
      }
     ],
@@ -1184,7 +1184,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.7124999999999997
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4141616438356165, \"p95_ms\": 0.54268, \"max_ms\": 0.6545, \"n\": 365}, \"integrate\": {\"mean_ms\": 0.01405287671232877, \"p95_ms\": 0.05906000000000001, \"max_ms\": 0.0894, \"n\": 365}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.418446301369863, \"p95_ms\": 0.5459200000000001, \"max_ms\": 0.6533, \"n\": 365}, \"integrate\": {\"mean_ms\": 0.014193424657534247, \"p95_ms\": 0.0591, \"max_ms\": 0.0893, \"n\": 365}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s04_r0"
      },
      {
@@ -1223,7 +1223,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 0.7124999999999997
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4176879452054794, \"p95_ms\": 0.55078, \"max_ms\": 0.6537, \"n\": 365}, \"integrate\": {\"mean_ms\": 0.01409917808219178, \"p95_ms\": 0.05852000000000001, \"max_ms\": 0.0896, \"n\": 365}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4113013698630137, \"p95_ms\": 0.5413600000000001, \"max_ms\": 0.6526, \"n\": 365}, \"integrate\": {\"mean_ms\": 0.013895342465753427, \"p95_ms\": 0.05768, \"max_ms\": 0.0891, \"n\": 365}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/medium_s04_r1"
      }
     ]
@@ -2074,18 +2074,18 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 13.0,
-       "recall (per-frame mean)": 0.8781735505873437,
-       "mean IoU (final)": 0.8859920394898053,
+       "recall (per-frame mean)": 0.8796892762410005,
+       "mean IoU (final)": 0.8857953668021232,
        "min IoU (final)": 0.8165320108938201,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.13664723251440603,
-       "height bias m (final)": -0.033584615384615275,
-       "height RMSE m (final)": 0.04786704342398689,
-       "spill (final)": 0.07076328530869251,
-       "neighbour spill max (final)": 0.0,
+       "centre RMSE m (final)": 0.14400204859653917,
+       "height bias m (final)": -0.03067692307692301,
+       "height RMSE m (final)": 0.04663829723768628,
+       "spill (final)": 0.0731638351568652,
+       "neighbour spill max (final)": 0.00520731072523324,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -2103,9 +2103,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.6307692307692305
+       "scan latency mean s": 1.507692307692307
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.2569301158301159, \"p95_ms\": 0.5013199999999999, \"max_ms\": 0.6702, \"n\": 259}, \"integrate\": {\"mean_ms\": 0.47832529069767443, \"p95_ms\": 0.689785, \"max_ms\": 0.7039, \"n\": 344}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3009622580645161, \"p95_ms\": 0.571675, \"max_ms\": 0.7471, \"n\": 310}, \"integrate\": {\"mean_ms\": 0.4770302325581394, \"p95_ms\": 0.6952, \"max_ms\": 0.7191, \"n\": 344}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s00_r0"
      },
      {
@@ -2113,18 +2113,18 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 13.0,
-       "recall (per-frame mean)": 0.8781735505873437,
-       "mean IoU (final)": 0.8859920394898053,
+       "recall (per-frame mean)": 0.8796892762410005,
+       "mean IoU (final)": 0.8857953668021232,
        "min IoU (final)": 0.8165320108938201,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.13664723251440603,
-       "height bias m (final)": -0.033584615384615275,
-       "height RMSE m (final)": 0.04786704342398689,
-       "spill (final)": 0.07076328530869251,
-       "neighbour spill max (final)": 0.0,
+       "centre RMSE m (final)": 0.14400204859653917,
+       "height bias m (final)": -0.03067692307692301,
+       "height RMSE m (final)": 0.04663829723768628,
+       "spill (final)": 0.0731638351568652,
+       "neighbour spill max (final)": 0.00520731072523324,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -2142,9 +2142,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.6307692307692305
+       "scan latency mean s": 1.507692307692307
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.25645289575289576, \"p95_ms\": 0.4978899999999999, \"max_ms\": 0.673, \"n\": 259}, \"integrate\": {\"mean_ms\": 0.47647470930232555, \"p95_ms\": 0.688985, \"max_ms\": 0.7268, \"n\": 344}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.30240387096774196, \"p95_ms\": 0.5787150000000001, \"max_ms\": 0.7476, \"n\": 310}, \"integrate\": {\"mean_ms\": 0.4800578488372093, \"p95_ms\": 0.701135, \"max_ms\": 0.9673, \"n\": 344}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s00_r1"
      }
     ],
@@ -2154,17 +2154,17 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 14.0,
-       "recall (per-frame mean)": 0.8977156495056255,
-       "mean IoU (final)": 0.8816814441592978,
-       "min IoU (final)": 0.7721162127647567,
+       "recall (per-frame mean)": 0.8989089669280599,
+       "mean IoU (final)": 0.8816208605239456,
+       "min IoU (final)": 0.776494943650001,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.13297380246821955,
-       "height bias m (final)": 0.05017857142857144,
-       "height RMSE m (final)": 0.06536742854270557,
-       "spill (final)": 0.04794263886762418,
+       "centre RMSE m (final)": 0.139977911522803,
+       "height bias m (final)": 0.03680000000000007,
+       "height RMSE m (final)": 0.04697030977117361,
+       "spill (final)": 0.04936655563745173,
        "neighbour spill max (final)": 0.0,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
@@ -2183,9 +2183,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.5000000000000002
+       "scan latency mean s": 1.4
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.27305823293172693, \"p95_ms\": 0.5394199999999999, \"max_ms\": 0.7512, \"n\": 249}, \"integrate\": {\"mean_ms\": 0.47229019607843137, \"p95_ms\": 0.71012, \"max_ms\": 0.7568, \"n\": 357}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.31961033333333333, \"p95_ms\": 0.6183000000000002, \"max_ms\": 0.9346, \"n\": 300}, \"integrate\": {\"mean_ms\": 0.46828431372549023, \"p95_ms\": 0.69554, \"max_ms\": 1.0321, \"n\": 357}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s01_r0"
      },
      {
@@ -2193,17 +2193,17 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 14.0,
-       "recall (per-frame mean)": 0.8977156495056255,
-       "mean IoU (final)": 0.8816814441592978,
-       "min IoU (final)": 0.7721162127647567,
+       "recall (per-frame mean)": 0.8989089669280599,
+       "mean IoU (final)": 0.8816208605239456,
+       "min IoU (final)": 0.776494943650001,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.13297380246821955,
-       "height bias m (final)": 0.05017857142857144,
-       "height RMSE m (final)": 0.06536742854270557,
-       "spill (final)": 0.04794263886762418,
+       "centre RMSE m (final)": 0.139977911522803,
+       "height bias m (final)": 0.03680000000000007,
+       "height RMSE m (final)": 0.04697030977117361,
+       "spill (final)": 0.04936655563745173,
        "neighbour spill max (final)": 0.0,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
@@ -2222,9 +2222,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.5000000000000002
+       "scan latency mean s": 1.4
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.2681265060240964, \"p95_ms\": 0.52204, \"max_ms\": 0.6954, \"n\": 249}, \"integrate\": {\"mean_ms\": 0.4658885154061625, \"p95_ms\": 0.68684, \"max_ms\": 0.7027, \"n\": 357}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.315281, \"p95_ms\": 0.6002900000000001, \"max_ms\": 0.7933, \"n\": 300}, \"integrate\": {\"mean_ms\": 0.46453585434173666, \"p95_ms\": 0.68526, \"max_ms\": 0.7377, \"n\": 357}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s01_r1"
      }
     ],
@@ -2234,18 +2234,18 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 14.0,
-       "recall (per-frame mean)": 0.8698841698841699,
-       "mean IoU (final)": 0.8803143023546093,
+       "recall (per-frame mean)": 0.8712355212355212,
+       "mean IoU (final)": 0.868404838994328,
        "min IoU (final)": 0.7555521096451857,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.12488714047948557,
-       "height bias m (final)": -0.11470714285714297,
-       "height RMSE m (final)": 0.11958178014587831,
-       "spill (final)": 0.05603680751173296,
-       "neighbour spill max (final)": 0.024221600848245237,
+       "centre RMSE m (final)": 0.19258346798948514,
+       "height bias m (final)": -0.12010000000000012,
+       "height RMSE m (final)": 0.12638285937126595,
+       "spill (final)": 0.06791533572331575,
+       "neighbour spill max (final)": 0.0984662049369282,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -2263,9 +2263,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.6285714285714286
+       "scan latency mean s": 1.5285714285714282
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.258034, \"p95_ms\": 0.504365, \"max_ms\": 0.7129, \"n\": 250}, \"integrate\": {\"mean_ms\": 0.4994912337662338, \"p95_ms\": 0.6976249999999999, \"max_ms\": 0.9717, \"n\": 308}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.30097979797979796, \"p95_ms\": 0.5886399999999999, \"max_ms\": 0.8349, \"n\": 297}, \"integrate\": {\"mean_ms\": 0.49710032467532467, \"p95_ms\": 0.687565, \"max_ms\": 0.8138, \"n\": 308}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s02_r0"
      },
      {
@@ -2273,18 +2273,18 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 14.0,
-       "recall (per-frame mean)": 0.8698841698841699,
-       "mean IoU (final)": 0.8803143023546093,
+       "recall (per-frame mean)": 0.8712355212355212,
+       "mean IoU (final)": 0.868404838994328,
        "min IoU (final)": 0.7555521096451857,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.12488714047948557,
-       "height bias m (final)": -0.11470714285714297,
-       "height RMSE m (final)": 0.11958178014587831,
-       "spill (final)": 0.05603680751173296,
-       "neighbour spill max (final)": 0.024221600848245237,
+       "centre RMSE m (final)": 0.19258346798948514,
+       "height bias m (final)": -0.12010000000000012,
+       "height RMSE m (final)": 0.12638285937126595,
+       "spill (final)": 0.06791533572331575,
+       "neighbour spill max (final)": 0.0984662049369282,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -2302,9 +2302,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.6285714285714286
+       "scan latency mean s": 1.5285714285714282
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.2568772, \"p95_ms\": 0.49341, \"max_ms\": 0.7164, \"n\": 250}, \"integrate\": {\"mean_ms\": 0.4996402597402597, \"p95_ms\": 0.6907949999999999, \"max_ms\": 0.7416, \"n\": 308}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.30155993265993264, \"p95_ms\": 0.5881599999999999, \"max_ms\": 0.8504, \"n\": 297}, \"integrate\": {\"mean_ms\": 0.49564512987012993, \"p95_ms\": 0.688765, \"max_ms\": 0.714, \"n\": 308}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s02_r1"
      }
     ],
@@ -2314,17 +2314,17 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 14.0,
-       "recall (per-frame mean)": 0.8859501347708895,
-       "mean IoU (final)": 0.876211081602605,
+       "recall (per-frame mean)": 0.887466307277628,
+       "mean IoU (final)": 0.8767336960668336,
        "min IoU (final)": 0.7332965458492214,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.11946592759922335,
-       "height bias m (final)": -0.011307142857142865,
-       "height RMSE m (final)": 0.0367203816506777,
-       "spill (final)": 0.06685790857372491,
+       "centre RMSE m (final)": 0.12198374306205147,
+       "height bias m (final)": -0.01210714285714284,
+       "height RMSE m (final)": 0.03331388599368138,
+       "spill (final)": 0.06937761708421758,
        "neighbour spill max (final)": 0.0,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
@@ -2343,9 +2343,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.5571428571428576
+       "scan latency mean s": 1.4357142857142862
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.2644141732283465, \"p95_ms\": 0.524455, \"max_ms\": 0.6163, \"n\": 254}, \"integrate\": {\"mean_ms\": 0.47328922651933697, \"p95_ms\": 0.6942550000000001, \"max_ms\": 0.7138, \"n\": 362}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.30418184818481847, \"p95_ms\": 0.58332, \"max_ms\": 0.7546, \"n\": 303}, \"integrate\": {\"mean_ms\": 0.4677563535911602, \"p95_ms\": 0.684495, \"max_ms\": 0.9145, \"n\": 362}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s03_r0"
      },
      {
@@ -2353,17 +2353,17 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 14.0,
-       "recall (per-frame mean)": 0.8859501347708895,
-       "mean IoU (final)": 0.876211081602605,
+       "recall (per-frame mean)": 0.887466307277628,
+       "mean IoU (final)": 0.8767336960668336,
        "min IoU (final)": 0.7332965458492214,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.11946592759922335,
-       "height bias m (final)": -0.011307142857142865,
-       "height RMSE m (final)": 0.0367203816506777,
-       "spill (final)": 0.06685790857372491,
+       "centre RMSE m (final)": 0.12198374306205147,
+       "height bias m (final)": -0.01210714285714284,
+       "height RMSE m (final)": 0.03331388599368138,
+       "spill (final)": 0.06937761708421758,
        "neighbour spill max (final)": 0.0,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
@@ -2382,9 +2382,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.5571428571428576
+       "scan latency mean s": 1.4357142857142862
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.26121732283464566, \"p95_ms\": 0.519845, \"max_ms\": 0.6946, \"n\": 254}, \"integrate\": {\"mean_ms\": 0.46812651933701654, \"p95_ms\": 0.6885749999999999, \"max_ms\": 0.8685, \"n\": 362}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.30591716171617167, \"p95_ms\": 0.58154, \"max_ms\": 0.7541, \"n\": 303}, \"integrate\": {\"mean_ms\": 0.4700267955801105, \"p95_ms\": 0.6887, \"max_ms\": 0.7358, \"n\": 362}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s03_r1"
      }
     ],
@@ -2394,17 +2394,17 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 15.0,
-       "recall (per-frame mean)": 0.885761316872428,
-       "mean IoU (final)": 0.8618461831955183,
+       "recall (per-frame mean)": 0.8865843621399176,
+       "mean IoU (final)": 0.8622494451714073,
        "min IoU (final)": 0.7927656705270213,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.13808604322426413,
-       "height bias m (final)": -0.0361600000000001,
-       "height RMSE m (final)": 0.0601417769386085,
-       "spill (final)": 0.048778087077464644,
+       "centre RMSE m (final)": 0.13274248503524905,
+       "height bias m (final)": -0.03623333333333347,
+       "height RMSE m (final)": 0.060346770142789545,
+       "spill (final)": 0.05142297438748319,
        "neighbour spill max (final)": 0.0,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
@@ -2423,9 +2423,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.5733333333333335
+       "scan latency mean s": 1.5
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.26762121212121215, \"p95_ms\": 0.51652, \"max_ms\": 0.7972, \"n\": 264}, \"integrate\": {\"mean_ms\": 0.47280726744186047, \"p95_ms\": 0.689285, \"max_ms\": 0.7284, \"n\": 344}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3156448717948718, \"p95_ms\": 0.6190749999999999, \"max_ms\": 0.8497, \"n\": 312}, \"integrate\": {\"mean_ms\": 0.4688549418604651, \"p95_ms\": 0.6975399999999999, \"max_ms\": 0.8124, \"n\": 344}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s04_r0"
      },
      {
@@ -2433,17 +2433,17 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 15.0,
-       "recall (per-frame mean)": 0.885761316872428,
-       "mean IoU (final)": 0.8618461831955183,
+       "recall (per-frame mean)": 0.8865843621399176,
+       "mean IoU (final)": 0.8622494451714073,
        "min IoU (final)": 0.7927656705270213,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.13808604322426413,
-       "height bias m (final)": -0.0361600000000001,
-       "height RMSE m (final)": 0.0601417769386085,
-       "spill (final)": 0.048778087077464644,
+       "centre RMSE m (final)": 0.13274248503524905,
+       "height bias m (final)": -0.03623333333333347,
+       "height RMSE m (final)": 0.060346770142789545,
+       "spill (final)": 0.05142297438748319,
        "neighbour spill max (final)": 0.0,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
@@ -2462,9 +2462,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.5733333333333335
+       "scan latency mean s": 1.5
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.2680128787878788, \"p95_ms\": 0.526905, \"max_ms\": 0.8022, \"n\": 264}, \"integrate\": {\"mean_ms\": 0.47173401162790696, \"p95_ms\": 0.69896, \"max_ms\": 0.7898, \"n\": 344}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.3176435897435897, \"p95_ms\": 0.624605, \"max_ms\": 0.852, \"n\": 312}, \"integrate\": {\"mean_ms\": 0.473503488372093, \"p95_ms\": 0.691585, \"max_ms\": 0.9415, \"n\": 344}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/easy_s04_r1"
      }
     ],
@@ -2472,26 +2472,26 @@
      {
       "headline": {
        "recall (final)": 0.8333333333333334,
-       "precision (final)": 0.9090909090909091,
-       "published / truth (final)": 22.0,
-       "recall (per-frame mean)": 0.7460205992509363,
-       "mean IoU (final)": 0.6247178147592285,
-       "min IoU (final)": 0.3681654170344753,
-       "merged entries (final)": 4.0,
-       "neighbours swallowed (final)": 4.0,
-       "split trees (final)": 2.0,
-       "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.6494790731809608,
-       "height bias m (final)": 0.19399000000000002,
-       "height RMSE m (final)": 0.25989508267760664,
-       "spill (final)": 0.24857487472537487,
-       "neighbour spill max (final)": 0.37688078205052733,
+       "precision (final)": 0.9523809523809523,
+       "published / truth (final)": 21.0,
+       "recall (per-frame mean)": 0.7492197253433208,
+       "mean IoU (final)": 0.601566426059368,
+       "min IoU (final)": 0.36485174746391774,
+       "merged entries (final)": 3.0,
+       "neighbours swallowed (final)": 3.0,
+       "split trees (final)": 0.0,
+       "false trees (final)": 1.0,
+       "centre RMSE m (final)": 0.7698865832056044,
+       "height bias m (final)": 0.25098000000000004,
+       "height RMSE m (final)": 0.29862562850498947,
+       "spill (final)": 0.323892592233601,
+       "neighbour spill max (final)": 0.3574161263284279,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 1.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
-       "SAFETY total violations": 42.0,
+       "SAFETY total violations": 43.0,
        "  undefined-height frames": 0.0,
        "  new trees after scan": 0.0,
        "  non-target changes in descent": 0.0,
@@ -2499,38 +2499,38 @@
        "  new tree inside sprayed": 0.0,
        "  invalid-entry frames": 0.0,
        "  duplicate-ID frames": 0.0,
-       "  implausible-height frames": 42.0,
+       "  implausible-height frames": 43.0,
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 2.0750000000000006
+       "scan latency mean s": 2.0285714285714285
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.551487109375, \"p95_ms\": 1.171525, \"max_ms\": 1.2919, \"n\": 256}, \"integrate\": {\"mean_ms\": 0.30371365740740736, \"p95_ms\": 0.614225, \"max_ms\": 0.7321, \"n\": 432}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.6893831683168317, \"p95_ms\": 1.5041699999999993, \"max_ms\": 1.7006, \"n\": 303}, \"integrate\": {\"mean_ms\": 0.3067615740740741, \"p95_ms\": 0.618735, \"max_ms\": 0.7254, \"n\": 432}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s00_r0"
      },
      {
       "headline": {
        "recall (final)": 0.8333333333333334,
-       "precision (final)": 0.9090909090909091,
-       "published / truth (final)": 22.0,
-       "recall (per-frame mean)": 0.7460205992509363,
-       "mean IoU (final)": 0.6247178147592285,
-       "min IoU (final)": 0.3681654170344753,
-       "merged entries (final)": 4.0,
-       "neighbours swallowed (final)": 4.0,
-       "split trees (final)": 2.0,
-       "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.6494790731809608,
-       "height bias m (final)": 0.19399000000000002,
-       "height RMSE m (final)": 0.25989508267760664,
-       "spill (final)": 0.24857487472537487,
-       "neighbour spill max (final)": 0.37688078205052733,
+       "precision (final)": 0.9523809523809523,
+       "published / truth (final)": 21.0,
+       "recall (per-frame mean)": 0.7492197253433208,
+       "mean IoU (final)": 0.601566426059368,
+       "min IoU (final)": 0.36485174746391774,
+       "merged entries (final)": 3.0,
+       "neighbours swallowed (final)": 3.0,
+       "split trees (final)": 0.0,
+       "false trees (final)": 1.0,
+       "centre RMSE m (final)": 0.7698865832056044,
+       "height bias m (final)": 0.25098000000000004,
+       "height RMSE m (final)": 0.29862562850498947,
+       "spill (final)": 0.323892592233601,
+       "neighbour spill max (final)": 0.3574161263284279,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 1.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
-       "SAFETY total violations": 42.0,
+       "SAFETY total violations": 43.0,
        "  undefined-height frames": 0.0,
        "  new trees after scan": 0.0,
        "  non-target changes in descent": 0.0,
@@ -2538,37 +2538,37 @@
        "  new tree inside sprayed": 0.0,
        "  invalid-entry frames": 0.0,
        "  duplicate-ID frames": 0.0,
-       "  implausible-height frames": 42.0,
+       "  implausible-height frames": 43.0,
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 4.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 2.0750000000000006
+       "scan latency mean s": 2.0285714285714285
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.564748828125, \"p95_ms\": 1.18375, \"max_ms\": 1.3795, \"n\": 256}, \"integrate\": {\"mean_ms\": 0.31009513888888884, \"p95_ms\": 0.625735, \"max_ms\": 0.8932, \"n\": 432}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.6924656765676567, \"p95_ms\": 1.5253399999999995, \"max_ms\": 1.7074, \"n\": 303}, \"integrate\": {\"mean_ms\": 0.3085539351851852, \"p95_ms\": 0.624235, \"max_ms\": 0.6718, \"n\": 432}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s00_r1"
      }
     ],
     "hard_s01": [
      {
       "headline": {
-       "recall (final)": 0.76,
+       "recall (final)": 0.84,
        "precision (final)": 1.0,
-       "published / truth (final)": 19.0,
-       "recall (per-frame mean)": 0.6710331384015593,
-       "mean IoU (final)": 0.6367602424030757,
-       "min IoU (final)": 0.4526032760361499,
-       "merged entries (final)": 2.0,
-       "neighbours swallowed (final)": 2.0,
+       "published / truth (final)": 21.0,
+       "recall (per-frame mean)": 0.7472904483430799,
+       "mean IoU (final)": 0.6166829145100279,
+       "min IoU (final)": 0.4581741257587547,
+       "merged entries (final)": 4.0,
+       "neighbours swallowed (final)": 4.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.8595967377665805,
-       "height bias m (final)": -0.25718421052631596,
-       "height RMSE m (final)": 0.31101656835203134,
-       "spill (final)": 0.25783409600022306,
-       "neighbour spill max (final)": 0.5463606137632704,
+       "centre RMSE m (final)": 0.8559501854664207,
+       "height bias m (final)": -0.23119047619047625,
+       "height RMSE m (final)": 0.30411088986311124,
+       "spill (final)": 0.2742034395679546,
+       "neighbour spill max (final)": 0.5407496419104354,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 1.0,
+       "centre jumps": 0.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 23.0,
@@ -2581,33 +2581,33 @@
        "  duplicate-ID frames": 0.0,
        "  implausible-height frames": 23.0,
        "  locked ID vanished": 0.0,
-       "truth trees sprayed": 4.0,
+       "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.4299999999999995
+       "scan latency mean s": 1.1727272727272722
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5073192307692308, \"p95_ms\": 1.065725, \"max_ms\": 1.1992, \"n\": 286}, \"integrate\": {\"mean_ms\": 0.3628693430656934, \"p95_ms\": 0.6045, \"max_ms\": 0.6589, \"n\": 411}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5910994736842106, \"p95_ms\": 1.1920100000000002, \"max_ms\": 1.4977, \"n\": 380}, \"integrate\": {\"mean_ms\": 0.40902579075425793, \"p95_ms\": 0.6025499999999999, \"max_ms\": 0.6606, \"n\": 411}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s01_r0"
      },
      {
       "headline": {
-       "recall (final)": 0.76,
+       "recall (final)": 0.84,
        "precision (final)": 1.0,
-       "published / truth (final)": 19.0,
-       "recall (per-frame mean)": 0.6710331384015593,
-       "mean IoU (final)": 0.6367602424030757,
-       "min IoU (final)": 0.4526032760361499,
-       "merged entries (final)": 2.0,
-       "neighbours swallowed (final)": 2.0,
+       "published / truth (final)": 21.0,
+       "recall (per-frame mean)": 0.7472904483430799,
+       "mean IoU (final)": 0.6166829145100279,
+       "min IoU (final)": 0.4581741257587547,
+       "merged entries (final)": 4.0,
+       "neighbours swallowed (final)": 4.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.8595967377665805,
-       "height bias m (final)": -0.25718421052631596,
-       "height RMSE m (final)": 0.31101656835203134,
-       "spill (final)": 0.25783409600022306,
-       "neighbour spill max (final)": 0.5463606137632704,
+       "centre RMSE m (final)": 0.8559501854664207,
+       "height bias m (final)": -0.23119047619047625,
+       "height RMSE m (final)": 0.30411088986311124,
+       "spill (final)": 0.2742034395679546,
+       "neighbour spill max (final)": 0.5407496419104354,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 1.0,
+       "centre jumps": 0.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 23.0,
@@ -2620,11 +2620,11 @@
        "  duplicate-ID frames": 0.0,
        "  implausible-height frames": 23.0,
        "  locked ID vanished": 0.0,
-       "truth trees sprayed": 4.0,
+       "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.4299999999999995
+       "scan latency mean s": 1.1727272727272722
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.504956993006993, \"p95_ms\": 1.04685, \"max_ms\": 1.223, \"n\": 286}, \"integrate\": {\"mean_ms\": 0.36289245742092463, \"p95_ms\": 0.601, \"max_ms\": 0.6193, \"n\": 411}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.591773947368421, \"p95_ms\": 1.2133000000000003, \"max_ms\": 1.6055, \"n\": 380}, \"integrate\": {\"mean_ms\": 0.4082759124087591, \"p95_ms\": 0.6052, \"max_ms\": 0.6324, \"n\": 411}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s01_r1"
      }
     ],
@@ -2634,21 +2634,21 @@
        "recall (final)": 0.782608695652174,
        "precision (final)": 0.9473684210526315,
        "published / truth (final)": 19.0,
-       "recall (per-frame mean)": 0.6948952989656042,
-       "mean IoU (final)": 0.6450377885086708,
-       "min IoU (final)": 0.32898875601161665,
-       "merged entries (final)": 5.0,
-       "neighbours swallowed (final)": 6.0,
+       "recall (per-frame mean)": 0.7055756454461356,
+       "mean IoU (final)": 0.6689114771817257,
+       "min IoU (final)": 0.3937953475782155,
+       "merged entries (final)": 4.0,
+       "neighbours swallowed (final)": 5.0,
        "split trees (final)": 0.0,
        "false trees (final)": 1.0,
-       "centre RMSE m (final)": 0.910678433001097,
-       "height bias m (final)": 0.12320555555555562,
-       "height RMSE m (final)": 0.32454020209794937,
-       "spill (final)": 0.29969183688783246,
-       "neighbour spill max (final)": 0.3942774030899919,
+       "centre RMSE m (final)": 0.8137415215465464,
+       "height bias m (final)": 0.08411666666666665,
+       "height RMSE m (final)": 0.3189863589908231,
+       "spill (final)": 0.29005919136152464,
+       "neighbour spill max (final)": 0.3880972732168367,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 5.0,
+       "centre jumps": 7.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 0.0,
@@ -2663,9 +2663,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.3499999999999996
+       "scan latency mean s": 1.1684210526315788
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5382962199312714, \"p95_ms\": 1.0554999999999999, \"max_ms\": 1.5301, \"n\": 291}, \"integrate\": {\"mean_ms\": 0.3705333333333333, \"p95_ms\": 0.60141, \"max_ms\": 0.6738, \"n\": 414}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.6419506925207755, \"p95_ms\": 1.3239, \"max_ms\": 1.6655, \"n\": 361}, \"integrate\": {\"mean_ms\": 0.3703657004830918, \"p95_ms\": 0.5958, \"max_ms\": 0.6158, \"n\": 414}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s02_r0"
      },
      {
@@ -2673,21 +2673,21 @@
        "recall (final)": 0.782608695652174,
        "precision (final)": 0.9473684210526315,
        "published / truth (final)": 19.0,
-       "recall (per-frame mean)": 0.6948952989656042,
-       "mean IoU (final)": 0.6450377885086708,
-       "min IoU (final)": 0.32898875601161665,
-       "merged entries (final)": 5.0,
-       "neighbours swallowed (final)": 6.0,
+       "recall (per-frame mean)": 0.7055756454461356,
+       "mean IoU (final)": 0.6689114771817257,
+       "min IoU (final)": 0.3937953475782155,
+       "merged entries (final)": 4.0,
+       "neighbours swallowed (final)": 5.0,
        "split trees (final)": 0.0,
        "false trees (final)": 1.0,
-       "centre RMSE m (final)": 0.910678433001097,
-       "height bias m (final)": 0.12320555555555562,
-       "height RMSE m (final)": 0.32454020209794937,
-       "spill (final)": 0.29969183688783246,
-       "neighbour spill max (final)": 0.3942774030899919,
+       "centre RMSE m (final)": 0.8137415215465464,
+       "height bias m (final)": 0.08411666666666665,
+       "height RMSE m (final)": 0.3189863589908231,
+       "spill (final)": 0.29005919136152464,
+       "neighbour spill max (final)": 0.3880972732168367,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 5.0,
+       "centre jumps": 7.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 0.0,
@@ -2702,36 +2702,36 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.3499999999999996
+       "scan latency mean s": 1.1684210526315788
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5384357388316152, \"p95_ms\": 1.0546, \"max_ms\": 1.5269, \"n\": 291}, \"integrate\": {\"mean_ms\": 0.37160217391304345, \"p95_ms\": 0.602835, \"max_ms\": 0.6219, \"n\": 414}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.6408756232686982, \"p95_ms\": 1.2261, \"max_ms\": 1.6672, \"n\": 361}, \"integrate\": {\"mean_ms\": 0.36980458937198074, \"p95_ms\": 0.594905, \"max_ms\": 0.6449, \"n\": 414}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s02_r1"
      }
     ],
     "hard_s03": [
      {
       "headline": {
-       "recall (final)": 0.6956521739130435,
-       "precision (final)": 0.9411764705882353,
-       "published / truth (final)": 17.0,
-       "recall (per-frame mean)": 0.620823364408877,
-       "mean IoU (final)": 0.6023895356268651,
-       "min IoU (final)": 0.43722517679382117,
+       "recall (final)": 0.782608695652174,
+       "precision (final)": 0.9473684210526315,
+       "published / truth (final)": 19.0,
+       "recall (per-frame mean)": 0.6965596897945714,
+       "mean IoU (final)": 0.6185510729062694,
+       "min IoU (final)": 0.47561302560888735,
        "merged entries (final)": 4.0,
-       "neighbours swallowed (final)": 5.0,
+       "neighbours swallowed (final)": 4.0,
        "split trees (final)": 0.0,
        "false trees (final)": 1.0,
-       "centre RMSE m (final)": 0.8130118829851133,
-       "height bias m (final)": -0.2774,
-       "height RMSE m (final)": 0.3603725867071467,
-       "spill (final)": 0.2962118914694808,
-       "neighbour spill max (final)": 0.37616254639944696,
+       "centre RMSE m (final)": 0.7350143142974989,
+       "height bias m (final)": -0.28774999999999984,
+       "height RMSE m (final)": 0.3664279488066741,
+       "spill (final)": 0.30923377958688153,
+       "neighbour spill max (final)": 0.3561490265287974,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 3.0,
+       "centre jumps": 2.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
-       "SAFETY total violations": 38.0,
+       "SAFETY total violations": 19.0,
        "  undefined-height frames": 0.0,
        "  new trees after scan": 0.0,
        "  non-target changes in descent": 0.0,
@@ -2739,38 +2739,38 @@
        "  new tree inside sprayed": 0.0,
        "  invalid-entry frames": 0.0,
        "  duplicate-ID frames": 0.0,
-       "  implausible-height frames": 38.0,
+       "  implausible-height frames": 19.0,
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 6.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.335294117647059
+       "scan latency mean s": 1.2333333333333334
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4733395705521472, \"p95_ms\": 1.030475, \"max_ms\": 1.4429, \"n\": 326}, \"integrate\": {\"mean_ms\": 0.38471297169811314, \"p95_ms\": 0.6092449999999999, \"max_ms\": 0.7031, \"n\": 424}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5743298200514138, \"p95_ms\": 1.1864599999999998, \"max_ms\": 1.5368, \"n\": 389}, \"integrate\": {\"mean_ms\": 0.3827908018867924, \"p95_ms\": 0.6000249999999999, \"max_ms\": 0.6341, \"n\": 424}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s03_r0"
      },
      {
       "headline": {
-       "recall (final)": 0.6956521739130435,
-       "precision (final)": 0.9411764705882353,
-       "published / truth (final)": 17.0,
-       "recall (per-frame mean)": 0.620823364408877,
-       "mean IoU (final)": 0.6023895356268651,
-       "min IoU (final)": 0.43722517679382117,
+       "recall (final)": 0.782608695652174,
+       "precision (final)": 0.9473684210526315,
+       "published / truth (final)": 19.0,
+       "recall (per-frame mean)": 0.6965596897945714,
+       "mean IoU (final)": 0.6185510729062694,
+       "min IoU (final)": 0.47561302560888735,
        "merged entries (final)": 4.0,
-       "neighbours swallowed (final)": 5.0,
+       "neighbours swallowed (final)": 4.0,
        "split trees (final)": 0.0,
        "false trees (final)": 1.0,
-       "centre RMSE m (final)": 0.8130118829851133,
-       "height bias m (final)": -0.2774,
-       "height RMSE m (final)": 0.3603725867071467,
-       "spill (final)": 0.2962118914694808,
-       "neighbour spill max (final)": 0.37616254639944696,
+       "centre RMSE m (final)": 0.7350143142974989,
+       "height bias m (final)": -0.28774999999999984,
+       "height RMSE m (final)": 0.3664279488066741,
+       "spill (final)": 0.30923377958688153,
+       "neighbour spill max (final)": 0.3561490265287974,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 3.0,
+       "centre jumps": 2.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
-       "SAFETY total violations": 38.0,
+       "SAFETY total violations": 19.0,
        "  undefined-height frames": 0.0,
        "  new trees after scan": 0.0,
        "  non-target changes in descent": 0.0,
@@ -2778,13 +2778,13 @@
        "  new tree inside sprayed": 0.0,
        "  invalid-entry frames": 0.0,
        "  duplicate-ID frames": 0.0,
-       "  implausible-height frames": 38.0,
+       "  implausible-height frames": 19.0,
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 6.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.335294117647059
+       "scan latency mean s": 1.2333333333333334
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4767573619631902, \"p95_ms\": 1.037775, \"max_ms\": 1.4912, \"n\": 326}, \"integrate\": {\"mean_ms\": 0.3854002358490566, \"p95_ms\": 0.60774, \"max_ms\": 0.6712, \"n\": 424}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5785159383033419, \"p95_ms\": 1.1695999999999998, \"max_ms\": 1.5171, \"n\": 389}, \"integrate\": {\"mean_ms\": 0.3847325471698113, \"p95_ms\": 0.60717, \"max_ms\": 0.6711, \"n\": 424}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s03_r1"
      }
     ],
@@ -2794,21 +2794,21 @@
        "recall (final)": 0.6521739130434783,
        "precision (final)": 1.0,
        "published / truth (final)": 15.0,
-       "recall (per-frame mean)": 0.5792771452586538,
-       "mean IoU (final)": 0.667808822649929,
-       "min IoU (final)": 0.40037565614956955,
-       "merged entries (final)": 1.0,
-       "neighbours swallowed (final)": 1.0,
+       "recall (per-frame mean)": 0.5853136700542524,
+       "mean IoU (final)": 0.6632046194603624,
+       "min IoU (final)": 0.4074500063314268,
+       "merged entries (final)": 3.0,
+       "neighbours swallowed (final)": 3.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.6163705487231953,
-       "height bias m (final)": 0.21037333333333336,
-       "height RMSE m (final)": 0.3914090664935259,
-       "spill (final)": 0.20603168807413894,
-       "neighbour spill max (final)": 0.5230814981480278,
+       "centre RMSE m (final)": 0.6617888817440194,
+       "height bias m (final)": 0.24798000000000006,
+       "height RMSE m (final)": 0.4217684933704745,
+       "spill (final)": 0.21318949153997643,
+       "neighbour spill max (final)": 0.5065917751558643,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 0.0,
+       "centre jumps": 1.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 0.0,
@@ -2823,9 +2823,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 6.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 4.986666666666667
+       "scan latency mean s": 3.9333333333333345
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5226196078431372, \"p95_ms\": 1.1914, \"max_ms\": 1.7059, \"n\": 357}, \"integrate\": {\"mean_ms\": 0.38814592274678106, \"p95_ms\": 0.62525, \"max_ms\": 0.6953, \"n\": 466}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.6348718604651163, \"p95_ms\": 1.4499449999999998, \"max_ms\": 1.9721, \"n\": 430}, \"integrate\": {\"mean_ms\": 0.3894581545064378, \"p95_ms\": 0.635525, \"max_ms\": 0.7889, \"n\": 466}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s04_r0"
      },
      {
@@ -2833,21 +2833,21 @@
        "recall (final)": 0.6521739130434783,
        "precision (final)": 1.0,
        "published / truth (final)": 15.0,
-       "recall (per-frame mean)": 0.5792771452586538,
-       "mean IoU (final)": 0.667808822649929,
-       "min IoU (final)": 0.40037565614956955,
-       "merged entries (final)": 1.0,
-       "neighbours swallowed (final)": 1.0,
+       "recall (per-frame mean)": 0.5853136700542524,
+       "mean IoU (final)": 0.6632046194603624,
+       "min IoU (final)": 0.4074500063314268,
+       "merged entries (final)": 3.0,
+       "neighbours swallowed (final)": 3.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.6163705487231953,
-       "height bias m (final)": 0.21037333333333336,
-       "height RMSE m (final)": 0.3914090664935259,
-       "spill (final)": 0.20603168807413894,
-       "neighbour spill max (final)": 0.5230814981480278,
+       "centre RMSE m (final)": 0.6617888817440194,
+       "height bias m (final)": 0.24798000000000006,
+       "height RMSE m (final)": 0.4217684933704745,
+       "spill (final)": 0.21318949153997643,
+       "neighbour spill max (final)": 0.5065917751558643,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 0.0,
+       "centre jumps": 1.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 0.0,
@@ -2862,9 +2862,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 6.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 4.986666666666667
+       "scan latency mean s": 3.9333333333333345
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5256070028011205, \"p95_ms\": 1.2020199999999999, \"max_ms\": 1.7365, \"n\": 357}, \"integrate\": {\"mean_ms\": 0.3901545064377682, \"p95_ms\": 0.62535, \"max_ms\": 0.6471, \"n\": 466}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.631863488372093, \"p95_ms\": 1.40983, \"max_ms\": 1.9203, \"n\": 430}, \"integrate\": {\"mean_ms\": 0.38862553648068665, \"p95_ms\": 0.6222749999999999, \"max_ms\": 0.6828, \"n\": 466}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/hard_s04_r1"
      }
     ],
@@ -2874,18 +2874,18 @@
        "recall (final)": 0.9444444444444444,
        "precision (final)": 1.0,
        "published / truth (final)": 17.0,
-       "recall (per-frame mean)": 0.8329764453961456,
-       "mean IoU (final)": 0.7647774593766666,
-       "min IoU (final)": 0.5068775213595064,
+       "recall (per-frame mean)": 0.8345229597906257,
+       "mean IoU (final)": 0.7634375107024968,
+       "min IoU (final)": 0.490264041280887,
        "merged entries (final)": 1.0,
        "neighbours swallowed (final)": 1.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.5306394533124771,
-       "height bias m (final)": 0.15093529411764697,
-       "height RMSE m (final)": 0.21356467404512386,
-       "spill (final)": 0.1648431962031376,
-       "neighbour spill max (final)": 0.23586953172492325,
+       "centre RMSE m (final)": 0.5284490998918158,
+       "height bias m (final)": 0.14708235294117644,
+       "height RMSE m (final)": 0.2144642901853497,
+       "spill (final)": 0.1667008893260633,
+       "neighbour spill max (final)": 0.24971272480573103,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -2903,9 +2903,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 2.5411764705882356
+       "scan latency mean s": 2.3882352941176466
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4051315436241611, \"p95_ms\": 0.77472, \"max_ms\": 1.3069, \"n\": 298}, \"integrate\": {\"mean_ms\": 0.4496276762402089, \"p95_ms\": 0.65516, \"max_ms\": 0.7096, \"n\": 383}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4864303116147309, \"p95_ms\": 0.9930799999999997, \"max_ms\": 1.4766, \"n\": 353}, \"integrate\": {\"mean_ms\": 0.4484825065274151, \"p95_ms\": 0.65506, \"max_ms\": 0.6963, \"n\": 383}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s00_r0"
      },
      {
@@ -2913,18 +2913,18 @@
        "recall (final)": 0.9444444444444444,
        "precision (final)": 1.0,
        "published / truth (final)": 17.0,
-       "recall (per-frame mean)": 0.8329764453961456,
-       "mean IoU (final)": 0.7647774593766666,
-       "min IoU (final)": 0.5068775213595064,
+       "recall (per-frame mean)": 0.8345229597906257,
+       "mean IoU (final)": 0.7634375107024968,
+       "min IoU (final)": 0.490264041280887,
        "merged entries (final)": 1.0,
        "neighbours swallowed (final)": 1.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.5306394533124771,
-       "height bias m (final)": 0.15093529411764697,
-       "height RMSE m (final)": 0.21356467404512386,
-       "spill (final)": 0.1648431962031376,
-       "neighbour spill max (final)": 0.23586953172492325,
+       "centre RMSE m (final)": 0.5284490998918158,
+       "height bias m (final)": 0.14708235294117644,
+       "height RMSE m (final)": 0.2144642901853497,
+       "spill (final)": 0.1667008893260633,
+       "neighbour spill max (final)": 0.24971272480573103,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -2942,9 +2942,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 2.5411764705882356
+       "scan latency mean s": 2.3882352941176466
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.400961744966443, \"p95_ms\": 0.7614149999999998, \"max_ms\": 1.071, \"n\": 298}, \"integrate\": {\"mean_ms\": 0.44911827676240207, \"p95_ms\": 0.6598900000000001, \"max_ms\": 0.8369, \"n\": 383}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.48466147308781876, \"p95_ms\": 0.9743599999999999, \"max_ms\": 1.5023, \"n\": 353}, \"integrate\": {\"mean_ms\": 0.4502274151436031, \"p95_ms\": 0.6502, \"max_ms\": 0.9457, \"n\": 383}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s00_r1"
      }
     ],
@@ -2952,23 +2952,23 @@
      {
       "headline": {
        "recall (final)": 1.0,
-       "precision (final)": 0.9473684210526315,
-       "published / truth (final)": 19.0,
-       "recall (per-frame mean)": 0.8805243445692883,
-       "mean IoU (final)": 0.7820298408750758,
-       "min IoU (final)": 0.5460680435237172,
+       "precision (final)": 1.0,
+       "published / truth (final)": 18.0,
+       "recall (per-frame mean)": 0.8816479400749063,
+       "mean IoU (final)": 0.757676128811219,
+       "min IoU (final)": 0.45461455298359854,
        "merged entries (final)": 1.0,
        "neighbours swallowed (final)": 1.0,
-       "split trees (final)": 1.0,
+       "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.43368978352427606,
-       "height bias m (final)": -0.16098333333333337,
-       "height RMSE m (final)": 0.25677572466605525,
-       "spill (final)": 0.15960026079988376,
-       "neighbour spill max (final)": 0.1370977906062011,
+       "centre RMSE m (final)": 0.46525362259023156,
+       "height bias m (final)": -0.18350555555555562,
+       "height RMSE m (final)": 0.3154270905366951,
+       "spill (final)": 0.17962601685211046,
+       "neighbour spill max (final)": 0.13801326386821272,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 0.0,
+       "centre jumps": 2.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 0.0,
@@ -2983,31 +2983,31 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 3.7777777777777777
+       "scan latency mean s": 3.677777777777777
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4153941780821918, \"p95_ms\": 0.8569649999999995, \"max_ms\": 1.0952, \"n\": 292}, \"integrate\": {\"mean_ms\": 0.4619011049723757, \"p95_ms\": 0.6528900000000001, \"max_ms\": 0.6682, \"n\": 362}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4992076923076923, \"p95_ms\": 1.00595, \"max_ms\": 1.4648, \"n\": 351}, \"integrate\": {\"mean_ms\": 0.4674168508287293, \"p95_ms\": 0.6575799999999999, \"max_ms\": 0.8008, \"n\": 362}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s01_r0"
      },
      {
       "headline": {
        "recall (final)": 1.0,
-       "precision (final)": 0.9473684210526315,
-       "published / truth (final)": 19.0,
-       "recall (per-frame mean)": 0.8805243445692883,
-       "mean IoU (final)": 0.7820298408750758,
-       "min IoU (final)": 0.5460680435237172,
+       "precision (final)": 1.0,
+       "published / truth (final)": 18.0,
+       "recall (per-frame mean)": 0.8816479400749063,
+       "mean IoU (final)": 0.757676128811219,
+       "min IoU (final)": 0.45461455298359854,
        "merged entries (final)": 1.0,
        "neighbours swallowed (final)": 1.0,
-       "split trees (final)": 1.0,
+       "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.43368978352427606,
-       "height bias m (final)": -0.16098333333333337,
-       "height RMSE m (final)": 0.25677572466605525,
-       "spill (final)": 0.15960026079988376,
-       "neighbour spill max (final)": 0.1370977906062011,
+       "centre RMSE m (final)": 0.46525362259023156,
+       "height bias m (final)": -0.18350555555555562,
+       "height RMSE m (final)": 0.3154270905366951,
+       "spill (final)": 0.17962601685211046,
+       "neighbour spill max (final)": 0.13801326386821272,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 0.0,
+       "centre jumps": 2.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 0.0,
@@ -3022,9 +3022,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 3.7777777777777777
+       "scan latency mean s": 3.677777777777777
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4177034246575343, \"p95_ms\": 0.8489499999999999, \"max_ms\": 1.1066, \"n\": 292}, \"integrate\": {\"mean_ms\": 0.46292651933701656, \"p95_ms\": 0.658095, \"max_ms\": 0.6911, \"n\": 362}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4999119658119658, \"p95_ms\": 1.0142, \"max_ms\": 1.4348, \"n\": 351}, \"integrate\": {\"mean_ms\": 0.46683867403314916, \"p95_ms\": 0.6648, \"max_ms\": 0.7424, \"n\": 362}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s01_r1"
      }
     ],
@@ -3034,21 +3034,21 @@
        "recall (final)": 0.9473684210526315,
        "precision (final)": 1.0,
        "published / truth (final)": 18.0,
-       "recall (per-frame mean)": 0.8311643441206956,
-       "mean IoU (final)": 0.7791031445456206,
-       "min IoU (final)": 0.5000323156085705,
+       "recall (per-frame mean)": 0.8327766900840724,
+       "mean IoU (final)": 0.7735506064524879,
+       "min IoU (final)": 0.5048434273301974,
        "merged entries (final)": 1.0,
        "neighbours swallowed (final)": 1.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.7005859543585246,
-       "height bias m (final)": 0.009205555555555566,
-       "height RMSE m (final)": 0.10783362442000906,
-       "spill (final)": 0.15021323291134905,
-       "neighbour spill max (final)": 0.315600169301174,
+       "centre RMSE m (final)": 0.6939425996915498,
+       "height bias m (final)": 0.0066944444444444594,
+       "height RMSE m (final)": 0.1083982446557345,
+       "spill (final)": 0.1616801448850453,
+       "neighbour spill max (final)": 0.31789097355493934,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 1.0,
+       "centre jumps": 2.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 0.0,
@@ -3063,9 +3063,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 3.744444444444445
+       "scan latency mean s": 3.5999999999999996
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4288458041958041, \"p95_ms\": 0.827225, \"max_ms\": 1.0898, \"n\": 286}, \"integrate\": {\"mean_ms\": 0.45312887700534754, \"p95_ms\": 0.652435, \"max_ms\": 0.6664, \"n\": 374}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.517057771260997, \"p95_ms\": 1.0354, \"max_ms\": 1.4388, \"n\": 341}, \"integrate\": {\"mean_ms\": 0.4558636363636364, \"p95_ms\": 0.6529050000000001, \"max_ms\": 0.8786, \"n\": 374}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s02_r0"
      },
      {
@@ -3073,21 +3073,21 @@
        "recall (final)": 0.9473684210526315,
        "precision (final)": 1.0,
        "published / truth (final)": 18.0,
-       "recall (per-frame mean)": 0.8311643441206956,
-       "mean IoU (final)": 0.7791031445456206,
-       "min IoU (final)": 0.5000323156085705,
+       "recall (per-frame mean)": 0.8327766900840724,
+       "mean IoU (final)": 0.7735506064524879,
+       "min IoU (final)": 0.5048434273301974,
        "merged entries (final)": 1.0,
        "neighbours swallowed (final)": 1.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.7005859543585246,
-       "height bias m (final)": 0.009205555555555566,
-       "height RMSE m (final)": 0.10783362442000906,
-       "spill (final)": 0.15021323291134905,
-       "neighbour spill max (final)": 0.315600169301174,
+       "centre RMSE m (final)": 0.6939425996915498,
+       "height bias m (final)": 0.0066944444444444594,
+       "height RMSE m (final)": 0.1083982446557345,
+       "spill (final)": 0.1616801448850453,
+       "neighbour spill max (final)": 0.31789097355493934,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
-       "centre jumps": 1.0,
+       "centre jumps": 2.0,
        "height jumps": 0.0,
        "IDs vanished while held by nav": 0.0,
        "SAFETY total violations": 0.0,
@@ -3102,30 +3102,30 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 3.744444444444445
+       "scan latency mean s": 3.5999999999999996
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.43074615384615383, \"p95_ms\": 0.83, \"max_ms\": 1.0895, \"n\": 286}, \"integrate\": {\"mean_ms\": 0.45573903743315514, \"p95_ms\": 0.664975, \"max_ms\": 0.7331, \"n\": 374}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.51661642228739, \"p95_ms\": 1.0333, \"max_ms\": 1.4418, \"n\": 341}, \"integrate\": {\"mean_ms\": 0.4561267379679144, \"p95_ms\": 0.65584, \"max_ms\": 0.7554, \"n\": 374}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s02_r1"
      }
     ],
     "medium_s03": [
      {
       "headline": {
-       "recall (final)": 0.9411764705882353,
-       "precision (final)": 0.9411764705882353,
-       "published / truth (final)": 17.0,
-       "recall (per-frame mean)": 0.8214581607290805,
-       "mean IoU (final)": 0.7787247889823373,
-       "min IoU (final)": 0.5856751611463047,
+       "recall (final)": 1.0,
+       "precision (final)": 0.9444444444444444,
+       "published / truth (final)": 18.0,
+       "recall (per-frame mean)": 0.8784866059099696,
+       "mean IoU (final)": 0.7893004896584496,
+       "min IoU (final)": 0.5555116335336194,
        "merged entries (final)": 1.0,
        "neighbours swallowed (final)": 1.0,
        "split trees (final)": 0.0,
        "false trees (final)": 1.0,
-       "centre RMSE m (final)": 0.417598257898665,
-       "height bias m (final)": -0.09828750000000006,
-       "height RMSE m (final)": 0.17953849169467814,
-       "spill (final)": 0.21685448271723728,
-       "neighbour spill max (final)": 0.3375566851078843,
+       "centre RMSE m (final)": 0.42164890817445005,
+       "height bias m (final)": -0.08012352941176472,
+       "height RMSE m (final)": 0.15263210864112206,
+       "spill (final)": 0.21400560850954636,
+       "neighbour spill max (final)": 0.28237783315035825,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -3143,28 +3143,28 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.4625
+       "scan latency mean s": 1.4647058823529413
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4096776978417267, \"p95_ms\": 0.82165, \"max_ms\": 1.1286, \"n\": 278}, \"integrate\": {\"mean_ms\": 0.4555005847953217, \"p95_ms\": 0.664095, \"max_ms\": 0.7223, \"n\": 342}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.49077379518072284, \"p95_ms\": 0.970745, \"max_ms\": 1.3453, \"n\": 332}, \"integrate\": {\"mean_ms\": 0.4583596491228071, \"p95_ms\": 0.6565749999999999, \"max_ms\": 0.6991, \"n\": 342}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s03_r0"
      },
      {
       "headline": {
-       "recall (final)": 0.9411764705882353,
-       "precision (final)": 0.9411764705882353,
-       "published / truth (final)": 17.0,
-       "recall (per-frame mean)": 0.8214581607290805,
-       "mean IoU (final)": 0.7787247889823373,
-       "min IoU (final)": 0.5856751611463047,
+       "recall (final)": 1.0,
+       "precision (final)": 0.9444444444444444,
+       "published / truth (final)": 18.0,
+       "recall (per-frame mean)": 0.8784866059099696,
+       "mean IoU (final)": 0.7893004896584496,
+       "min IoU (final)": 0.5555116335336194,
        "merged entries (final)": 1.0,
        "neighbours swallowed (final)": 1.0,
        "split trees (final)": 0.0,
        "false trees (final)": 1.0,
-       "centre RMSE m (final)": 0.417598257898665,
-       "height bias m (final)": -0.09828750000000006,
-       "height RMSE m (final)": 0.17953849169467814,
-       "spill (final)": 0.21685448271723728,
-       "neighbour spill max (final)": 0.3375566851078843,
+       "centre RMSE m (final)": 0.42164890817445005,
+       "height bias m (final)": -0.08012352941176472,
+       "height RMSE m (final)": 0.15263210864112206,
+       "spill (final)": 0.21400560850954636,
+       "neighbour spill max (final)": 0.28237783315035825,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -3182,9 +3182,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.4625
+       "scan latency mean s": 1.4647058823529413
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4058841726618705, \"p95_ms\": 0.7900749999999997, \"max_ms\": 1.1007, \"n\": 278}, \"integrate\": {\"mean_ms\": 0.45326783625731, \"p95_ms\": 0.652, \"max_ms\": 0.8352, \"n\": 342}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.49405602409638555, \"p95_ms\": 0.982445, \"max_ms\": 1.3708, \"n\": 332}, \"integrate\": {\"mean_ms\": 0.46320643274853807, \"p95_ms\": 0.65559, \"max_ms\": 0.7003, \"n\": 342}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s03_r1"
      }
     ],
@@ -3192,20 +3192,20 @@
      {
       "headline": {
        "recall (final)": 0.95,
-       "precision (final)": 0.95,
-       "published / truth (final)": 20.0,
-       "recall (per-frame mean)": 0.8370535714285713,
-       "mean IoU (final)": 0.7494359713703206,
-       "min IoU (final)": 0.5878311129614738,
-       "merged entries (final)": 2.0,
-       "neighbours swallowed (final)": 2.0,
+       "precision (final)": 1.0,
+       "published / truth (final)": 19.0,
+       "recall (per-frame mean)": 0.8387276785714285,
+       "mean IoU (final)": 0.7485400021242141,
+       "min IoU (final)": 0.5752224992702584,
+       "merged entries (final)": 1.0,
+       "neighbours swallowed (final)": 1.0,
        "split trees (final)": 0.0,
-       "false trees (final)": 1.0,
-       "centre RMSE m (final)": 0.5071602995835579,
-       "height bias m (final)": -0.027305263157894746,
-       "height RMSE m (final)": 0.08731729797878424,
-       "spill (final)": 0.21442010090798558,
-       "neighbour spill max (final)": 0.2767230441402234,
+       "false trees (final)": 0.0,
+       "centre RMSE m (final)": 0.5217537501441397,
+       "height bias m (final)": -0.034894736842105256,
+       "height RMSE m (final)": 0.08388203496264078,
+       "spill (final)": 0.17873317263200325,
+       "neighbour spill max (final)": 0.28952284191767913,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -3223,28 +3223,28 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.4842105263157892
+       "scan latency mean s": 1.326315789473684
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4305648148148148, \"p95_ms\": 0.9163149999999981, \"max_ms\": 1.3089, \"n\": 270}, \"integrate\": {\"mean_ms\": 0.4613961643835617, \"p95_ms\": 0.66, \"max_ms\": 0.7341, \"n\": 365}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5142603125, \"p95_ms\": 0.9876300000000001, \"max_ms\": 1.3827, \"n\": 320}, \"integrate\": {\"mean_ms\": 0.4581016438356165, \"p95_ms\": 0.64626, \"max_ms\": 0.6593, \"n\": 365}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s04_r0"
      },
      {
       "headline": {
        "recall (final)": 0.95,
-       "precision (final)": 0.95,
-       "published / truth (final)": 20.0,
-       "recall (per-frame mean)": 0.8370535714285713,
-       "mean IoU (final)": 0.7494359713703206,
-       "min IoU (final)": 0.5878311129614738,
-       "merged entries (final)": 2.0,
-       "neighbours swallowed (final)": 2.0,
+       "precision (final)": 1.0,
+       "published / truth (final)": 19.0,
+       "recall (per-frame mean)": 0.8387276785714285,
+       "mean IoU (final)": 0.7485400021242141,
+       "min IoU (final)": 0.5752224992702584,
+       "merged entries (final)": 1.0,
+       "neighbours swallowed (final)": 1.0,
        "split trees (final)": 0.0,
-       "false trees (final)": 1.0,
-       "centre RMSE m (final)": 0.5071602995835579,
-       "height bias m (final)": -0.027305263157894746,
-       "height RMSE m (final)": 0.08731729797878424,
-       "spill (final)": 0.21442010090798558,
-       "neighbour spill max (final)": 0.2767230441402234,
+       "false trees (final)": 0.0,
+       "centre RMSE m (final)": 0.5217537501441397,
+       "height bias m (final)": -0.034894736842105256,
+       "height RMSE m (final)": 0.08388203496264078,
+       "spill (final)": 0.17873317263200325,
+       "neighbour spill max (final)": 0.28952284191767913,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -3262,66 +3262,66 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 5.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 1.4842105263157892
+       "scan latency mean s": 1.326315789473684
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.4258114814814815, \"p95_ms\": 0.8241549999999997, \"max_ms\": 1.3101, \"n\": 270}, \"integrate\": {\"mean_ms\": 0.45601972602739727, \"p95_ms\": 0.648, \"max_ms\": 0.6567, \"n\": 365}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.5156096875, \"p95_ms\": 0.9889600000000002, \"max_ms\": 1.3808, \"n\": 320}, \"integrate\": {\"mean_ms\": 0.45915013698630136, \"p95_ms\": 0.64692, \"max_ms\": 0.7028, \"n\": 365}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/medium_s04_r1"
      }
     ]
    },
    "aggregate": {
     "recall (final)": {
-     "mean": 0.9004504968018227,
+     "mean": 0.9155025002118824,
      "worst": 0.6521739130434783,
-     "std": 0.11815597027041462,
+     "std": 0.10650127190360913,
      "n": 15
     },
     "precision (final)": {
-     "mean": 0.9757453794915095,
-     "worst": 0.9090909090909091,
-     "std": 0.030984668251307468,
+     "mean": 0.986104149262044,
+     "worst": 0.9444444444444444,
+     "std": 0.023090747985927786,
      "n": 15
     },
     "published / truth (final)": {
-     "mean": 16.866666666666667,
+     "mean": 17.0,
      "worst": null,
-     "std": 2.55255862921022,
+     "std": 2.556038601690775,
      "n": 15
     },
     "recall (per-frame mean)": {
-     "mean": 0.7955140822766579,
-     "worst": 0.5792771452586538,
-     "std": 0.10223376788684757,
+     "mean": 0.8116003658156327,
+     "worst": 0.5853136700542524,
+     "std": 0.09018206249035407,
      "n": 15
     },
     "mean IoU (final)": {
-     "mean": 0.7611220306599752,
-     "worst": 0.6023895356268651,
-     "std": 0.10013186280612311,
+     "mean": 0.758415030361684,
+     "worst": 0.601566426059368,
+     "std": 0.10030542494024883,
      "n": 15
     },
     "min IoU (final)": {
-     "mean": 0.5722736657536807,
-     "worst": 0.32898875601161665,
-     "std": 0.1594354303683293,
+     "mean": 0.5703321125136677,
+     "worst": 0.36485174746391774,
+     "std": 0.15476023050995794,
      "n": 15
     },
     "merged entries (final)": {
-     "mean": 1.4666666666666666,
-     "worst": 5.0,
-     "std": 1.5860503004493758,
+     "mean": 1.5333333333333334,
+     "worst": 4.0,
+     "std": 1.5434449203720302,
      "n": 15
     },
     "neighbours swallowed (final)": {
      "mean": 1.6,
-     "worst": 6.0,
-     "std": 1.8547236990991407,
+     "worst": 5.0,
+     "std": 1.6653327995729061,
      "n": 15
     },
     "split trees (final)": {
-     "mean": 0.2,
-     "worst": 2.0,
-     "std": 0.5416025603090641,
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
      "n": 15
     },
     "false trees (final)": {
@@ -3331,33 +3331,33 @@
      "n": 15
     },
     "centre RMSE m (final)": {
-     "mean": 0.4727247047080031,
-     "worst": 0.910678433001097,
-     "std": 0.27764640294315973,
+     "mean": 0.479914608197227,
+     "worst": 0.8559501854664207,
+     "std": 0.26434842237562106,
      "n": 15
     },
     "height bias m (final)": {
-     "mean": -0.018602059875052153,
+     "mean": -0.016195215547667563,
      "worst": null,
-     "std": 0.14431432987701664,
+     "std": 0.1516671761308068,
      "n": 15
     },
     "height RMSE m (final)": {
-     "mean": 0.1881294486556512,
-     "worst": 0.3914090664935259,
-     "std": 0.11850223899523202,
+     "mean": 0.1932250140689474,
+     "worst": 0.4217684933704745,
+     "std": 0.12863647536193007,
      "n": 15
     },
     "spill (final)": {
-     "mean": 0.1669769592023922,
-     "worst": 0.29969183688783246,
-     "std": 0.08777273040008593,
+     "mean": 0.1748380429656027,
+     "worst": 0.323892592233601,
+     "std": 0.09330152710679403,
      "n": 15
     },
     "neighbour spill max (final)": {
-     "mean": 0.2362554443453277,
-     "worst": 0.5463606137632704,
-     "std": 0.18956217218099067,
+     "mean": 0.23534633307329625,
+     "worst": 0.5407496419104354,
+     "std": 0.1787320280380886,
      "n": 15
     },
     "ID switches after lock": {
@@ -3373,9 +3373,9 @@
      "n": 15
     },
     "centre jumps": {
-     "mean": 0.7333333333333333,
-     "worst": 5.0,
-     "std": 1.3888444437333105,
+     "mean": 1.0,
+     "worst": 7.0,
+     "std": 1.7888543819998317,
      "n": 15
     },
     "height jumps": {
@@ -3391,9 +3391,9 @@
      "n": 15
     },
     "SAFETY total violations": {
-     "mean": 9.333333333333334,
-     "worst": 42.0,
-     "std": 15.9150522741488,
+     "mean": 8.133333333333333,
+     "worst": 43.0,
+     "std": 14.412340391329773,
      "n": 15
     },
     "  undefined-height frames": {
@@ -3439,9 +3439,9 @@
      "n": 15
     },
     "  implausible-height frames": {
-     "mean": 9.333333333333334,
-     "worst": 42.0,
-     "std": 15.9150522741488,
+     "mean": 8.133333333333333,
+     "worst": 43.0,
+     "std": 14.412340391329773,
      "n": 15
     },
     "  locked ID vanished": {
@@ -3451,9 +3451,9 @@
      "n": 15
     },
     "truth trees sprayed": {
-     "mean": 4.666666666666667,
+     "mean": 4.733333333333333,
      "worst": 4.0,
-     "std": 0.699205898780101,
+     "std": 0.679869268479038,
      "n": 15
     },
     "truth trees sprayed twice": {
@@ -3463,9 +3463,9 @@
      "n": 15
     },
     "scan latency mean s": {
-     "mean": 2.138459123550455,
-     "worst": 4.986666666666667,
-     "std": 1.088770788330785,
+     "mean": 1.9576932790864678,
+     "worst": 3.9333333333333345,
+     "std": 0.9428507469682914,
      "n": 15
     }
    },
@@ -3525,21 +3525,21 @@
       "n": 5
      },
      "recall (per-frame mean)": {
-      "mean": 0.8834969643240912,
-      "worst": 0.8698841698841699,
-      "std": 0.009240814382638915,
+      "mean": 0.8847768867644256,
+      "worst": 0.8712355212355212,
+      "std": 0.009159344964643452,
       "n": 5
      },
      "mean IoU (final)": {
-      "mean": 0.8772090101603671,
-      "worst": 0.8618461831955183,
-      "std": 0.008292158023656654,
+      "mean": 0.8749608415117276,
+      "worst": 0.8622494451714073,
+      "std": 0.008595889374738902,
       "n": 5
      },
      "min IoU (final)": {
-      "mean": 0.774052509936001,
+      "mean": 0.7749282561130499,
       "worst": 0.7332965458492214,
-      "std": 0.028850487161326415,
+      "std": 0.028844876931989633,
       "n": 5
      },
      "merged entries (final)": {
@@ -3567,33 +3567,33 @@
       "n": 5
      },
      "centre RMSE m (final)": {
-      "mean": 0.13041202925711973,
-      "worst": 0.13808604322426413,
-      "std": 0.007136840610843699,
+      "mean": 0.1462579312412256,
+      "worst": 0.19258346798948514,
+      "std": 0.024341267457095663,
       "n": 5
      },
      "height bias m (final)": {
-      "mean": -0.029116065934065953,
+      "mean": -0.032463479853479874,
       "worst": null,
-      "std": 0.05291543186217278,
+      "std": 0.05081215079307062,
       "n": 5
      },
      "height RMSE m (final)": {
-      "mean": 0.06593568214037139,
-      "worst": 0.11958178014587831,
-      "std": 0.028607011618206654,
+      "mean": 0.06273042450331937,
+      "worst": 0.12638285937126595,
+      "std": 0.032954467942667195,
       "n": 5
      },
      "spill (final)": {
-      "mean": 0.05807574546784784,
-      "worst": 0.07076328530869251,
-      "std": 0.009288526524006857,
+      "mean": 0.062249263597866686,
+      "worst": 0.0731638351568652,
+      "std": 0.00985107477927019,
       "n": 5
      },
      "neighbour spill max (final)": {
-      "mean": 0.0048443201696490475,
-      "worst": 0.024221600848245237,
-      "std": 0.009688640339298095,
+      "mean": 0.020734703132432288,
+      "worst": 0.0984662049369282,
+      "std": 0.03891804216483606,
       "n": 5
      },
      "ID switches after lock": {
@@ -3699,101 +3699,101 @@
       "n": 5
      },
      "scan latency mean s": {
-      "mean": 1.5779633699633702,
-      "worst": 1.6307692307692305,
-      "std": 0.04875008221710909,
+      "mean": 1.4743956043956044,
+      "worst": 1.5285714285714282,
+      "std": 0.04843599037521129,
       "n": 5
      }
     },
     "hard": {
      "recall (final)": {
-      "mean": 0.7447536231884058,
+      "mean": 0.7781449275362318,
       "worst": 0.6521739130434783,
-      "std": 0.06402152547063748,
+      "std": 0.06749867712458207,
       "n": 5
      },
      "precision (final)": {
-      "mean": 0.9595271601463551,
-      "worst": 0.9090909090909091,
-      "std": 0.03550915289266497,
+      "mean": 0.9694235588972431,
+      "worst": 0.9473684210526315,
+      "std": 0.02503256338683466,
       "n": 5
      },
      "published / truth (final)": {
-      "mean": 18.4,
+      "mean": 19.0,
       "worst": null,
-      "std": 2.33238075793812,
+      "std": 2.1908902300206643,
       "n": 5
      },
      "recall (per-frame mean)": {
-      "mean": 0.6624099092571261,
-      "worst": 0.5792771452586538,
-      "std": 0.05789802288346514,
+      "mean": 0.696791835796272,
+      "worst": 0.5853136700542524,
+      "std": 0.0596714070764994,
       "n": 5
      },
      "mean IoU (final)": {
-      "mean": 0.6353428407895538,
-      "worst": 0.6023895356268651,
-      "std": 0.021674189793664776,
+      "mean": 0.6337833020235507,
+      "worst": 0.601566426059368,
+      "std": 0.02706279277364622,
       "n": 5
      },
      "min IoU (final)": {
-      "mean": 0.3974716564051265,
-      "worst": 0.32898875601161665,
-      "std": 0.045115483801699906,
+      "mean": 0.4199768505482404,
+      "worst": 0.36485174746391774,
+      "std": 0.04107453158039825,
       "n": 5
      },
      "merged entries (final)": {
-      "mean": 3.2,
-      "worst": 5.0,
-      "std": 1.469693845669907,
+      "mean": 3.6,
+      "worst": 4.0,
+      "std": 0.4898979485566356,
       "n": 5
      },
      "neighbours swallowed (final)": {
-      "mean": 3.6,
-      "worst": 6.0,
-      "std": 1.8547236990991407,
+      "mean": 3.8,
+      "worst": 5.0,
+      "std": 0.7483314773547882,
       "n": 5
      },
      "split trees (final)": {
-      "mean": 0.4,
-      "worst": 2.0,
-      "std": 0.8000000000000002,
+      "mean": 0.0,
+      "worst": 0.0,
+      "std": 0.0,
       "n": 5
      },
      "false trees (final)": {
-      "mean": 0.4,
+      "mean": 0.6,
       "worst": 1.0,
       "std": 0.48989794855663565,
       "n": 5
      },
      "centre RMSE m (final)": {
-      "mean": 0.7698273351313893,
-      "worst": 0.910678433001097,
-      "std": 0.11644326690979659,
+      "mean": 0.7672762972520181,
+      "worst": 0.8559501854664207,
+      "std": 0.06662930209341163,
       "n": 5
      },
      "height bias m (final)": {
-      "mean": -0.0014030643274853872,
+      "mean": 0.012827238095238131,
       "worst": null,
-      "std": 0.21915898502869555,
+      "std": 0.2310788017134114,
       "n": 5
      },
      "height RMSE m (final)": {
-      "mean": 0.329446701265652,
-      "worst": 0.3914090664935259,
-      "std": 0.044714463602924324,
+      "mean": 0.34198386390721447,
+      "worst": 0.4217684933704745,
+      "std": 0.04648931997283077,
       "n": 5
      },
      "spill (final)": {
-      "mean": 0.26166887743141,
-      "worst": 0.29969183688783246,
-      "std": 0.034411104485984084,
+      "mean": 0.28211569885798765,
+      "worst": 0.323892592233601,
+      "std": 0.03835941630944897,
       "n": 5
      },
      "neighbour spill max (final)": {
-      "mean": 0.4433525686902529,
-      "worst": 0.5463606137632704,
-      "std": 0.07524457314046894,
+      "mean": 0.4298007686280723,
+      "worst": 0.5407496419104354,
+      "std": 0.07824296549952306,
       "n": 5
      },
      "ID switches after lock": {
@@ -3809,9 +3809,9 @@
       "n": 5
      },
      "centre jumps": {
-      "mean": 2.0,
-      "worst": 5.0,
-      "std": 1.7888543819998317,
+      "mean": 2.2,
+      "worst": 7.0,
+      "std": 2.4819347291981715,
       "n": 5
      },
      "height jumps": {
@@ -3827,9 +3827,9 @@
       "n": 5
      },
      "SAFETY total violations": {
-      "mean": 20.6,
-      "worst": 42.0,
-      "std": 17.97331355092878,
+      "mean": 17.0,
+      "worst": 43.0,
+      "std": 16.087262041752165,
       "n": 5
      },
      "  undefined-height frames": {
@@ -3875,9 +3875,9 @@
       "n": 5
      },
      "  implausible-height frames": {
-      "mean": 20.6,
-      "worst": 42.0,
-      "std": 17.97331355092878,
+      "mean": 17.0,
+      "worst": 43.0,
+      "std": 16.087262041752165,
       "n": 5
      },
      "  locked ID vanished": {
@@ -3887,9 +3887,9 @@
       "n": 5
      },
      "truth trees sprayed": {
-      "mean": 5.0,
+      "mean": 5.2,
       "worst": 4.0,
-      "std": 0.8944271909999159,
+      "std": 0.7483314773547882,
       "n": 5
      },
      "truth trees sprayed twice": {
@@ -3899,101 +3899,101 @@
       "n": 5
      },
      "scan latency mean s": {
-      "mean": 2.235392156862745,
-      "worst": 4.986666666666667,
-      "std": 1.402710900381822,
+      "mean": 1.9072772841193895,
+      "worst": 3.9333333333333345,
+      "std": 1.0638879718166212,
       "n": 5
      }
     },
     "medium": {
      "recall (final)": {
-      "mean": 0.9565978672170623,
-      "worst": 0.9411764705882353,
-      "std": 0.021899702360979482,
+      "mean": 0.9683625730994152,
+      "worst": 0.9444444444444444,
+      "std": 0.025891577592453755,
       "n": 5
      },
      "precision (final)": {
-      "mean": 0.9677089783281734,
-      "worst": 0.9411764705882353,
-      "std": 0.026520710065524047,
+      "mean": 0.9888888888888889,
+      "worst": 0.9444444444444444,
+      "std": 0.022222222222222233,
       "n": 5
      },
      "published / truth (final)": {
-      "mean": 18.2,
+      "mean": 18.0,
       "worst": null,
-      "std": 1.1661903789690602,
+      "std": 0.6324555320336759,
       "n": 5
      },
      "recall (per-frame mean)": {
-      "mean": 0.8406353732487564,
-      "worst": 0.8214581607290805,
-      "std": 0.02059167009210368,
+      "mean": 0.8532323748862005,
+      "worst": 0.8327766900840724,
+      "std": 0.022018555805146663,
       "n": 5
      },
      "mean IoU (final)": {
-      "mean": 0.7708142410300042,
-      "worst": 0.7494359713703206,
-      "std": 0.012251902029108383,
+      "mean": 0.7665009475497735,
+      "worst": 0.7485400021242141,
+      "std": 0.013995531020118027,
       "n": 5
      },
      "min IoU (final)": {
-      "mean": 0.5452968309199145,
-      "worst": 0.5000323156085705,
-      "std": 0.0373231541084404,
+      "mean": 0.5160912308797121,
+      "worst": 0.45461455298359854,
+      "std": 0.04387120645543187,
       "n": 5
      },
      "merged entries (final)": {
-      "mean": 1.2,
-      "worst": 2.0,
-      "std": 0.4,
+      "mean": 1.0,
+      "worst": 1.0,
+      "std": 0.0,
       "n": 5
      },
      "neighbours swallowed (final)": {
-      "mean": 1.2,
-      "worst": 2.0,
-      "std": 0.4,
+      "mean": 1.0,
+      "worst": 1.0,
+      "std": 0.0,
       "n": 5
      },
      "split trees (final)": {
-      "mean": 0.2,
-      "worst": 1.0,
-      "std": 0.4000000000000001,
+      "mean": 0.0,
+      "worst": 0.0,
+      "std": 0.0,
       "n": 5
      },
      "false trees (final)": {
-      "mean": 0.4,
+      "mean": 0.2,
       "worst": 1.0,
-      "std": 0.48989794855663565,
+      "std": 0.4,
       "n": 5
      },
      "centre RMSE m (final)": {
-      "mean": 0.5179347497355,
-      "worst": 0.7005859543585246,
-      "std": 0.1008003836752133,
+      "mean": 0.5262095960984373,
+      "worst": 0.6939425996915498,
+      "std": 0.09252869673808943,
       "n": 5
      },
      "height bias m (final)": {
-      "mean": -0.025287049363605124,
+      "mean": -0.028949404884760936,
       "worst": null,
-      "std": 0.1058212404003686,
+      "std": 0.10844298544549044,
       "n": 5
      },
      "height RMSE m (final)": {
-      "mean": 0.1690059625609301,
-      "worst": 0.25677572466605525,
-      "std": 0.06358464744561639,
+      "mean": 0.17496075379630843,
+      "worst": 0.3154270905366951,
+      "std": 0.08308524560527158,
       "n": 5
      },
      "spill (final)": {
-      "mean": 0.18118625470791866,
-      "worst": 0.21685448271723728,
-      "std": 0.02852749479387784,
+      "mean": 0.18014916644095375,
+      "worst": 0.21400560850954636,
+      "std": 0.01827839329971186,
       "n": 5
      },
      "neighbour spill max (final)": {
-      "mean": 0.26056944417608124,
-      "worst": 0.3375566851078843,
-      "std": 0.07081199005290263,
+      "mean": 0.2555035274593841,
+      "worst": 0.31789097355493934,
+      "std": 0.06262464519181977,
       "n": 5
      },
      "ID switches after lock": {
@@ -4009,9 +4009,9 @@
       "n": 5
      },
      "centre jumps": {
-      "mean": 0.2,
-      "worst": 1.0,
-      "std": 0.4000000000000001,
+      "mean": 0.8,
+      "worst": 2.0,
+      "std": 0.9797958971132713,
       "n": 5
      },
      "height jumps": {
@@ -4099,9 +4099,9 @@
       "n": 5
      },
      "scan latency mean s": {
-      "mean": 2.60202184382525,
-      "worst": 3.7777777777777777,
-      "std": 1.0236450310709853,
+      "mean": 2.4914069487444097,
+      "worst": 3.677777777777777,
+      "std": 1.0058480180158536,
       "n": 5
      }
     }
@@ -4115,18 +4115,18 @@
      "recall (final)": 0.07692307692307687,
      "precision (final)": 0.1428571428571429,
      "published / truth (final)": -1.0,
-     "recall (per-frame mean)": 0.04338764683592278,
-     "mean IoU (final)": 0.39403917356762846,
+     "recall (per-frame mean)": 0.04490337248957954,
+     "mean IoU (final)": 0.3938425008799464,
      "min IoU (final)": 0.6810515975133083,
      "merged entries (final)": -2.0,
      "neighbours swallowed (final)": -2.0,
      "split trees (final)": -1.0,
      "false trees (final)": -3.0,
-     "centre RMSE m (final)": -1.3661377091300508,
-     "height bias m (final)": 0.162723717948718,
-     "height RMSE m (final)": -0.29345574002300195,
-     "spill (final)": -0.458749952451512,
-     "neighbour spill max (final)": -0.34491555763064663,
+     "centre RMSE m (final)": -1.3587828930479178,
+     "height bias m (final)": 0.16563141025641026,
+     "height RMSE m (final)": -0.29468448620930254,
+     "spill (final)": -0.45634940260333934,
+     "neighbour spill max (final)": -0.3397082469054134,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
      "centre jumps": -8.0,
@@ -4144,23 +4144,23 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 1.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.953846153846154
+     "scan latency mean s": 0.8307692307692305
     },
     "easy_s01": {
      "recall (final)": 0.1428571428571429,
      "precision (final)": 0.07692307692307687,
      "published / truth (final)": 1.0,
-     "recall (per-frame mean)": 0.06904193658370272,
-     "mean IoU (final)": 0.2659337870764896,
-     "min IoU (final)": 0.5933968915048067,
+     "recall (per-frame mean)": 0.07023525400613706,
+     "mean IoU (final)": 0.2658732034411374,
+     "min IoU (final)": 0.597775622390051,
      "merged entries (final)": -1.0,
      "neighbours swallowed (final)": -2.0,
      "split trees (final)": -1.0,
      "false trees (final)": -1.0,
-     "centre RMSE m (final)": -1.2748006814247086,
-     "height bias m (final)": 0.04949523809523796,
-     "height RMSE m (final)": -0.10347889211605195,
-     "spill (final)": -0.31946570873291724,
+     "centre RMSE m (final)": -1.267796572370125,
+     "height bias m (final)": 0.03611666666666659,
+     "height RMSE m (final)": -0.1218760108875839,
+     "spill (final)": -0.3180417919630897,
      "neighbour spill max (final)": -0.36966457303328515,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
@@ -4179,24 +4179,24 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 1.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.9500000000000005
+     "scan latency mean s": 0.8500000000000002
     },
     "easy_s02": {
      "recall (final)": 0.2142857142857143,
      "precision (final)": 0.08333333333333337,
      "published / truth (final)": 2.0,
-     "recall (per-frame mean)": 0.1339768339768339,
-     "mean IoU (final)": 0.2862775613323548,
+     "recall (per-frame mean)": 0.13532818532818514,
+     "mean IoU (final)": 0.2743680979720735,
      "min IoU (final)": 0.6188103118494177,
      "merged entries (final)": -2.0,
      "neighbours swallowed (final)": -4.0,
      "split trees (final)": 0.0,
      "false trees (final)": -2.0,
-     "centre RMSE m (final)": -1.0870171214158177,
-     "height bias m (final)": 0.051892857142857254,
-     "height RMSE m (final)": -0.0839494548927853,
-     "spill (final)": -0.35937211215556825,
-     "neighbour spill max (final)": -0.2924344502657811,
+     "centre RMSE m (final)": -1.0193207939058182,
+     "height bias m (final)": 0.0465000000000001,
+     "height RMSE m (final)": -0.07714837566739766,
+     "spill (final)": -0.34749358394398544,
+     "neighbour spill max (final)": -0.21818984617709813,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
      "centre jumps": -9.0,
@@ -4214,23 +4214,23 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 2.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 1.092857142857143
+     "scan latency mean s": 0.9928571428571425
     },
     "easy_s03": {
      "recall (final)": 0.0714285714285714,
      "precision (final)": 0.1333333333333333,
      "published / truth (final)": -1.0,
-     "recall (per-frame mean)": 0.023753369272237035,
-     "mean IoU (final)": 0.26356104261243896,
+     "recall (per-frame mean)": 0.025269541778975557,
+     "mean IoU (final)": 0.2640836570766676,
      "min IoU (final)": 0.5637432934695044,
      "merged entries (final)": -1.0,
      "neighbours swallowed (final)": -2.0,
      "split trees (final)": -2.0,
      "false trees (final)": -1.0,
-     "centre RMSE m (final)": -1.0309401609023712,
-     "height bias m (final)": 0.11132362637362643,
-     "height RMSE m (final)": -0.3503555858484485,
-     "spill (final)": -0.3466187142100603,
+     "centre RMSE m (final)": -1.0284223454395431,
+     "height bias m (final)": 0.11052362637362645,
+     "height RMSE m (final)": -0.3537620815054448,
+     "spill (final)": -0.34409900569956764,
      "neighbour spill max (final)": -0.22079911587569667,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
@@ -4249,23 +4249,23 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 0.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.9285714285714289
+     "scan latency mean s": 0.8071428571428575
     },
     "easy_s04": {
      "recall (final)": 0.0,
      "precision (final)": 0.11764705882352944,
      "published / truth (final)": -2.0,
-     "recall (per-frame mean)": -0.029958847736625493,
-     "mean IoU (final)": 0.26763438352889046,
+     "recall (per-frame mean)": -0.02913580246913583,
+     "mean IoU (final)": 0.2680376455047795,
      "min IoU (final)": 0.4391991812589766,
      "merged entries (final)": -1.0,
      "neighbours swallowed (final)": -1.0,
      "split trees (final)": -1.0,
      "false trees (final)": -1.0,
-     "centre RMSE m (final)": -0.8080933766886123,
-     "height bias m (final)": 0.055193333333333365,
-     "height RMSE m (final)": -0.07540007637615184,
-     "spill (final)": -0.3783958817782662,
+     "centre RMSE m (final)": -0.8134369348776274,
+     "height bias m (final)": 0.055119999999999995,
+     "height RMSE m (final)": -0.0751950831719708,
+     "spill (final)": -0.37575099446824767,
      "neighbour spill max (final)": -0.18998742003472427,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
@@ -4284,30 +4284,30 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 0.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.986666666666667
+     "scan latency mean s": 0.9133333333333336
     },
     "hard_s00": {
      "recall (final)": 0.7083333333333334,
-     "precision (final)": 0.7511961722488039,
-     "published / truth (final)": 3.0,
-     "recall (per-frame mean)": 0.6109550561797753,
-     "mean IoU (final)": 0.39444467855633436,
-     "min IoU (final)": 0.1898685317845823,
-     "merged entries (final)": 1.0,
-     "neighbours swallowed (final)": -25.0,
-     "split trees (final)": 2.0,
-     "false trees (final)": -17.0,
-     "centre RMSE m (final)": -1.4747911246360053,
-     "height bias m (final)": -0.8349099999999999,
-     "height RMSE m (final)": -0.8195578667370492,
-     "spill (final)": -0.6016431571270747,
-     "neighbour spill max (final)": 0.08483360349471802,
+     "precision (final)": 0.794486215538847,
+     "published / truth (final)": 2.0,
+     "recall (per-frame mean)": 0.6141541822721598,
+     "mean IoU (final)": 0.3712932898564739,
+     "min IoU (final)": 0.18655486221402473,
+     "merged entries (final)": 0.0,
+     "neighbours swallowed (final)": -26.0,
+     "split trees (final)": 0.0,
+     "false trees (final)": -16.0,
+     "centre RMSE m (final)": -1.3543836146113617,
+     "height bias m (final)": -0.77792,
+     "height RMSE m (final)": -0.7808273209096663,
+     "spill (final)": -0.5263254396188486,
+     "neighbour spill max (final)": 0.06536894777261859,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
      "centre jumps": -35.0,
      "height jumps": -3.0,
      "IDs vanished while held by nav": 0.0,
-     "SAFETY total violations": -183.0,
+     "SAFETY total violations": -182.0,
      "  undefined-height frames": 0.0,
      "  new trees after scan": 0.0,
      "  non-target changes in descent": 0.0,
@@ -4315,31 +4315,31 @@
      "  new tree inside sprayed": 0.0,
      "  invalid-entry frames": 0.0,
      "  duplicate-ID frames": 0.0,
-     "  implausible-height frames": -183.0,
+     "  implausible-height frames": -182.0,
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 2.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 1.2638888888888895
+     "scan latency mean s": 1.2174603174603174
     },
     "hard_s01": {
-     "recall (final)": 0.4,
+     "recall (final)": 0.48,
      "precision (final)": 0.6666666666666667,
-     "published / truth (final)": -8.0,
-     "recall (per-frame mean)": 0.3231968810916178,
-     "mean IoU (final)": 0.41164544725844454,
-     "min IoU (final)": 0.3436221659118615,
-     "merged entries (final)": -7.0,
-     "neighbours swallowed (final)": -26.0,
+     "published / truth (final)": -6.0,
+     "recall (per-frame mean)": 0.3994541910331384,
+     "mean IoU (final)": 0.3915681193653967,
+     "min IoU (final)": 0.3491930156344663,
+     "merged entries (final)": -5.0,
+     "neighbours swallowed (final)": -24.0,
      "split trees (final)": -1.0,
      "false trees (final)": -23.0,
-     "centre RMSE m (final)": -2.5065870965874897,
-     "height bias m (final)": 0.2003157894736841,
-     "height RMSE m (final)": -1.0634940690103074,
-     "spill (final)": -0.5296036534283908,
-     "neighbour spill max (final)": -0.0904566176187327,
+     "centre RMSE m (final)": -2.5102336488876498,
+     "height bias m (final)": 0.22630952380952382,
+     "height RMSE m (final)": -1.0703997474992275,
+     "spill (final)": -0.5132343098606591,
+     "neighbour spill max (final)": -0.09606758947156768,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
-     "centre jumps": -35.0,
+     "centre jumps": -36.0,
      "height jumps": -2.0,
      "IDs vanished while held by nav": 0.0,
      "SAFETY total violations": -66.0,
@@ -4352,29 +4352,29 @@
      "  duplicate-ID frames": 0.0,
      "  implausible-height frames": -66.0,
      "  locked ID vanished": 0.0,
-     "truth trees sprayed": 1.0,
+     "truth trees sprayed": 2.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.8343478260869562
+     "scan latency mean s": 0.5770750988142289
     },
     "hard_s02": {
      "recall (final)": 0.391304347826087,
      "precision (final)": 0.5873684210526315,
      "published / truth (final)": -6.0,
-     "recall (per-frame mean)": 0.3219241443108233,
-     "mean IoU (final)": 0.3574145944291395,
-     "min IoU (final)": 0.2214038726024844,
-     "merged entries (final)": -3.0,
-     "neighbours swallowed (final)": -14.0,
+     "recall (per-frame mean)": 0.3326044907913547,
+     "mean IoU (final)": 0.3812882831021944,
+     "min IoU (final)": 0.28621046416908325,
+     "merged entries (final)": -4.0,
+     "neighbours swallowed (final)": -15.0,
      "split trees (final)": 0.0,
      "false trees (final)": -20.0,
-     "centre RMSE m (final)": -0.7272300585412931,
-     "height bias m (final)": -0.43675000000000014,
-     "height RMSE m (final)": -0.444970921206249,
-     "spill (final)": -0.523144370450001,
-     "neighbour spill max (final)": -0.007641178613156052,
+     "centre RMSE m (final)": -0.8241669699958436,
+     "height bias m (final)": -0.47583888888888914,
+     "height RMSE m (final)": -0.45052476431337524,
+     "spill (final)": -0.5327770159763088,
+     "neighbour spill max (final)": -0.013821308486311246,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
-     "centre jumps": -30.0,
+     "centre jumps": -28.0,
      "height jumps": -1.0,
      "IDs vanished while held by nav": 0.0,
      "SAFETY total violations": -44.0,
@@ -4389,30 +4389,30 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 1.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.7499999999999999
+     "scan latency mean s": 0.568421052631579
     },
     "hard_s03": {
-     "recall (final)": 0.3043478260869565,
-     "precision (final)": 0.6308316430020284,
-     "published / truth (final)": -12.0,
-     "recall (per-frame mean)": 0.2721722630146027,
-     "mean IoU (final)": 0.3927928668358498,
-     "min IoU (final)": 0.33403339566413903,
+     "recall (final)": 0.391304347826087,
+     "precision (final)": 0.6370235934664246,
+     "published / truth (final)": -10.0,
+     "recall (per-frame mean)": 0.3479085884002971,
+     "mean IoU (final)": 0.4089544041152541,
+     "min IoU (final)": 0.3724212444792052,
      "merged entries (final)": -2.0,
-     "neighbours swallowed (final)": -17.0,
+     "neighbours swallowed (final)": -18.0,
      "split trees (final)": 0.0,
      "false trees (final)": -25.0,
-     "centre RMSE m (final)": -2.425786630524351,
-     "height bias m (final)": -0.3044555555555557,
-     "height RMSE m (final)": -0.2843041358962573,
-     "spill (final)": -0.5347772404342398,
-     "neighbour spill max (final)": -0.1395338345192128,
+     "centre RMSE m (final)": -2.5037841992119656,
+     "height bias m (final)": -0.31480555555555556,
+     "height RMSE m (final)": -0.2782487737967299,
+     "spill (final)": -0.521755352316839,
+     "neighbour spill max (final)": -0.1595473543898624,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
-     "centre jumps": -24.0,
+     "centre jumps": -25.0,
      "height jumps": -1.0,
      "IDs vanished while held by nav": 0.0,
-     "SAFETY total violations": -52.0,
+     "SAFETY total violations": -71.0,
      "  undefined-height frames": 0.0,
      "  new trees after scan": 0.0,
      "  non-target changes in descent": 0.0,
@@ -4420,31 +4420,31 @@
      "  new tree inside sprayed": 0.0,
      "  invalid-entry frames": 0.0,
      "  duplicate-ID frames": 0.0,
-     "  implausible-height frames": -52.0,
+     "  implausible-height frames": -71.0,
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 4.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.4089783281733743
+     "scan latency mean s": 0.30701754385964874
     },
     "hard_s04": {
      "recall (final)": 0.5652173913043479,
      "precision (final)": 0.9130434782608696,
      "published / truth (final)": -8.0,
-     "recall (per-frame mean)": 0.47375257889508693,
-     "mean IoU (final)": 0.5234664744524333,
-     "min IoU (final)": 0.2993265432916794,
-     "merged entries (final)": -4.0,
-     "neighbours swallowed (final)": -26.0,
+     "recall (per-frame mean)": 0.4797891036906855,
+     "mean IoU (final)": 0.5188622712628667,
+     "min IoU (final)": 0.30640089347353666,
+     "merged entries (final)": -2.0,
+     "neighbours swallowed (final)": -24.0,
      "split trees (final)": 0.0,
      "false trees (final)": -23.0,
-     "centre RMSE m (final)": -2.2452178615832206,
-     "height bias m (final)": -0.021676666666666733,
-     "height RMSE m (final)": 0.11875704467817216,
-     "spill (final)": -0.6530324521072528,
-     "neighbour spill max (final)": 0.18771887752424038,
+     "centre RMSE m (final)": -2.199799528562396,
+     "height bias m (final)": 0.015929999999999972,
+     "height RMSE m (final)": 0.14911647155512076,
+     "spill (final)": -0.6458746486414153,
+     "neighbour spill max (final)": 0.17122915453207682,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
-     "centre jumps": -32.0,
+     "centre jumps": -31.0,
      "height jumps": -4.0,
      "IDs vanished while held by nav": 0.0,
      "SAFETY total violations": -212.0,
@@ -4459,24 +4459,24 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 4.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 4.200952380952381
+     "scan latency mean s": 3.1476190476190484
     },
     "medium_s00": {
      "recall (final)": 0.2777777777777778,
      "precision (final)": 0.33333333333333337,
      "published / truth (final)": -1.0,
-     "recall (per-frame mean)": 0.22805139186295498,
-     "mean IoU (final)": 0.34426101697843736,
-     "min IoU (final)": 0.40187704002882735,
+     "recall (per-frame mean)": 0.22959790625743515,
+     "mean IoU (final)": 0.3429210683042675,
+     "min IoU (final)": 0.385263559950208,
      "merged entries (final)": -4.0,
      "neighbours swallowed (final)": -10.0,
      "split trees (final)": 0.0,
      "false trees (final)": -9.0,
-     "centre RMSE m (final)": -1.1363332326765092,
-     "height bias m (final)": -0.1006730392156863,
-     "height RMSE m (final)": -0.3747822467139353,
-     "spill (final)": -0.4650844171648203,
-     "neighbour spill max (final)": -0.13764034510473372,
+     "centre RMSE m (final)": -1.1385235860971705,
+     "height bias m (final)": -0.10452598039215683,
+     "height RMSE m (final)": -0.3738826305737094,
+     "spill (final)": -0.4632267240418946,
+     "neighbour spill max (final)": -0.12379715202392594,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
      "centre jumps": -11.0,
@@ -4494,27 +4494,27 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 1.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 1.2474264705882356
+     "scan latency mean s": 1.0944852941176466
     },
     "medium_s01": {
      "recall (final)": 0.4444444444444444,
-     "precision (final)": 0.47117794486215536,
-     "published / truth (final)": -2.0,
-     "recall (per-frame mean)": 0.3539325842696629,
-     "mean IoU (final)": 0.39889475574537586,
-     "min IoU (final)": 0.3887566358045432,
+     "precision (final)": 0.5238095238095238,
+     "published / truth (final)": -3.0,
+     "recall (per-frame mean)": 0.3550561797752809,
+     "mean IoU (final)": 0.37454104368151914,
+     "min IoU (final)": 0.2973031452644246,
      "merged entries (final)": -4.0,
      "neighbours swallowed (final)": -12.0,
-     "split trees (final)": 0.0,
+     "split trees (final)": -1.0,
      "false trees (final)": -13.0,
-     "centre RMSE m (final)": -1.2411729547322057,
-     "height bias m (final)": -0.2507933333333334,
-     "height RMSE m (final)": -0.23821249640592146,
-     "spill (final)": -0.528482015138146,
-     "neighbour spill max (final)": -0.20981886252662335,
+     "centre RMSE m (final)": -1.2096091156662503,
+     "height bias m (final)": -0.27331555555555564,
+     "height RMSE m (final)": -0.1795611305352816,
+     "spill (final)": -0.5084562590859193,
+     "neighbour spill max (final)": -0.20890338926461172,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
-     "centre jumps": -11.0,
+     "centre jumps": -9.0,
      "height jumps": 0.0,
      "IDs vanished while held by nav": 0.0,
      "SAFETY total violations": 0.0,
@@ -4529,27 +4529,27 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 3.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 3.1660130718954247
+     "scan latency mean s": 3.066013071895424
     },
     "medium_s02": {
      "recall (final)": 0.5789473684210527,
      "precision (final)": 0.46153846153846156,
      "published / truth (final)": 5.0,
-     "recall (per-frame mean)": 0.4668893239663712,
-     "mean IoU (final)": 0.4024173658421521,
-     "min IoU (final)": 0.36867541795909325,
+     "recall (per-frame mean)": 0.46850166992974795,
+     "mean IoU (final)": 0.3968648277490194,
+     "min IoU (final)": 0.3734865296807201,
      "merged entries (final)": -4.0,
      "neighbours swallowed (final)": -18.0,
      "split trees (final)": 0.0,
      "false trees (final)": -7.0,
-     "centre RMSE m (final)": -0.9737615317642673,
-     "height bias m (final)": -0.19003730158730178,
-     "height RMSE m (final)": -0.421350873517282,
-     "spill (final)": -0.4676202403529196,
-     "neighbour spill max (final)": -0.0633021617704862,
+     "centre RMSE m (final)": -0.980404886431242,
+     "height bias m (final)": -0.1925484126984129,
+     "height RMSE m (final)": -0.42078625328155655,
+     "spill (final)": -0.4561533283792233,
+     "neighbour spill max (final)": -0.06101135751672088,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
-     "centre jumps": -12.0,
+     "centre jumps": -11.0,
      "height jumps": -1.0,
      "IDs vanished while held by nav": 0.0,
      "SAFETY total violations": 0.0,
@@ -4564,24 +4564,24 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 4.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 3.025694444444445
+     "scan latency mean s": 2.8812499999999996
     },
     "medium_s03": {
-     "recall (final)": 0.3529411764705882,
-     "precision (final)": 0.4148606811145511,
-     "published / truth (final)": -2.0,
-     "recall (per-frame mean)": 0.2858326429163216,
-     "mean IoU (final)": 0.45104491744609154,
-     "min IoU (final)": 0.4685135743857496,
+     "recall (final)": 0.4117647058823529,
+     "precision (final)": 0.41812865497076024,
+     "published / truth (final)": -1.0,
+     "recall (per-frame mean)": 0.3428610880972107,
+     "mean IoU (final)": 0.4616206181222038,
+     "min IoU (final)": 0.43835004677306433,
      "merged entries (final)": -6.0,
      "neighbours swallowed (final)": -12.0,
      "split trees (final)": -1.0,
      "false trees (final)": -9.0,
-     "centre RMSE m (final)": -2.4279750553371757,
-     "height bias m (final)": 0.08872250000000001,
-     "height RMSE m (final)": -0.6422661584503547,
-     "spill (final)": -0.4121774633254014,
-     "neighbour spill max (final)": -0.07411220965205861,
+     "centre RMSE m (final)": -2.4239244050613906,
+     "height bias m (final)": 0.10688647058823535,
+     "height RMSE m (final)": -0.6691725415039108,
+     "spill (final)": -0.4150263375330923,
+     "neighbour spill max (final)": -0.12929106160958465,
      "ID switches after lock": -1.0,
      "geometry retreats": 0.0,
      "centre jumps": -13.0,
@@ -4599,24 +4599,24 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 1.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.6958333333333334
+     "scan latency mean s": 0.6980392156862748
     },
     "medium_s04": {
      "recall (final)": 0.6499999999999999,
-     "precision (final)": 0.5214285714285714,
-     "published / truth (final)": 6.0,
-     "recall (per-frame mean)": 0.5580357142857142,
-     "mean IoU (final)": 0.39031511676106356,
-     "min IoU (final)": 0.42605302972548215,
-     "merged entries (final)": -2.0,
-     "neighbours swallowed (final)": -15.0,
+     "precision (final)": 0.5714285714285714,
+     "published / truth (final)": 5.0,
+     "recall (per-frame mean)": 0.5597098214285714,
+     "mean IoU (final)": 0.3894191475149571,
+     "min IoU (final)": 0.4134444160342667,
+     "merged entries (final)": -3.0,
+     "neighbours swallowed (final)": -16.0,
      "split trees (final)": 0.0,
-     "false trees (final)": -8.0,
-     "centre RMSE m (final)": -1.919712086156299,
-     "height bias m (final)": 0.04756140350877196,
-     "height RMSE m (final)": -0.25126009346961115,
-     "spill (final)": -0.4189545803332916,
-     "neighbour spill max (final)": -0.16866173788070687,
+     "false trees (final)": -9.0,
+     "centre RMSE m (final)": -1.9051186355957173,
+     "height bias m (final)": 0.03997192982456145,
+     "height RMSE m (final)": -0.2546953564857546,
+     "spill (final)": -0.4546415086092739,
+     "neighbour spill max (final)": -0.15586194010325116,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
      "centre jumps": -13.0,
@@ -4634,17 +4634,17 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 2.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": 0.7717105263157895
+     "scan latency mean s": 0.6138157894736842
     }
    },
    "summary": {
     "recall (final)": {
      "n": 15,
      "ref_mean": 0.5551966187245498,
-     "other_mean": 0.9004504968018227,
-     "mean_diff": 0.3452538780772728,
-     "std_diff": 0.2192901724348674,
-     "t": 6.097685569580013,
+     "other_mean": 0.9155025002118824,
+     "mean_diff": 0.3603058814873326,
+     "std_diff": 0.22197287316767286,
+     "t": 6.286618083674248,
      "wins": 14,
      "losses": 0,
      "ties": 1
@@ -4652,10 +4652,10 @@
     "precision (final)": {
      "n": 15,
      "ref_mean": 0.5553760915729437,
-     "other_mean": 0.9757453794915095,
-     "mean_diff": 0.4203692879185659,
-     "std_diff": 0.265882185399304,
-     "t": 6.123325821625123,
+     "other_mean": 0.986104149262044,
+     "mean_diff": 0.43072805768910044,
+     "std_diff": 0.27281048493557086,
+     "t": 6.114877126398312,
      "wins": 15,
      "losses": 0,
      "ties": 0
@@ -4663,10 +4663,10 @@
     "published / truth (final)": {
      "n": 15,
      "ref_mean": 18.6,
-     "other_mean": 16.866666666666667,
-     "mean_diff": -1.7333333333333334,
-     "std_diff": 5.020908663730482,
-     "t": -1.337043069896909,
+     "other_mean": 17.0,
+     "mean_diff": -1.6,
+     "std_diff": 4.420730385678044,
+     "t": -1.401753288100925,
      "wins": null,
      "losses": null,
      "ties": null
@@ -4674,10 +4674,10 @@
     "recall (per-frame mean)": {
      "n": 15,
      "ref_mean": 0.5198511809616578,
-     "other_mean": 0.7955140822766579,
-     "mean_diff": 0.2756629013150001,
-     "std_diff": 0.19900691180686197,
-     "t": 5.364827865860088,
+     "other_mean": 0.8116003658156327,
+     "mean_diff": 0.29174918485397483,
+     "std_diff": 0.20313649613066384,
+     "t": 5.562465414792921,
      "wins": 14,
      "losses": 1,
      "ties": 0
@@ -4685,10 +4685,10 @@
     "mean IoU (final)": {
      "n": 15,
      "ref_mean": 0.39151248516510007,
-     "other_mean": 0.7611220306599752,
-     "mean_diff": 0.36960954549487485,
-     "std_diff": 0.07383079666007389,
-     "t": 19.388814411575527,
+     "other_mean": 0.758415030361684,
+     "mean_diff": 0.3669025451965838,
+     "std_diff": 0.07394290654242358,
+     "t": 19.21763038097782,
      "wins": 15,
      "losses": 0,
      "ties": 0
@@ -4696,10 +4696,10 @@
     "min IoU (final)": {
      "n": 15,
      "ref_mean": 0.1497182335700503,
-     "other_mean": 0.5722736657536807,
-     "mean_diff": 0.42255543218363034,
-     "std_diff": 0.14272565707605003,
-     "t": 11.46640474616738,
+     "other_mean": 0.5703321125136677,
+     "mean_diff": 0.42061387894361724,
+     "std_diff": 0.13930579835219786,
+     "t": 11.693917752179699,
      "wins": 15,
      "losses": 0,
      "ties": 0
@@ -4707,21 +4707,21 @@
     "merged entries (final)": {
      "n": 15,
      "ref_mean": 4.266666666666667,
-     "other_mean": 1.4666666666666666,
-     "mean_diff": -2.8,
-     "std_diff": 2.0770858707058104,
-     "t": -5.220946096800403,
+     "other_mean": 1.5333333333333334,
+     "mean_diff": -2.7333333333333334,
+     "std_diff": 1.7099150633319549,
+     "t": -6.191041126338368,
      "wins": 14,
-     "losses": 1,
-     "ties": 0
+     "losses": 0,
+     "ties": 1
     },
     "neighbours swallowed (final)": {
      "n": 15,
      "ref_mean": 14.0,
      "other_mean": 1.6,
      "mean_diff": -12.4,
-     "std_diff": 8.950658395575473,
-     "t": -5.365526352420273,
+     "std_diff": 8.732533587518738,
+     "t": -5.499548671832569,
      "wins": 15,
      "losses": 0,
      "ties": 0
@@ -4729,12 +4729,12 @@
     "split trees (final)": {
      "n": 15,
      "ref_mean": 0.5333333333333333,
-     "other_mean": 0.2,
-     "mean_diff": -0.3333333333333333,
-     "std_diff": 0.8997354108424372,
-     "t": -1.4348601079588787,
-     "wins": 6,
-     "losses": 1,
+     "other_mean": 0.0,
+     "mean_diff": -0.5333333333333333,
+     "std_diff": 0.6399404734221844,
+     "t": -3.2277863391437163,
+     "wins": 7,
+     "losses": 0,
      "ties": 8
     },
     "false trees (final)": {
@@ -4742,8 +4742,8 @@
      "ref_mean": 11.066666666666666,
      "other_mean": 0.26666666666666666,
      "mean_diff": -10.8,
-     "std_diff": 8.792854241614933,
-     "t": -4.757069660165065,
+     "std_diff": 8.727624451786898,
+     "t": -4.79262373972521,
      "wins": 15,
      "losses": 0,
      "ties": 0
@@ -4751,10 +4751,10 @@
     "centre RMSE m (final)": {
      "n": 15,
      "ref_mean": 1.982428483514695,
-     "other_mean": 0.4727247047080031,
-     "mean_diff": -1.5097037788066918,
-     "std_diff": 0.6252686841085221,
-     "t": -9.351272087712461,
+     "other_mean": 0.479914608197227,
+     "mean_diff": -1.502513875317468,
+     "std_diff": 0.6266196064361744,
+     "t": -9.286672738579316,
      "wins": 15,
      "losses": 0,
      "ties": 0
@@ -4762,10 +4762,10 @@
     "height bias m (final)": {
      "n": 15,
      "ref_mean": 0.07286910215710216,
-     "other_mean": -0.018602059875052153,
-     "mean_diff": -0.09147116203215434,
-     "std_diff": 0.2754154470267401,
-     "t": -1.2862978131156828,
+     "other_mean": -0.016195215547667563,
+     "mean_diff": -0.08906431770476972,
+     "std_diff": 0.2732144943707484,
+     "t": -1.2625414329000213,
      "wins": null,
      "losses": null,
      "ties": null
@@ -4773,10 +4773,10 @@
     "height RMSE m (final)": {
      "n": 15,
      "ref_mean": 0.5433348863880002,
-     "other_mean": 0.1881294486556512,
-     "mean_diff": -0.35520543773234897,
-     "std_diff": 0.3030498772909611,
-     "t": -4.539532426534778,
+     "other_mean": 0.1932250140689474,
+     "mean_diff": -0.3501098723190527,
+     "std_diff": 0.30701597767077426,
+     "t": -4.416609569058187,
      "wins": 14,
      "losses": 1,
      "ties": 0
@@ -4784,10 +4784,10 @@
     "spill (final)": {
      "n": 15,
      "ref_mean": 0.6334517564817163,
-     "other_mean": 0.1669769592023922,
-     "mean_diff": -0.4664747972793241,
-     "std_diff": 0.09608641166244633,
-     "t": -18.802337292343697,
+     "other_mean": 0.1748380429656027,
+     "mean_diff": -0.4586137135161136,
+     "std_diff": 0.0880918277438257,
+     "t": -20.163087998985695,
      "wins": 15,
      "losses": 0,
      "ties": 0
@@ -4795,10 +4795,10 @@
     "neighbour spill max (final)": {
      "n": 15,
      "ref_mean": 0.3720164832457868,
-     "other_mean": 0.2362554443453277,
-     "mean_diff": -0.135761038900459,
-     "std_diff": 0.15132252701872295,
-     "t": -3.4746990622238183,
+     "other_mean": 0.23534633307329625,
+     "mean_diff": -0.1366701501724905,
+     "std_diff": 0.14053283286823742,
+     "t": -3.766530601699393,
      "wins": 13,
      "losses": 2,
      "ties": 0
@@ -4828,10 +4828,10 @@
     "centre jumps": {
      "n": 15,
      "ref_mean": 18.0,
-     "other_mean": 0.7333333333333333,
-     "mean_diff": -17.266666666666666,
-     "std_diff": 10.62656150990571,
-     "t": -6.29305277931884,
+     "other_mean": 1.0,
+     "mean_diff": -17.0,
+     "std_diff": 10.677078252031311,
+     "t": -6.166548125935099,
      "wins": 15,
      "losses": 0,
      "ties": 0
@@ -4861,10 +4861,10 @@
     "SAFETY total violations": {
      "n": 15,
      "ref_mean": 44.0,
-     "other_mean": 9.333333333333334,
-     "mean_diff": -34.666666666666664,
-     "std_diff": 71.09919294967587,
-     "t": -1.8883958748105012,
+     "other_mean": 8.133333333333333,
+     "mean_diff": -35.86666666666667,
+     "std_diff": 71.45114881278444,
+     "t": -1.9441395273845892,
      "wins": 5,
      "losses": 1,
      "ties": 9
@@ -4949,10 +4949,10 @@
     "  implausible-height frames": {
      "n": 15,
      "ref_mean": 44.0,
-     "other_mean": 9.333333333333334,
-     "mean_diff": -34.666666666666664,
-     "std_diff": 71.09919294967587,
-     "t": -1.8883958748105012,
+     "other_mean": 8.133333333333333,
+     "mean_diff": -35.86666666666667,
+     "std_diff": 71.45114881278444,
+     "t": -1.9441395273845892,
      "wins": 5,
      "losses": 1,
      "ties": 9
@@ -4971,10 +4971,10 @@
     "truth trees sprayed": {
      "n": 15,
      "ref_mean": 2.8666666666666667,
-     "other_mean": 4.666666666666667,
-     "mean_diff": 1.8,
-     "std_diff": 1.3732131246511905,
-     "t": 5.076684673359896,
+     "other_mean": 4.733333333333333,
+     "mean_diff": 1.8666666666666667,
+     "std_diff": 1.3557637102737476,
+     "t": 5.332469705551243,
      "wins": 13,
      "losses": 0,
      "ties": 2
@@ -4993,10 +4993,10 @@
     "scan latency mean s": {
      "n": 15,
      "ref_mean": 0.7200066793757733,
-     "other_mean": 2.138459123550455,
-     "mean_diff": 1.4184524441746815,
-     "std_diff": 1.1067287830027805,
-     "t": 4.963856346782972,
+     "other_mean": 1.9576932790864678,
+     "mean_diff": 1.2376865997106945,
+     "std_diff": 0.9565614005049451,
+     "t": 5.011219965569606,
      "wins": 0,
      "losses": 15,
      "ties": 0

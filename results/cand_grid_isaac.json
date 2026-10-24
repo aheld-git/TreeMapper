@@ -51,7 +51,7 @@
        "truth trees sprayed twice": 0.0,
        "scan latency mean s": 2.3855833333333387
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.6054350828729282, \"p95_ms\": 0.80831, \"max_ms\": 0.9051, \"n\": 724}, \"integrate\": {\"mean_ms\": 0.0036903314917127073, \"p95_ms\": 0.009870000000000006, \"max_ms\": 0.0151, \"n\": 724}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.607539226519337, \"p95_ms\": 0.8131, \"max_ms\": 1.1461, \"n\": 724}, \"integrate\": {\"mean_ms\": 0.0037279005524861876, \"p95_ms\": 0.0102, \"max_ms\": 0.0164, \"n\": 724}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/simple/isaac_2026-10-23-15-34-29"
      }
     ]
@@ -266,18 +266,18 @@
        "recall (final)": 1.0,
        "precision (final)": 1.0,
        "published / truth (final)": 9.0,
-       "recall (per-frame mean)": 0.7377525252525252,
-       "mean IoU (final)": 0.8524952748104522,
-       "min IoU (final)": 0.7538785735206603,
+       "recall (per-frame mean)": 0.7381313131313131,
+       "mean IoU (final)": 0.8497682246360805,
+       "min IoU (final)": 0.7463766406604152,
        "merged entries (final)": 0.0,
        "neighbours swallowed (final)": 0.0,
        "split trees (final)": 0.0,
        "false trees (final)": 0.0,
-       "centre RMSE m (final)": 0.17283828665354614,
+       "centre RMSE m (final)": 0.19089699665875662,
        "height bias m (final)": null,
        "height RMSE m (final)": null,
-       "spill (final)": 0.086378016731981,
-       "neighbour spill max (final)": 0.05954691796096479,
+       "spill (final)": 0.09344353067658073,
+       "neighbour spill max (final)": 0.07738632178354268,
        "ID switches after lock": 0.0,
        "geometry retreats": 0.0,
        "centre jumps": 0.0,
@@ -295,9 +295,9 @@
        "  locked ID vanished": 0.0,
        "truth trees sprayed": 7.0,
        "truth trees sprayed twice": 0.0,
-       "scan latency mean s": 2.3633611111111117
+       "scan latency mean s": 2.2966944444444457
       },
-      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.08784079365079366, \"p95_ms\": 0.6289099999999983, \"max_ms\": 0.9394, \"n\": 630}, \"integrate\": {\"mean_ms\": 0.4717447513812154, \"p95_ms\": 0.68621, \"max_ms\": 0.7792, \"n\": 724}}}",
+      "cost": "{\"stages\": {\"extract\": {\"mean_ms\": 0.10673545051698671, \"p95_ms\": 0.5669999999999997, \"max_ms\": 0.9212, \"n\": 677}, \"integrate\": {\"mean_ms\": 0.4737241712707182, \"p95_ms\": 0.6941400000000001, \"max_ms\": 0.7954, \"n\": 724}}}",
       "run_dir": "/data/work/eval/cand_grid/runs/cand_grid/isaac_2026-10-23-15-34-29"
      }
     ]
@@ -322,20 +322,20 @@
      "n": 1
     },
     "recall (per-frame mean)": {
-     "mean": 0.7377525252525252,
-     "worst": 0.7377525252525252,
+     "mean": 0.7381313131313131,
+     "worst": 0.7381313131313131,
      "std": 0.0,
      "n": 1
     },
     "mean IoU (final)": {
-     "mean": 0.8524952748104522,
-     "worst": 0.8524952748104522,
+     "mean": 0.8497682246360805,
+     "worst": 0.8497682246360805,
      "std": 0.0,
      "n": 1
     },
     "min IoU (final)": {
-     "mean": 0.7538785735206603,
-     "worst": 0.7538785735206603,
+     "mean": 0.7463766406604152,
+     "worst": 0.7463766406604152,
      "std": 0.0,
      "n": 1
     },
@@ -364,8 +364,8 @@
      "n": 1
     },
     "centre RMSE m (final)": {
-     "mean": 0.17283828665354614,
-     "worst": 0.17283828665354614,
+     "mean": 0.19089699665875662,
+     "worst": 0.19089699665875662,
      "std": 0.0,
      "n": 1
     },
@@ -382,14 +382,14 @@
      "n": 0
     },
     "spill (final)": {
-     "mean": 0.086378016731981,
-     "worst": 0.086378016731981,
+     "mean": 0.09344353067658073,
+     "worst": 0.09344353067658073,
      "std": 0.0,
      "n": 1
     },
     "neighbour spill max (final)": {
-     "mean": 0.05954691796096479,
-     "worst": 0.05954691796096479,
+     "mean": 0.07738632178354268,
+     "worst": 0.07738632178354268,
      "std": 0.0,
      "n": 1
     },
@@ -496,8 +496,8 @@
      "n": 1
     },
     "scan latency mean s": {
-     "mean": 2.3633611111111117,
-     "worst": 2.3633611111111117,
+     "mean": 2.2966944444444457,
+     "worst": 2.2966944444444457,
      "std": 0.0,
      "n": 1
     }
@@ -758,18 +758,18 @@
      "recall (final)": 0.11111111111111116,
      "precision (final)": 0.0,
      "published / truth (final)": 1.0,
-     "recall (per-frame mean)": 0.10202020202020201,
-     "mean IoU (final)": 0.12268989450683099,
-     "min IoU (final)": 0.2917414850245037,
+     "recall (per-frame mean)": 0.10239898989898988,
+     "mean IoU (final)": 0.1199628443324593,
+     "min IoU (final)": 0.28423955216425856,
      "merged entries (final)": -1.0,
      "neighbours swallowed (final)": -1.0,
      "split trees (final)": 0.0,
      "false trees (final)": 0.0,
-     "centre RMSE m (final)": -0.9305796503721305,
+     "centre RMSE m (final)": -0.9125209403669201,
      "height bias m (final)": null,
      "height RMSE m (final)": null,
-     "spill (final)": -0.05475413694255066,
-     "neighbour spill max (final)": -0.31881408633782526,
+     "spill (final)": -0.04768862299795093,
+     "neighbour spill max (final)": -0.3009746825152474,
      "ID switches after lock": 0.0,
      "geometry retreats": 0.0,
      "centre jumps": -8.0,
@@ -787,7 +787,7 @@
      "  locked ID vanished": 0.0,
      "truth trees sprayed": 0.0,
      "truth trees sprayed twice": 0.0,
-     "scan latency mean s": -0.022222222222227028
+     "scan latency mean s": -0.08888888888889301
     }
    },
    "summary": {
@@ -827,8 +827,8 @@
     "recall (per-frame mean)": {
      "n": 1,
      "ref_mean": 0.6357323232323232,
-     "other_mean": 0.7377525252525252,
-     "mean_diff": 0.10202020202020201,
+     "other_mean": 0.7381313131313131,
+     "mean_diff": 0.10239898989898988,
      "std_diff": null,
      "t": null,
      "wins": 1,
@@ -838,8 +838,8 @@
     "mean IoU (final)": {
      "n": 1,
      "ref_mean": 0.7298053803036212,
-     "other_mean": 0.8524952748104522,
-     "mean_diff": 0.12268989450683099,
+     "other_mean": 0.8497682246360805,
+     "mean_diff": 0.1199628443324593,
      "std_diff": null,
      "t": null,
      "wins": 1,
@@ -849,8 +849,8 @@
     "min IoU (final)": {
      "n": 1,
      "ref_mean": 0.46213708849615664,
-     "other_mean": 0.7538785735206603,
-     "mean_diff": 0.2917414850245037,
+     "other_mean": 0.7463766406604152,
+     "mean_diff": 0.28423955216425856,
      "std_diff": null,
      "t": null,
      "wins": 1,
@@ -904,8 +904,8 @@
     "centre RMSE m (final)": {
      "n": 1,
      "ref_mean": 1.1034179370256767,
-     "other_mean": 0.17283828665354614,
-     "mean_diff": -0.9305796503721305,
+     "other_mean": 0.19089699665875662,
+     "mean_diff": -0.9125209403669201,
      "std_diff": null,
      "t": null,
      "wins": 1,
@@ -921,8 +921,8 @@
     "spill (final)": {
      "n": 1,
      "ref_mean": 0.14113215367453166,
-     "other_mean": 0.086378016731981,
-     "mean_diff": -0.05475413694255066,
+     "other_mean": 0.09344353067658073,
+     "mean_diff": -0.04768862299795093,
      "std_diff": null,
      "t": null,
      "wins": 1,
@@ -932,8 +932,8 @@
     "neighbour spill max (final)": {
      "n": 1,
      "ref_mean": 0.37836100429879005,
-     "other_mean": 0.05954691796096479,
-     "mean_diff": -0.31881408633782526,
+     "other_mean": 0.07738632178354268,
+     "mean_diff": -0.3009746825152474,
      "std_diff": null,
      "t": null,
      "wins": 1,
@@ -1130,8 +1130,8 @@
     "scan latency mean s": {
      "n": 1,
      "ref_mean": 2.3855833333333387,
-     "other_mean": 2.3633611111111117,
-     "mean_diff": -0.022222222222227028,
+     "other_mean": 2.2966944444444457,
+     "mean_diff": -0.08888888888889301,
      "std_diff": null,
      "t": null,
      "wins": 1,

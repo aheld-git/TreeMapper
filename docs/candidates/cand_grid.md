@@ -34,7 +34,7 @@ semantic support ("this raised surface is a tree"), never geometry.
    variance gives the spread. Once a cell is established (w ≥ 6), a frame median more than 2 m off is rejected.
    Three rejections in a row re-initialise the cell, because then the established value was the outlier.
 
-Every 0.2 s an **extraction** runs over the window covered since the last one, plus 6 m:
+Every 0.1 s an **extraction** runs over the window covered since the last one, plus 6 m:
 
 5. **Ground**: the 20 % quantile of the well-observed cells (≥ 3 frames, w ≥ 3) per 1 m coarse cell, then a
    min filter over 4.5 m as a first guess. The guess is refined to the mean of cells within 0.6 m above it, in
@@ -70,7 +70,7 @@ Publishable = all of the following, each a different kind of evidence (pure `pub
 | shape: peak height above ground | smoothed peak CHM ≥ 1.8 m | bushes and ground clutter (0.2-0.9 m) |
 | observation completeness | peak neighbourhood (1 m) fully observed, open fraction ≤ 0.6 | partial views at the swath edge |
 | semantic | ≥ 30 % of the segment's cells covered by a detection box in ≥ 2 frames | non-tree raised objects |
-| temporal | seen as such in 2 consecutive extractions (0.4 s) | one-extraction artefacts |
+| temporal | seen as such in 2 consecutive extractions (0.2 s) | one-extraction artefacts |
 | phase | creation allowed (SCAN, SCAN_APPROACH, ERROR, unknown) | new trees after scanning |
 | height | finite | rule 3 |
 
@@ -92,7 +92,7 @@ When geometry may change after publication:
   few bad frames cannot shrink anything, because nothing is ever removed.
 - **Height**: recomputed every extraction as the 97 % quantile of the latched cells' surface heights. Each
   cell height is a capped-weight average, so one frame moves it by at most w_f / (W + w_f). The published
-  value may move at most 0.1 m per extraction (0.5 m/s), so it never jumps. An undefined recomputation keeps
+  value may move at most 0.5 m/s (`max_height_rate`, independent of the extraction period), so it never jumps. An undefined recomputation keeps
   the last finite value.
 - **Centre**: the outline centroid. It moves only through growth.
 - Rule 2 test: after a good pass, 3 frames with every disparity +2 px and 2 frames at 3 px noise leave every
@@ -178,14 +178,14 @@ Gates, and whether each fails open or closed:
 
 - Per frame, x86 workstation, one core, RelWithDebInfo (`results/cand_grid_synthetic.md`):
   - integrate 0.31-0.50 ms mean: back-projection of 16 000 grid points, counting sort into cells, fusion;
-  - extract 0.26-0.57 ms mean, amortised over one extraction every 0.2 s;
-  - total about 0.75-1.1 ms per frame, against the 10 ms budget; the worst 0.2 s snapshot means are
-    0.96 ms (integrate) and 1.7 ms (extract).
-  - On Isaac (27 Hz): 0.47 + 0.09 ms.
+  - extract 0.30-0.69 ms mean, amortised over one extraction every 0.1 s;
+  - total about 0.6-1.2 ms per frame, against the 10 ms budget; the worst 0.2 s snapshot means are
+    1.03 ms (integrate) and 1.97 ms (extract).
+  - On Isaac (27 Hz): 0.47 + 0.11 ms.
 - Expect several times this on the Orin. **Not measured on the Orin.**
 - **Memory**: 28 B per cell, so 28.7 kB per 8 m x 8 m tile of 32 x 32 cells. Only observed tiles exist
   (`gauge_grid_tiles` and `gauge_grid_bytes` in counters.json). Measured: hard_s00 108 tiles (3.1 MB),
-  medium_s00 90 tiles (2.6 MB), Isaac 38 tiles (1.1 MB). That is about 450 B per observed m², so 10 ha is
+  medium_s00 90 tiles (2.6 MB), Isaac 38 tiles (1.1 MB); the largest mission is 3.2 MB. That is about 450 B per observed m², so 10 ha is
   about 45 MB. Tiles are never evicted, so a much larger area would need finished tiles evicted, which is not
   implemented.
 
@@ -197,24 +197,25 @@ Gates, and whether each fails open or closed:
     neighbourhood not yet observed) for about 0.5 s. Then come 2 confirmations, and it is published at
     1.2-1.7 s. `simple` publishes at 0.5-1.1 s.
   - A few trees first seen only at a swath edge are published in the next corridor, 11-21 s later. Those
-    dominate the mean scan latency: about 2.6 s on medium, 2.3 s on Isaac, against 1.2 s for `existing`.
+    dominate the mean scan latency: about 2.5 s on medium, 2.3 s on Isaac, against 1.2 s for `existing`.
   - Single-pass capture holds: recall comes from one pass, no hover is needed. But this design is not the
     fastest to publish.
-  - Looser gates (peak neighbourhood 0.5 m, 1 confirmation, faster extraction) bought 0.1-0.4 s and cost
-    precision on hard.
+  - Extracting every 0.1 s instead of every 0.2 s (frozen) bought 0.1-0.3 s and also raised precision.
+  - Looser gates (peak neighbourhood 0.5 m, 1 confirmation) bought a further 0.1-0.4 s and cost precision on
+    hard.
 - **Spill on oblique, occluded skirts**: points near occluded ground beyond the far silhouette are smeared by
   the line-of-sight error. Those cells never see ground, so they look raised. The relative-height latch rule
-  and the lateral weighting (k = 10) trim most of it. Final spill: 0.06 (easy), 0.18 (medium), 0.26 (hard),
+  and the lateral weighting (k = 10) trim most of it. Final spill: 0.06 (easy), 0.18 (medium), 0.28 (hard),
   0.09 on Isaac.
-- **Hard is still hard**: recall 0.75, IoU 0.64 and 3.6 neighbours swallowed per mission (simple: 25), under
+- **Hard is still hard**: recall 0.78, IoU 0.63 and 3.8 neighbours swallowed per mission (simple: 25), under
   5× real stereo noise with mostly overlapping canopies.
 - **The 0.6 × peak-CHM latch rule makes outlines a "core plus"**: low crown edges (a dome's last ~10 % of
   radius) are not latched, so outlines are slightly smaller than the true crown on clean data.
 - **Implausible-height safety counts.** This is the only non-zero safety count: medium 7.4 (one seed),
-  hard 20.6 (three seeds). simple has 132 on hard.
+  hard 17 (three seeds). simple has 132 on hard.
   - Every event involves a tree whose true top is above the hovering drone's world z (sloped ground: hard_s00,
-    hard_s01, hard_s03) or within 0.02-0.07 m of it (medium_s00, two trees in hard_s00).
-  - cand_grid's error on those trees is between -0.63 m and +0.22 m. The per-event table is in
+    hard_s01, hard_s03) or within 0.02-0.13 m of it (medium_s00, three entries in hard_s00).
+  - cand_grid's error on those trees is between -0.73 m and +0.49 m. The per-event table is in
     `results/cand_grid_synthetic.md`.
   - Clipping heights to the drone altitude would publish a too-low descent reference, so it is not done.
   - A lower height quantile (0.93) halves the counts, but it biases heights by -0.1 m and underestimates the
@@ -223,9 +224,9 @@ Gates, and whether each fails open or closed:
 - **Fragment merge outside the window**: two published fragments merge only while both are inside the
   extraction window (the recent footprint plus 6 m). Fragments far from any current view are not
   consolidated until the drone sees them again.
-  - Merges do occur: `instances_merged` per mission is 0 on easy, 0-4 on medium, 0-7 on hard and 0 on Isaac.
-  - `merge_blocked_size` (two large instances refused) reaches 19.
-  - `merge_blocked_phase` is 29 on Isaac: merge votes during PLANNING / HOPPING, correctly refused.
+  - Merges do occur: `instances_merged` per mission is 0 on easy, 0-8 on medium, 1-6 on hard and 0 on Isaac.
+  - `merge_blocked_size` (two large instances refused) reaches 14.
+  - `merge_blocked_phase` is 53 on Isaac: merge votes during PLANNING / HOPPING, correctly refused.
   - The merge rules have pure tests only. There is no end-to-end fragment test.
 - **The ground model assumes the ground is visible somewhere within ~4.5 m** of every canopy. A continuous
   hedge wider than ~9 m would lose its ground and its CHM. That fails closed: no tree is published there.
@@ -243,8 +244,10 @@ Gates, and whether each fails open or closed:
   as fragile.
 - **Height quantile.** 0.93 biased heights low by about 0.1 m on synthetic. On Isaac it gave 4.5-5.6 m against
   measured canopy tops of 5.4-5.9 m, which is the unsafe direction for a descent reference. 0.99 / 1.0 (the max)
-  biased synthetic heights up by 0.1-0.3 m. 0.97 with a 0.1 m step limit was best: synthetic RMSE 0.07 / 0.17 /
+  biased synthetic heights up by 0.1-0.3 m. 0.97 with a 0.5 m/s rate limit was best: synthetic RMSE 0.07 / 0.17 /
   0.34 m, and on Isaac 4.7-5.8 m with 0 height jumps.
+- **Height step per extraction.** A 0.1 m step per extraction became a 1 m/s limit once extractions ran every
+  0.1 s, and Isaac then showed 5 height jumps. It was replaced by a rate in m/s; 0.5 m/s gives 0 jumps.
 - **Cell-consistency (spread) gate.**
   - With no gate, hard had 32 implausible-height frames and 2 false trees per mission.
   - 1.5 m removed most of them.
