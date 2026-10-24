@@ -6,8 +6,10 @@
      (tools/treemapper_tools/real_frames.py, results/real_flight_geometry.md, docs/REAL_FLIGHT.md) puts the pitch at
      82 deg (+-1.5): with 75 deg the ground tilts ~7 deg. Default here = that data-verified mount as a parameter
      (camera_mount_source param); camera_mount_source:=tf uses the TF as published.
-     Disparity: the real driver measures disparity between unequal principal points; disparity_offset auto subtracts
-     cx_left - cx_right (camera_info), as the offline real-flight reader does.
+     Disparity: the real driver's disparity carries a constant offset. camera_info says cx_left - cx_right = 4.918 px
+     (disparity_offset:=auto), but M4c's pose-based motion test on the farm log puts the offset at 4.30 px (depth
+     scale 0.99; with 4.918 depths come out 7-16 % too long; the raw images are not rectified, so the disparity node
+     probably rectified differently from camera_info). Default = 4.30, as tools/treemapper_tools/real_frames.py.
      UNVERIFIED on hardware - see README. -->
 <launch>
   <arg name="use_sim_time" default="false"/>           <!-- true when replaying a log with rosbag play and its clock -->
@@ -19,7 +21,7 @@
   <arg name="camera_mount_source" default="param"/>     <!-- param (below) | tf (body_frame <- camera_frame) -->
   <!-- body <- sensor_down (ROS camera convention): lever (0.30, 0.08, -0.20), Ry(82 deg) = q (0, sin 41, 0, cos 41) -->
   <arg name="camera_mount" default="[0.30, 0.08, -0.20, 0.0, 0.6560590289905073, 0.0, 0.7547095802227720]"/>
-  <arg name="disparity_offset" default="auto"/>
+  <arg name="disparity_offset" default="4.30"/>   <!-- px | auto | none -->
   <arg name="pose_source" default="tf"/>               <!-- tf | pose_topic -->
   <arg name="pose_topic" default="/treemapper/drone_pose"/>
   <arg name="left_camera_info_topic" default="/cam/bottom/left/half/camera_info"/>

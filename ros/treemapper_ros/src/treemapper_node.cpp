@@ -109,7 +109,10 @@ class TreemapperNode {
     pnh_.param<bool>("camera_frame_is_optical", camera_frame_is_optical_, true);
     pnh_.param<int>("disparity_stride", stride_, 4);
     pnh_.param<double>("disparity_quantum_px", quantum_px_, 0.0);
-    pnh_.param<std::string>("disparity_offset", disp_offset_mode_, "none");
+    {  // string or number (roslaunch turns "4.30" into a double)
+      XmlRpc::XmlRpcValue v;
+      if (pnh_.getParam("disparity_offset", v)) disp_offset_mode_ = xmlToString(v);
+    }
     pnh_.param<double>("detection_scale", detection_scale_, 1.0);
     FrameSync::Params sp;
     pnh_.param<double>("sync_wait", sp.wait_s, 0.5);
@@ -331,7 +334,12 @@ class TreemapperNode {
     if (mapper_ && last_frame_t_ > last_snap_t_) publishMap(last_frame_t_);
     phase_raw_ = m->data;
     phase_ = p;
-    if (mapper_) feedHeartbeat(nowSec());
+    // heartbeat frame carrying the new phase; detections still waiting for their disparity arrived before the
+    // change, so they go first (the offline reader orders frames by receive time the same way)
+    if (mapper_) {
+      if (sync_.pending() == 0) feedHeartbeat(nowSec());
+      else phase_heartbeat_due_ = true;
+    }
   }
 
   void onTarget(const std_msgs::Int32::ConstPtr& m) {
@@ -359,7 +367,7 @@ class TreemapperNode {
       geometry_msgs::TransformStamped tr;
       if (latest) {
         tr = buf.lookupTransform(world_frame_, body_frame_, ros::Time(0));
-        if (std::fabs(nowSec() - tr.header.stamp.toSec()) > pose_max_age_) throw tf2::TransformException("latest pose too old");
+        if (std::fabs(stamp - tr.header.stamp.toSec()) > pose_max_age_) throw tf2::TransformException("latest pose too old");
       } else {
         // wait for a late pose, but not on every frame once poses keep failing (3 in a row)
         const double wait = pose_failures_ < 3 ? pose_wait_ : 0.0;
@@ -388,8 +396,9 @@ class TreemapperNode {
   void processFrame(SyncedFrame& f) {
     const auto t0 = std::chrono::steady_clock::now();
     treemapper::FrameInput in;
-    in.t = f.t;
+    in.t = std::max(f.t, last_frame_t_);  // the mapper's rate limits integrate over t: never step it backwards
     in.stamp = toSec(f.stamp);
+    stamp_lag_ = f.t - in.stamp;
     in.pose = lookupPose(in.stamp, false);
     in.phase = treemapper::parseMissionPhase(f.phase);
     in.hop_target = f.hop_target;
@@ -408,9 +417,11 @@ class TreemapperNode {
 
   void feedHeartbeat(double t) {
     treemapper::FrameInput in;
-    in.t = t;
-    in.stamp = t;
-    in.pose = lookupPose(t, true);
+    in.t = std::max(t, last_frame_t_);
+    // header-stamp clock = receive clock - the latency seen on the last detection frame (the two clocks differ in a
+    // replay of separately recorded bags; on the drone they are one clock and this is the detector latency)
+    in.stamp = t - stamp_lag_;
+    in.pose = lookupPose(in.stamp, true);
     in.phase = phase_;
     in.hop_target = hop_target_;
     mapper_->process(in);
@@ -422,7 +433,10 @@ class TreemapperNode {
     if (!mapper_) { tryCreateMapper(); return; }
     const double t = nowSec();
     for (auto& f : sync_.poll(t)) processFrame(f);
-    if (t - last_frame_t_ >= heartbeat_frame_period_ && sync_.pending() == 0) feedHeartbeat(t);
+    if (sync_.pending() == 0 && (phase_heartbeat_due_ || t - last_frame_t_ >= heartbeat_frame_period_)) {
+      phase_heartbeat_due_ = false;
+      feedHeartbeat(t);
+    }
   }
 
   // ------------------------------------------------------------------ outputs
@@ -565,6 +579,7 @@ class TreemapperNode {
   std::string phase_raw_;
   MissionPhase phase_{MissionPhase::kUnknown};
   bool have_phase_msg_{false};
+  bool phase_heartbeat_due_{false};
   std::set<std::string> unknown_phases_;
   TreeId hop_target_{treemapper::kNoTree};
   bool pose_ok_{false};
@@ -572,6 +587,7 @@ class TreemapperNode {
   std::string pose_error_;
 
   double last_frame_t_{0.0}, last_snap_t_{0.0}, last_input_t_{0.0};
+  double stamp_lag_{0.0};  ///< receive time - header stamp of the last detection frame
   std::uint64_t frames_processed_{0};
   std::size_t n_trees_{0};
   double frame_ms_{0.0}, sample_ms_{0.0};

@@ -12,6 +12,8 @@
   <arg name="duration" default="0"/>     <!-- s of bag to play, 0 = to the end -->
   <arg name="rate" default="1.0"/>
   <arg name="delay" default="3"/>        <!-- s before playing, lets the node subscribe first -->
+  <!-- /clock at 1 kHz (rosbag default 100 Hz): frame receive times feed the mapper's rate limits, so a 10 ms
+       quantised sim clock would make the live replay differ from the offline one for no physical reason -->
   <arg name="nav_emulator" default="true"/>
   <arg name="record" default=""/>
   <arg name="mapper_config_file" default=""/>
@@ -32,7 +34,7 @@
   </include>
 
   <node pkg="rosbag" type="play" name="player" output="log" required="false"
-        args="--clock -d $(arg delay) -s $(arg start) -r $(arg rate) $(arg _u_opt) $(arg bag)
+        args="--clock --hz=1000 -d $(arg delay) -s $(arg start) -r $(arg rate) $(arg _u_opt) $(arg bag)
               --topics /cam/bottom/left/half/camera_info /cam/bottom/right/half/camera_info /disparity_image_down_float
                        /object_detection/detections /mission_state /spray_target /tf /tf_static">
     <remap if="$(arg nav_emulator)" from="/spray_target" to="/recorded/spray_target"/>
