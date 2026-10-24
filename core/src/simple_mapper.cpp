@@ -292,4 +292,29 @@ std::map<std::string, double> SimpleMapper::takeStageTiming() {
   return out;
 }
 
+SimpleMapperConfig simpleMapperConfigFrom(const MapperConfig& config) {
+  SimpleMapperConfig c;
+  ConfigReader r(config);
+  c.box_shrink = r.getDouble("box_shrink", c.box_shrink);
+  c.min_range = r.getDouble("min_range", c.min_range);
+  c.max_range = r.getDouble("max_range", c.max_range);
+  c.above_drone_margin = r.getDouble("above_drone_margin", c.above_drone_margin);
+  c.ground_percentile = r.getDouble("ground_percentile", c.ground_percentile);
+  c.min_above_ground = r.getDouble("min_above_ground", c.min_above_ground);
+  c.min_obs_points = r.getInt("min_obs_points", c.min_obs_points);
+  c.height_percentile = r.getDouble("height_percentile", c.height_percentile);
+  c.max_obs_area = r.getDouble("max_obs_area", c.max_obs_area);
+  c.assoc_max_dist = r.getDouble("assoc_max_dist", c.assoc_max_dist);
+  c.publish_min_obs = r.getInt("publish_min_obs", c.publish_min_obs);
+  c.unconfirmed_timeout = r.getDouble("unconfirmed_timeout", c.unconfirmed_timeout);
+  c.merge_min_overlap = r.getDouble("merge_min_overlap", c.merge_min_overlap);
+  r.finish("simple");
+  return c;
+}
+
+// Registered by name in mapper_registry.cpp (TM_REGISTER_BUILTIN(simple)).
+std::unique_ptr<Mapper> tm_create_simple(const MapperConfig& config, const StereoCalibration& cal) {
+  return std::make_unique<SimpleMapper>(simpleMapperConfigFrom(config), cal);
+}
+
 }  // namespace treemapper

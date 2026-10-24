@@ -258,3 +258,23 @@ canopies, ray-cast disparity on the same stride-4 grid, three levels. Noise anch
 - This is a cadence artefact. The tree did exist when navigation started planning.
 - Steady-rate snapshots that would fall before the extra one are skipped, so the stream stays monotonic.
 - The scorer's per-frame metrics are time-weighted (R8), so the extra snapshots do not bias them.
+
+**D29. Mapper interface + registry, so candidates develop in parallel without shared edits.**
+- `treemapper::Mapper` (`core/include/treemapper/mapper.hpp`): `process`, `publishedTrees`, `markSprayed`,
+  `takeStageTiming`, `counters`, optional `setLogger` -- exactly what `treemapper_replay` called on `SimpleMapper`.
+  `SimpleMapper` implements it unchanged (verified: map streams byte-identical, PROGRESS.md).
+- Configuration is a `string -> string` map (`MapperConfig`) given to the factory, not a Mapper method. `ConfigReader`
+  parses typed values and `finish()` rejects unknown keys, so a typo cannot silently run the defaults. Replay:
+  `--config "k=v;k=v"`; evaluate: `--set SYSTEM.key=value`.
+- Registry in `core/src/mapper_registry.cpp`, one line per system. The candidate defines
+  `tm_create_<name>()` in its own .cpp; the line is `TM_REGISTER_CANDIDATE(<name>)`. The reference is weak
+  and the candidate objects are linked straight into the executables (OBJECT library `treemapper_registry` +
+  `tm_link_registry()`), because the linker never pulls a static-archive member in for a weak reference. Chosen over
+  static self-registration (same archive problem) and over a CMake-generated registry (the line would not
+  live in a file the candidate owns).
+- Why weak: `-DTM_CANDIDATES="cand_a"` (default `all`) builds only the named candidate directories, and the
+  registry line of a switched-off candidate registers nothing. Two agents sharing one checkout cannot break each
+  other's builds with a half-written file.
+- `evaluate.py` validates system names against `treemapper_replay --list-systems` up front and adds a paired
+  comparison (per seed, against `--reference`) when given 2+ systems, because run-to-run noise is 0 and
+  seed-to-seed variance dominates (D26).

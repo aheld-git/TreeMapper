@@ -6,9 +6,15 @@ A *dataset* is a directory with ``frames.bin`` (input contract, ``frames.py``), 
 
     python3 -m treemapper_tools.evaluate --system simple --dataset /data/work/extracted/isaac_...
     python3 -m treemapper_tools.evaluate --system simple --suite /data/work/synthetic/suite_v1 [--repeat 2]
+    python3 -m treemapper_tools.evaluate --system simple,cand_a,cand_b --suite S [--reference simple]
+                                         [--set cand_a.alpha=0.3 ...]
 
-Systems: ``simple`` (C++ ``treemapper_replay --system simple``), ``existing`` (recorded map, no run), or
-any other name accepted by ``treemapper_replay --system``. The replay's navigation emulator resolves hop
+Systems: any name the replay runner has registered (``treemapper_replay --list-systems``: ``simple`` and
+every candidate registered in ``core/src/mapper_registry.cpp``), plus ``existing`` (recorded map, no run;
+recorded missions only). With two or more systems the output gets a **paired comparison**: every other
+system against the reference (``--reference``, default the first system), dataset by dataset, because the
+run-to-run noise is 0 and the seed-to-seed spread dominates the means. ``--set SYSTEM.key=value``
+(repeatable) passes a configuration entry to that system (``treemapper_replay --config``). The replay's navigation emulator resolves hop
 targets into the system's own IDs; the scorer gets ``mission.json`` with those resolved targets
 (``mission_resolved.json`` in the run directory), so descent rules are judged against the IDs the system
 actually received.
@@ -30,7 +36,31 @@ from . import score as scoring
 REPLAY = os.environ.get("TM_REPLAY", "/data/work/build/core/treemapper_replay")
 
 
-def run_system(system: str, ds: str, run_dir: str) -> str:
+def registered_systems() -> List[str]:
+    """Names the replay runner knows (``treemapper_replay --list-systems``)."""
+    r = subprocess.run([REPLAY, "--list-systems"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                       universal_newlines=True)
+    if r.returncode != 0:
+        raise RuntimeError("%s --list-systems failed: %s" % (REPLAY, r.stderr[-500:]))
+    return [x for x in r.stdout.split() if x]
+
+
+def check_systems(systems: List[str], dsets: List[str]) -> None:
+    """Fail early, with the list of registered names, instead of deep inside the first replay."""
+    known = registered_systems()
+    for s in systems:
+        if s == "existing":
+            missing = [d for d in dsets if not os.path.exists(os.path.join(d, "map_existing.jsonl"))]
+            if missing:
+                raise SystemExit("system 'existing' needs map_existing.jsonl (recorded missions only); missing in: %s"
+                                 % ", ".join(os.path.basename(m) for m in missing[:3]))
+        elif s not in known:
+            raise SystemExit("unknown system '%s'; registered: %s (+ 'existing' for recorded missions). A new "
+                             "candidate needs its TM_REGISTER_CANDIDATE line in core/src/mapper_registry.cpp and a rebuild."
+                             % (s, ", ".join(known)))
+
+
+def run_system(system: str, ds: str, run_dir: str, config: str = "") -> str:
     os.makedirs(run_dir, exist_ok=True)
     if system == "existing":
         return os.path.join(ds, "map_existing.jsonl")
@@ -38,6 +68,8 @@ def run_system(system: str, ds: str, run_dir: str) -> str:
     cmd = [REPLAY, "--frames", os.path.join(ds, "frames.bin"), "--out-map", out_map,
            "--out-targets", os.path.join(run_dir, "targets.json"),
            "--out-counters", os.path.join(run_dir, "counters.json"), "--system", system]
+    if config:
+        cmd += ["--config", config]
     t0 = time.time()
     r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     with open(os.path.join(run_dir, "replay.log"), "w") as f:
@@ -65,8 +97,8 @@ def resolved_mission(ds: str, run_dir: str, system: str) -> Optional[str]:
     return out
 
 
-def score_dataset(system: str, ds: str, run_dir: str) -> dict:
-    mp = run_system(system, ds, run_dir)
+def score_dataset(system: str, ds: str, run_dir: str, config: str = "") -> dict:
+    mp = run_system(system, ds, run_dir, config)
     mission = resolved_mission(ds, run_dir, system)
     cam = os.path.join(ds, "camera_info.json")
     camera = json.load(open(cam)) if os.path.exists(cam) else None
@@ -177,13 +209,13 @@ def aggregate(rows: List[Dict[str, Optional[float]]]) -> Dict[str, dict]:
     return agg
 
 
-def evaluate_system(system: str, dsets: List[str], runs: str, repeat: int) -> dict:
+def evaluate_system(system: str, dsets: List[str], runs: str, repeat: int, config: str = "") -> dict:
     per = {}
     for ds in dsets:
         name = os.path.basename(ds)
         for k in range(repeat):
             run_dir = os.path.join(runs, system, name + ("" if repeat == 1 else "_r%d" % k))
-            res = score_dataset(system, ds, run_dir)
+            res = score_dataset(system, ds, run_dir, config)
             h = headline(res)
             per.setdefault(name, []).append({"headline": h, "cost": cost_line(res), "run_dir": run_dir})
             print("%-10s %-32s %s" % (system, name, " ".join("%s=%s" % (l.split(" (")[0], _fmt(v))
@@ -201,6 +233,102 @@ def evaluate_system(system: str, dsets: List[str], runs: str, repeat: int) -> di
     return {"per_dataset": per, "aggregate": agg, "run_to_run_max_diff": floor}
 
 
+# Columns of the per-seed paired table (the full per-metric differences are in the JSON).
+PAIRED_COLUMNS = ["recall (final)", "precision (final)", "mean IoU (final)", "neighbours swallowed (final)",
+                  "false trees (final)", "centre RMSE m (final)", "height RMSE m (final)", "spill (final)",
+                  "SAFETY total violations"]
+_BETTER = {label: better for label, _, better in HEADLINE}
+
+
+def _sd(vals: List[float]) -> Optional[float]:
+    if len(vals) < 2:
+        return None
+    m = sum(vals) / len(vals)
+    return math.sqrt(sum((v - m) ** 2 for v in vals) / (len(vals) - 1))
+
+
+def _sgn(v: Optional[float]) -> str:
+    if v is None:
+        return "n/a"
+    if abs(v) < 5e-4:
+        return "0"
+    return ("%+d" % round(v)) if abs(v - round(v)) < 1e-9 else "%+.3f" % v
+
+
+def paired_comparison(ref: dict, other: dict) -> dict:
+    """Paired differences ``other - ref`` over the datasets both ran (paired by dataset = by seed).
+
+    ``per_dataset[name][label]`` is the difference (None if either side is n/a); ``summary[label]`` has n,
+    ref/other mean over the pairs, mean/std (sample) of the differences, t = mean / (std / sqrt(n)), and
+    wins / losses / ties for metrics with a direction (a win = ``other`` better than ``ref``)."""
+    names = [n for n in ref["per_dataset"] if n in other["per_dataset"]]
+    per = {}
+    for n in names:
+        a, b = ref["per_dataset"][n][0]["headline"], other["per_dataset"][n][0]["headline"]
+        per[n] = {l: (b[l] - a[l]) if (a.get(l) is not None and b.get(l) is not None) else None
+                  for l, _, _ in HEADLINE}
+    summary = {}
+    for label, _, better in HEADLINE:
+        pairs = [(ref["per_dataset"][n][0]["headline"][label], other["per_dataset"][n][0]["headline"][label])
+                 for n in names]
+        pairs = [(a, b) for a, b in pairs if a is not None and b is not None]
+        if not pairs:
+            summary[label] = {"n": 0}
+            continue
+        d = [b - a for a, b in pairs]
+        mean = sum(d) / len(d)
+        sd = _sd(d)
+        t = None
+        if sd is not None:
+            t = (mean / (sd / math.sqrt(len(d)))) if sd > 0 else (0.0 if abs(mean) < 1e-12 else float("inf") * (1 if mean > 0 else -1))
+        wins = losses = ties = None
+        if better is not None:
+            ties = sum(1 for x in d if abs(x) < 1e-9)
+            wins = sum(1 for x in d if (x > 1e-9 if better else x < -1e-9))
+            losses = len(d) - ties - wins
+        summary[label] = {"n": len(d), "ref_mean": sum(a for a, _ in pairs) / len(d),
+                          "other_mean": sum(b for _, b in pairs) / len(d), "mean_diff": mean,
+                          "std_diff": sd, "t": t, "wins": wins, "losses": losses, "ties": ties}
+    return {"per_dataset": per, "summary": summary, "n_pairs": len(names)}
+
+
+def paired_markdown(ref_name: str, name: str, P: dict) -> List[str]:
+    md = ["## Paired: %s vs %s (difference = %s - %s, same dataset = same seed)" % (name, ref_name, name, ref_name), "",
+          "%d pairs. For metrics with a direction, **win** = %s better than %s. t = mean diff / (std diff / sqrt(n)); "
+          "|t| below about 2 is within seed noise." % (P["n_pairs"], name, ref_name), "",
+          "| Metric | %s mean | %s mean | mean diff | std diff | t | win / loss / tie |" % (ref_name, name),
+          "|---|---|---|---|---|---|---|"]
+    for label, _, _ in HEADLINE:
+        st = P["summary"][label]
+        if not st["n"]:
+            md.append("| %s | n/a | n/a | n/a | n/a | n/a | n/a |" % label)
+            continue
+        t = st["t"]
+        md.append("| %s | %s | %s | %s | %s | %s | %s |" % (
+            label, _fmt(st["ref_mean"]), _fmt(st["other_mean"]), _sgn(st["mean_diff"]),
+            "n/a" if st["std_diff"] is None else _fmt(st["std_diff"]),
+            "n/a" if t is None else ("inf" if math.isinf(t) else "%+.1f" % t),
+            "-" if st["wins"] is None else "%d / %d / %d" % (st["wins"], st["losses"], st["ties"])))
+    groups = {}
+    for n in P["per_dataset"]:
+        groups.setdefault(n.rsplit("_s", 1)[0], []).append(n)
+    if len(groups) > 1:
+        md += ["", "Mean paired difference per group:", "",
+               "| group (n) | " + " | ".join(PAIRED_COLUMNS) + " |", "|---|" + "---|" * len(PAIRED_COLUMNS)]
+        for g, ns in groups.items():
+            cells = []
+            for l in PAIRED_COLUMNS:
+                v = [P["per_dataset"][n][l] for n in ns if P["per_dataset"][n][l] is not None]
+                cells.append(_sgn(sum(v) / len(v)) if v else "n/a")
+            md.append("| %s (%d) | " % (g, len(ns)) + " | ".join(cells) + " |")
+    md += ["", "Per seed (%s - %s):" % (name, ref_name), "",
+           "| dataset | " + " | ".join(PAIRED_COLUMNS) + " |", "|---|" + "---|" * len(PAIRED_COLUMNS)]
+    for n, d in P["per_dataset"].items():
+        md.append("| %s | " % n + " | ".join(_sgn(d[l]) for l in PAIRED_COLUMNS) + " |")
+    md.append("")
+    return md
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--system", default="simple", help="system name, or a comma list (side-by-side)")
@@ -209,6 +337,9 @@ def main(argv=None):
     g.add_argument("--suite", help="directory of dataset directories (e.g. a synthetic suite)")
     ap.add_argument("--runs", default="/data/work/runs", help="where run outputs go")
     ap.add_argument("--repeat", type=int, default=1, help="run every dataset N times (run-to-run noise floor)")
+    ap.add_argument("--reference", default=None, help="reference system of the paired comparison (default: the first one)")
+    ap.add_argument("--set", action="append", default=[], metavar="SYSTEM.key=value",
+                    help="configuration entry for a system (repeatable), passed to treemapper_replay --config")
     ap.add_argument("--title", default=None)
     ap.add_argument("--out-md")
     ap.add_argument("--out-json")
@@ -219,7 +350,22 @@ def main(argv=None):
     else:
         dsets = sorted(os.path.join(a.suite, d) for d in os.listdir(a.suite)
                        if os.path.exists(os.path.join(a.suite, d, "ground_truth.json")))
-    results = {s: evaluate_system(s, dsets, a.runs, a.repeat) for s in systems}
+    if not systems:
+        raise SystemExit("--system is empty")
+    ref = a.reference or systems[0]
+    if ref not in systems:
+        raise SystemExit("--reference %s is not in --system %s" % (ref, a.system))
+    configs: Dict[str, Dict[str, str]] = {}
+    for item in a.set:
+        sysname, _, kv = item.partition(".")
+        key, eq, val = kv.partition("=")
+        if not (sysname and key and eq) or sysname not in systems:
+            raise SystemExit("bad --set %r (expected SYSTEM.key=value for a system in --system)" % item)
+        configs.setdefault(sysname, {})[key] = val
+    check_systems(systems, dsets)
+    results = {s: evaluate_system(s, dsets, a.runs, a.repeat, ";".join("%s=%s" % kv for kv in sorted(configs.get(s, {}).items())))
+               for s in systems}
+    paired = {s: paired_comparison(results[ref], results[s]) for s in systems if s != ref}
     title = a.title or "%s on %s" % (a.system, a.dataset or a.suite)
     md = ["# " + title, "",
           "Datasets: %d; repeats: %d. Generated by `python3 -m treemapper_tools.evaluate` (scorer: "
@@ -260,6 +406,8 @@ def main(argv=None):
                 h = runs[0]["headline"]
                 md.append("| %s | " % name + " | ".join(_fmt(h[l]) for l in cols) + " | %s |" % _fmt(h["SAFETY total violations"]))
             md.append("")
+    for s_name, P in paired.items():
+        md += paired_markdown(ref, s_name, P)
     text = "\n".join(md) + "\n"
     print(text)
     if a.out_md:
@@ -268,7 +416,7 @@ def main(argv=None):
     if a.out_json:
         with open(a.out_json, "w") as f:
             json.dump({"title": title, "systems": systems, "datasets": dsets, "repeat": a.repeat,
-                       "results": results}, f, indent=1)
+                       "reference": ref, "configs": configs, "results": results, "paired": paired}, f, indent=1)
 
 
 if __name__ == "__main__":

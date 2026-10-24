@@ -142,14 +142,81 @@ real floor is seed-to-seed: the std over datasets is in the cards, e.g. medium f
 
 Tests at M2 end: `./scripts/run_tests.sh` -> ALL TESTS PASSED (ctest: 14 gtest cases, 10 of them new; pytest: 76 passed, 4 of them new in `tools/tests/test_frames_synth.py`).
 
+## Post-M2: Mapper interface + registry (D29)
+
+`treemapper::Mapper` + a name-keyed registry, so two candidates can be built in parallel with no shared edit but one
+registration line; `evaluate` compares any registered systems paired by seed. See "How to add a candidate".
+
+**No behaviour change of `simple`** (before = commit 1a5a72e build, after = this change, both via `./scripts/evaluate.sh simple`,
+outputs in `/data/work/eval/before_refactor` and `/data/work/eval/after_refactor`): for all 16 runs (recorded Isaac
+mission + the 15 suite_v1 datasets) the map stream is byte-identical once the wall-clock `stage_ms` field is removed
+(sha256 equal), `targets.json` and `counters.json` are byte-identical, `score.json` is identical in every metric
+(the `cost` section is wall-clock timing and differs), and the `isaac.md` / `synthetic.md` scorecards differ only in
+their timing rows (plus the new paired section in `isaac.md`). `./scripts/run_tests.sh`: ALL TESTS PASSED
+(ctest 22 gtest cases, pytest 80).
+
+## How to add a candidate
+
+Everything below runs inside `tm_dev` (`docker exec tm_dev bash -lc 'source /opt/ros/noetic/setup.bash && cd /ws && ...'`).
+A candidate edits **no shared file except one registration line**.
+
+**The interface** (`core/include/treemapper/mapper.hpp`, class `treemapper::Mapper`; read the header, it is short):
+`process(const FrameInput&)`, `publishedTrees() const`, `markSprayed(TreeId)`, `takeStageTiming()`,
+`counters() const`, and an optional `setLogger()`. Configuration is a `MapperConfig` (`map<string,string>`)
+handed to the factory; `ConfigReader` reads typed values and `finish()` rejects unknown keys. `SimpleMapper`
+(`simple_mapper.hpp/.cpp`) is the worked example; `phasePolicy()` is a reusable pure function for the
+phase rules.
+
+**Steps** (name = `cand_a`):
+
+1. Create your own files, nothing else:
+   - `core/include/treemapper/candidates/cand_a/*.hpp`
+   - `core/src/candidates/cand_a/*.cpp` (all `*.cpp` in the directory are globbed; no CMake edit)
+   - optional tests: `core/tests/candidates/cand_a/*.cpp` (globbed into `test_core`; plain gtest)
+   - optional `core/src/candidates/cand_a/candidate.cmake` for extra `find_package` / link lines (runs after
+     `treemapper_core` exists: `target_link_libraries(treemapper_core PUBLIC ...)`)
+2. In one of your .cpp files, in `namespace treemapper`, define the factory (this exact name, `tm_create_` + your name):
+   ```cpp
+   #include "treemapper/mapper.hpp"
+   namespace treemapper {
+   std::unique_ptr<Mapper> tm_create_cand_a(const MapperConfig& config, const StereoCalibration& cal) {
+     return std::make_unique<CandA>(CandAConfigFrom(config), cal);   // throw std::invalid_argument on a bad config
+   }
+   }  // namespace treemapper
+   ```
+3. The one shared edit: add one line to `registry()` in `core/src/mapper_registry.cpp`, after `TM_REGISTER_BUILTIN(simple)`:
+   ```cpp
+   TM_REGISTER_CANDIDATE(cand_a)
+   ```
+   Two agents each add their own line on adjacent lines; git merges that cleanly (keep them alphabetical).
+4. Build and unit-test. The generic `test_mapper_registry.cpp` already runs every registered system through the
+   interface (heartbeats, unknown config key, unknown ID), so your candidate gets that smoke test for free.
+   While another candidate is half-written, build only yours (the other candidates' sources are then not even
+   compiled; their registry lines register nothing): `TM_CANDIDATES=cand_a TM_BUILD=/data/work/build_cand_a ./scripts/run_tests.sh`.
+   Always use your own `TM_BUILD` and `TM_OUT`, so two agents never overwrite each other's build or output.
+5. Evaluate, paired against `simple` (first name = reference; `TM_REF=` changes it):
+   ```
+   TM_CANDIDATES=cand_a TM_BUILD=/data/work/build_cand_a TM_OUT=/data/work/eval/cand_a ./scripts/evaluate.sh simple,cand_a
+   TM_SET="cand_a.alpha=0.3 cand_a.k=5" ./scripts/evaluate.sh simple,cand_a      # configuration entries
+   ./scripts/evaluate.sh simple,cand_a,cand_b suite_v2                           # all of them, another suite
+   ```
+   Outputs `$TM_OUT/isaac.{md,json}` (recorded mission, also vs the existing system) and
+   `$TM_OUT/synthetic.{md,json}`; `treemapper_replay --list-systems` lists what the binary knows. Direct form:
+   `python3 -m treemapper_tools.evaluate --system simple,cand_a --suite /data/work/synthetic/suite_v1 --reference simple`.
+
+**Paired output** (2+ systems, per non-reference system `S`, after the usual per-system cards):
+`## Paired: S vs ref (difference = S - ref, same dataset = same seed)`, then
+1. a summary table, one row per headline metric: `ref mean | S mean | mean diff | std diff | t | win / loss / tie`
+   over the pairs (a win = S better than ref; t = mean diff / (std diff / sqrt n), |t| < 2 is seed noise);
+2. mean paired difference per group (easy / medium / hard);
+3. **per seed**: one row per dataset (`medium_s3`, ...), columns = signed differences `S - ref` of recall,
+   precision, mean IoU, neighbours swallowed, false trees, centre RMSE, height RMSE, spill and safety violations.
+The JSON (`paired` key) carries the per-seed difference for every headline metric.
+
 ## What M3 needs to know
 
-- **Run and score a candidate in one command:** `docker exec tm_dev bash -lc 'cd /ws && ./scripts/evaluate.sh <system>'`
-  (output in `/data/work/eval/<system>/`, ~3 min). To add a candidate:
-  1. Implement it in the core: a class with `process(FrameInput)`, `publishedTrees()`, `markSprayed(id)` and
-     `takeStageTiming()`, like `SimpleMapper`.
-  2. Register its name in `core/apps/replay_main.cpp` (`--system`). Today the runner only knows `simple`, so
-     factor a small interface when adding the second system.
+- **Run and score a candidate in one command:** see "How to add a candidate" below (interface + registry landed
+  after M2, D29; the runner no longer needs editing).
 - `TM_REPEAT=2 ./scripts/evaluate.sh <system>` reruns every synthetic dataset (the run-to-run floor stays 0 while
   everything is deterministic). For more seeds: `python3 -m treemapper_tools.synth --out /data/work/synthetic/suite_v2 --seeds 0-9`,
   then `./scripts/evaluate.sh <system> suite_v2`. About 18 s per mission per core; mind the 40 GB budget, 30 MB per mission.

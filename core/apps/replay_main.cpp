@@ -2,7 +2,11 @@
 // map stream (contract JSONL) at a steady rate.
 //
 //   treemapper_replay --frames F.bin --out-map map.jsonl --out-targets targets.json
-//                     [--out-counters counters.json] [--rate 5] [--system simple]
+//                     [--out-counters counters.json] [--rate 5] [--system simple] [--config "k=v;k=v"]
+//   treemapper_replay --list-systems
+//
+// --system picks a registered mapping system (mapper_registry.cpp); --config is passed to it as the
+// system's key=value configuration (unknown keys are an error).
 //
 // Navigation emulator (replay only, not part of the mapper): the recorded hop target belongs to the
 // recorded navigation's ID space, so each target is resolved to THIS mapper's ID through its descent
@@ -18,7 +22,7 @@
 #include <vector>
 
 #include "treemapper/frame_io.hpp"
-#include "treemapper/simple_mapper.hpp"
+#include "treemapper/mapper_registry.hpp"
 
 using namespace treemapper;
 
@@ -66,19 +70,31 @@ TreeId resolveTarget(const std::vector<TreeEntry>& trees, double x, double y) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (argc == 2 && std::string(argv[1]) == "--list-systems") {
+    for (const auto& n : registeredMappers()) std::cout << n << "\n";
+    return 0;
+  }
   std::map<std::string, std::string> a;
   for (int i = 1; i + 1 < argc; i += 2) a[argv[i]] = argv[i + 1];
   if (!a.count("--frames") || !a.count("--out-map") || !a.count("--out-targets")) {
     std::cerr << "usage: treemapper_replay --frames F.bin --out-map M.jsonl --out-targets T.json "
-                 "[--out-counters C.json] [--rate 5] [--system simple]\n";
+                 "[--out-counters C.json] [--rate 5] [--system simple] [--config \"k=v;k=v\"]\n"
+                 "       treemapper_replay --list-systems\n";
     return 2;
   }
   const double rate = a.count("--rate") ? std::stod(a["--rate"]) : 5.0;
   const std::string system = a.count("--system") ? a["--system"] : "simple";
-  if (system != "simple") { std::cerr << "unknown --system " << system << "\n"; return 2; }
 
   FrameReader reader(a["--frames"]);
-  SimpleMapper mapper(SimpleMapperConfig{}, reader.calibration());
+  std::unique_ptr<Mapper> mapper_ptr;
+  try {
+    mapper_ptr = createMapper(system, a.count("--config") ? parseMapperConfig(a["--config"]) : MapperConfig{},
+                              reader.calibration());
+  } catch (const std::exception& e) {
+    std::cerr << "treemapper_replay: " << e.what() << "\n";
+    return 2;
+  }
+  Mapper& mapper = *mapper_ptr;
   std::FILE* out = std::fopen(a["--out-map"].c_str(), "w");
   if (!out) { std::cerr << "cannot write " << a["--out-map"] << "\n"; return 1; }
 

@@ -15,6 +15,7 @@
 
 #include "treemapper/frame.hpp"
 #include "treemapper/geometry.hpp"
+#include "treemapper/mapper.hpp"
 #include "treemapper/types.hpp"
 
 namespace treemapper {
@@ -57,28 +58,31 @@ struct Observation {
   int n_points{0};
 };
 
+/// Builds a SimpleMapperConfig from string key/values (keys = field names); unknown keys throw.
+SimpleMapperConfig simpleMapperConfigFrom(const MapperConfig& config);
+
 enum class MapperState { kAwake, kSleeping, kHoldingNoPose };
 
-class SimpleMapper {
+class SimpleMapper : public Mapper {
  public:
   explicit SimpleMapper(const SimpleMapperConfig& cfg = {}, const StereoCalibration& cal = {});
 
   /// Full per-frame step: phase policy, pose hold, observation extraction, integration.
-  void process(const FrameInput& frame);
+  void process(const FrameInput& frame) override;
   /// Points -> observations (one per box). Exposed for tests and for other candidates.
   std::vector<Observation> extractObservations(const FrameInput& frame);
   /// Association + fusion + merge under the phase policy. Exposed for rule tests.
   void integrate(double t, MissionPhase phase, TreeId hop_target, const std::vector<Observation>& obs);
 
   /// Navigation API: published trees only (valid outline + finite height, rule 3).
-  std::vector<TreeEntry> publishedTrees() const;
-  bool markSprayed(TreeId id);
+  std::vector<TreeEntry> publishedTrees() const override;
+  bool markSprayed(TreeId id) override;
 
   MapperState state() const { return state_; }
-  const std::map<std::string, std::uint64_t>& counters() const { return counters_; }
+  const std::map<std::string, std::uint64_t>& counters() const override { return counters_; }
   /// Per-stage processing time (ms) accumulated since the last call; returns (stage -> mean ms/frame).
-  std::map<std::string, double> takeStageTiming();
-  void setLogger(std::function<void(const std::string&)> log) { log_ = std::move(log); }
+  std::map<std::string, double> takeStageTiming() override;
+  void setLogger(std::function<void(const std::string&)> log) override { log_ = std::move(log); }
 
  private:
   struct Entry {

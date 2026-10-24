@@ -3,6 +3,7 @@
 # Run inside the tm_dev container:
 #   docker exec tm_dev bash -lc 'cd /ws && ./scripts/run_tests.sh'
 # Build output goes to $TM_BUILD (default /data/work/build), never into the repo.
+# TM_CANDIDATES="cand_a" builds only that candidate (default: all).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="${TM_BUILD:-/data/work/build}"
@@ -10,7 +11,7 @@ JOBS="${TM_JOBS:-8}"
 rc=0
 
 echo "== C++ core: configure + build ($BUILD/core, -j$JOBS)"
-cmake -S "$ROOT/core" -B "$BUILD/core" -DCMAKE_BUILD_TYPE=RelWithDebInfo > "$BUILD.core.cmake.log" 2>&1 \
+cmake -S "$ROOT/core" -B "$BUILD/core" -DCMAKE_BUILD_TYPE=RelWithDebInfo ${TM_CANDIDATES:+-DTM_CANDIDATES="$TM_CANDIDATES"} > "$BUILD.core.cmake.log" 2>&1 \
   || { cat "$BUILD.core.cmake.log"; exit 1; }
 cmake --build "$BUILD/core" -j"$JOBS" 2>&1 | grep -E "error|warning|Error" || true
 echo "== C++ core: ctest"
