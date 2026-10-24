@@ -6,6 +6,10 @@
          lever arm (0.15, 0.08, 0), verified against ground truth in results/geometry_check.md (optical -> body);
        * simulated clock (/clock). -->
 <launch>
+  <!-- required="false": a mapper failure must never take the rest of the drone's roslaunch (navigation) down with
+       it; callbacks contain their own exceptions (health FAULT + callback_exceptions counter). NO respawn: a
+       respawned node restarts tree IDs at 0, so an ID navigation holds could name a different tree (rule 1).
+       See README "Crash containment". -->
   <arg name="use_sim_time" default="true"/>
   <arg name="mapper_config_file" default=""/>          <!-- "" = config/treemapper.yaml's pointer (config/core/<mapper>.cfg) -->
   <arg name="hop_target_topic" default="/spray_target"/>
@@ -13,7 +17,7 @@
   <arg name="output" default="screen"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
-  <node pkg="treemapper_ros" type="treemapper_node" name="treemapper" output="$(arg output)" required="true">
+  <node pkg="treemapper_ros" type="treemapper_node" name="treemapper" output="$(arg output)" required="false">
     <rosparam command="load" file="$(find treemapper_ros)/config/treemapper.yaml"/>
     <param if="$(eval arg('mapper_config_file') != '')" name="mapper_config_file" value="$(arg mapper_config_file)"/>
     <param name="world_frame" value="world"/>

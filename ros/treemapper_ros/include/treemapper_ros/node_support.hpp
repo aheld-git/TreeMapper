@@ -2,8 +2,12 @@
 // per-tree diagnostics the Mapper interface does not carry (first published, last changed, locked).
 #pragma once
 
+#include <cstdint>
+#include <exception>
 #include <map>
+#include <mutex>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -22,11 +26,58 @@ treemapper::MapperConfig readCfgFile(const std::string& path);
 treemapper::MapperConfig applyOverrides(treemapper::MapperConfig base,
                                         const std::map<std::string, std::string>& overrides);
 
-/// Phases in which heavy processing may sleep (brief section 6): the detector is dark, so the node
-/// reports SLEEPING (alive, deliberately idle) instead of looking dead.
+/// Phases in which the mapper sleeps (brief section 6): exactly the phases phasePolicy() marks not awake
+/// (IDLE, SPRAYING, RETURN), so health never says SLEEPING while the mapper is mapping. SCAN_APPROACH is
+/// awake (the mapper maps it), so a stale input there is reported, not hidden.
 bool isSleepPhase(treemapper::MissionPhase p);
 /// Phases in which the tree list is fixed (no new standalone trees): PLANNING, HOPPING, SPRAYING.
 bool isLockedPhase(treemapper::MissionPhase p);
+
+/// Thrown for configuration errors that must end the node (bad parameters at startup, a mapper that cannot
+/// be built). CallbackGuard lets it through; every other exception is contained.
+struct FatalConfigError : std::runtime_error {
+  using std::runtime_error::runtime_error;
+};
+
+/// Keeps the node alive when a callback throws (B1): run() executes a callback body, and an exception
+/// (other than FatalConfigError) is logged, counted per callback and remembered, so health can report
+/// FAULT for `fault_hold_s` after the latest one. Thread-safe (the pose callback runs on its own spinner).
+/// Respawning instead would restart the IDs at 0 (rule 1), see README "Crash containment".
+class CallbackGuard {
+ public:
+  explicit CallbackGuard(double fault_hold_s = 10.0) : hold_s_(fault_hold_s) {}
+  /// Returns true when `body` completed. `now` = wall seconds (for the FAULT window); `log` gets one line.
+  template <typename F, typename L>
+  bool run(const char* where, double now, F&& body, L&& log) {
+    try {
+      body();
+      return true;
+    } catch (const FatalConfigError&) {
+      throw;
+    } catch (const std::exception& e) {
+      log(record(where, e.what(), now));
+    } catch (...) {
+      log(record(where, "unknown exception", now));
+    }
+    return false;
+  }
+  /// True while the latest exception is less than fault_hold_s old.
+  bool faultActive(double now) const;
+  /// "callback exception in <where>: <what> (<n> total)", empty if none ever.
+  std::string lastError() const;
+  std::uint64_t total() const;
+  /// callback_exceptions (total) and callback_exceptions_<where> per callback.
+  std::map<std::string, std::uint64_t> counters() const;
+
+ private:
+  std::string record(const char* where, const std::string& what, double now);
+  double hold_s_;
+  mutable std::mutex m_;
+  std::map<std::string, std::uint64_t> counts_;
+  std::uint64_t total_{0};
+  double last_t_{-1e300};
+  std::string last_;
+};
 
 /// Diagnostics per published tree, kept by the node.
 struct TreeMeta {

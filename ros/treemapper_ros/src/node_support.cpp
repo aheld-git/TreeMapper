@@ -3,6 +3,8 @@
 #include <fstream>
 #include <stdexcept>
 
+#include "treemapper/simple_mapper.hpp"  // phasePolicy(): the one definition of which phases sleep
+
 namespace treemapper_ros {
 
 using treemapper::MapperConfig;
@@ -56,9 +58,37 @@ MapperConfig applyOverrides(MapperConfig base, const std::map<std::string, std::
   return base;
 }
 
-bool isSleepPhase(MissionPhase p) {
-  return p == MissionPhase::kIdle || p == MissionPhase::kScanApproach || p == MissionPhase::kSpraying ||
-         p == MissionPhase::kReturn;
+bool isSleepPhase(MissionPhase p) { return !treemapper::phasePolicy(p, treemapper::kNoTree).awake; }
+
+std::string CallbackGuard::record(const char* where, const std::string& what, double now) {
+  std::lock_guard<std::mutex> lk(m_);
+  ++total_;
+  ++counts_[std::string("callback_exceptions_") + where];
+  last_t_ = now;
+  last_ = "callback exception in " + std::string(where) + ": " + what;
+  return last_ + " (node kept alive, " + std::to_string(total_) + " total)";
+}
+
+bool CallbackGuard::faultActive(double now) const {
+  std::lock_guard<std::mutex> lk(m_);
+  return total_ > 0 && now - last_t_ < hold_s_;
+}
+
+std::string CallbackGuard::lastError() const {
+  std::lock_guard<std::mutex> lk(m_);
+  return total_ ? last_ + " (" + std::to_string(total_) + " total)" : std::string();
+}
+
+std::uint64_t CallbackGuard::total() const {
+  std::lock_guard<std::mutex> lk(m_);
+  return total_;
+}
+
+std::map<std::string, std::uint64_t> CallbackGuard::counters() const {
+  std::lock_guard<std::mutex> lk(m_);
+  auto out = counts_;
+  out["callback_exceptions"] = total_;
+  return out;
 }
 
 bool isLockedPhase(MissionPhase p) {

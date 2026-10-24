@@ -21,7 +21,7 @@ ros/treemapper_ros/
   scripts/treemapper_bag_to_jsonl.py  recorded ~map topic -> the scorer's map-stream JSONL (+ targets.json)
   scripts/compare_map_streams.py   two map streams of one mission: final trees/IDs matched + both scorecards
   scripts/ros_replay_check.sh      end-to-end: roscore + replay + live probes + convert + offline replay + compare
-  test/test_*.cpp                  gtest (28 cases): pairing, disparity, calibration, decoding, conversions, config
+  test/test_*.cpp                  gtest (30 cases): pairing, disparity, calibration, decoding, conversions, config
   test/replay_smoke.test           rostest: 60 s of the Isaac bag at rate 1.0, test/check_live.py asserts
   rviz/treemapper.rviz             top-down view of ~markers
 ```
@@ -40,7 +40,7 @@ Node name `treemapper`; outputs are in its private namespace (`/treemapper/...`)
 | in | `/spray_target` (`hop_target_topic`) | std_msgs/Int32 | hop target **in this mapper's ID space**, -1 = none |
 | out | `~map` | treemapper_msgs/TreeMap (latched) | every `map_rate` s, at each phase change (stamped with the last frame of the old phase) and after every sprayed change. `header.stamp` = snapshot time (ROS clock), `frame_id` = `world_frame` |
 | out | `~markers` | visualization_msgs/MarkerArray | outline (at canopy height), centre, label "id height"; blue = scan, orange = locked, red = hop target, green = sprayed; starts with DELETEALL |
-| out | `~health` | treemapper_msgs/Health | `health_rate` Hz, always (also while asleep): AWAKE / SLEEPING ("phase X: sleeping, not dead") / HOLDING (waiting for calibration, no pose) / FAULT (calibration rejected); phase + target in force, trees published, input age, active warnings |
+| out | `~health` | treemapper_msgs/Health | `health_rate` Hz, always (also while asleep): AWAKE / SLEEPING ("phase X: sleeping, not dead") / HOLDING (waiting for calibration, no pose) / FAULT (calibration rejected, or a callback exception in the last 10 s); phase + target in force, trees published, input age, active warnings |
 | out | `~counters` | treemapper_msgs/DropCounters | 1 Hz, two messages: stage `input` (node + pairing counters) and stage `mapper` (`Mapper::counters()`), cumulative |
 | out | `~stage_timing` | treemapper_msgs/StageTiming | mean ms per frame since the previous map snapshot: the mapper's stages + `node_frame_total`, `node_disparity_sample` |
 | srv | `~get_trees` | treemapper_msgs/GetTrees | `id = -1`: all trees; else that tree (`found = false` if unknown) |
@@ -54,7 +54,9 @@ Input counters (stage `input`): `disparity_msgs`, `disparity_rejected_malformed`
 
 `TreeEntry` diagnostics: `locked` (the tree was published while the list was fixed: PLANNING / HOPPING / SPRAYING),
 `first_published`, `last_updated` (outline, centre, height or sprayed changed) are kept by the node;
-`confidence` and `observations` are not part of the Mapper interface and are published as 0 (= not provided).
+`observations` = frames with a matched crown (cand_obj; 0 = not provided by the mapper in use); `confidence` is
+reserved and always 0. `height` is the canopy top as **world-frame z** in `world_frame` (not height above ground;
+`world_nwu` re-origins at every boot on the real drone), see `treemapper_msgs/msg/TreeEntry.msg`.
 
 ## Behaviour on missing information (brief section 7.6)
 
@@ -70,7 +72,22 @@ Input counters (stage `input`): `disparity_msgs`, `disparity_rejected_malformed`
 | no hop target | -1 (none); what the mapper freezes then is the mapper's rule | |
 | bad mapper config (unknown key, bad value, unknown mapper) | fail at startup (the node exits) | FATAL with the key |
 | detection without its disparity | after `sync_wait` the nearest disparity within `sync_nearest_tol`, else a frame without depth | `sync_frames_paired_nearest`, `sync_frames_without_disparity` |
-| SPRAYING / IDLE / SCAN_APPROACH / RETURN | frames still go to the mapper (it applies its phase policy, the detector is dark anyway) | health SLEEPING "sleeping, not dead" |
+| SPRAYING / IDLE / RETURN | frames still go to the mapper (it applies its phase policy, the detector is dark anyway) | health SLEEPING "sleeping, not dead" (exactly the phases `phasePolicy()` marks asleep; SCAN_APPROACH is awake, so it reports AWAKE and the stale-input warning stays active) |
+| an exception inside any callback, timer or service | contained: logged (ERROR, throttled), counted, node keeps running with its map and IDs | `callback_exceptions`, `callback_exceptions_<callback>` (stage `input`), health FAULT for 10 s after the latest one, then a warning; a service answers `success/found = false`, "internal error: ..." |
+
+## Crash containment (why `required="false"` and no respawn)
+
+Both launch files start the node with `required="false"` and **without** `respawn`. `required="true"` would let one
+exception in the mapper shut down the whole drone roslaunch, navigation included. Every ROS callback, timer and service
+body runs inside `CallbackGuard` (`node_support.hpp`), so an exception is logged, counted and reported as health FAULT
+while the node keeps running; only configuration errors at startup (`FatalConfigError`: bad parameters, a mapper that
+cannot be built) still end the node. If the process dies anyway (segfault, OOM), it stays down and navigation sees the
+health heartbeat stop.
+
+**Respawn must stay off** until tree IDs carry a persistent or random per-run epoch offset: a respawned node starts a
+fresh map with IDs from 0, so an ID navigation already holds (hop target, sprayed list) could name a different tree in
+the new map (rule 1), and sprayed protection (rule 5) would be lost. With such an offset (and ideally a persisted
+sprayed list) respawn becomes safe.
 
 ## Parameters
 
@@ -164,9 +181,10 @@ ros_replay_check.sh /data/work/m4b/full 45 0 0.00390625               # full mis
 
 - **Build**: `catkin build` of treemapper_msgs + treemapper_ros (core built in-tree) with `-Wall -Wextra` on the
   package targets (the core keeps its own `-Wall -Wextra -Wpedantic`): 0 warnings.
-- **gtest** `test_treemapper_ros`: 28 cases pass (pairing incl. late / nearest / early-resolve / ordering / cache,
+- **gtest** `test_treemapper_ros`: 30 cases pass (pairing incl. late / nearest / early-resolve / ordering / cache,
   disparity sampling + malformed + resolution + offset + quantum, baseline conventions, calibration rejects,
-  DetectionResult decoding, conversions, markers, per-tree diagnostics, config agreement, cfg reader).
+  DetectionResult decoding, conversions, markers, per-tree diagnostics, config agreement, cfg reader, sleep phases =
+  phasePolicy, callback exception containment).
 - **rostest** `replay_smoke.test` (60 s of the Isaac bag at rate 1.0): SUCCESS — heartbeat present, non-empty map,
   get_trees all / by id / unknown id, set_tree_sprayed unknown id and un-spray refused, counters, node alive.
 - **ROS path = offline replay** on the full recorded Isaac mission (`scripts/ros_replay_check.sh`, bag from

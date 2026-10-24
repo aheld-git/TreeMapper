@@ -37,6 +37,7 @@
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <utility>
 #include <set>
 #include <sstream>
 
@@ -187,26 +188,64 @@ class TreemapperNode {
   }
 
   void shutdown() {
-    if (mapper_) {
-      for (auto& f : sync_.flush()) processFrame(f);
-      publishMap(nowSec());
-    }
+    guarded("shutdown", [&] {
+      if (mapper_) {
+        for (auto& f : sync_.flush()) processFrame(f);
+        publishMap(nowSec());
+      }
+    });
   }
 
  private:
   [[noreturn]] void fatal(const std::string& m) {
     ROS_FATAL("treemapper_node: %s", m.c_str());
-    throw std::runtime_error(m);
+    throw FatalConfigError(m);  // the one exception CallbackGuard lets through: bad configuration ends the node
+  }
+
+  // ------------------------------------------------------------------ crash containment (B1)
+  // Every ROS callback, timer and service body runs inside guard_: an exception is logged, counted
+  // (callback_exceptions*, stage `input`) and reported as health FAULT for fault_hold_s, and the node keeps
+  // running with its map and its IDs. A crash would lose the map and, with respawn, restart IDs at 0.
+  template <typename F>
+  bool guarded(const char* where, F&& body) {
+    return guard_.run(where, ros::WallTime::now().toSec(), std::forward<F>(body),
+                      [](const std::string& m) { ROS_ERROR_THROTTLE(1.0, "%s", m.c_str()); });
+  }
+  void onLeftInfo(const sensor_msgs::CameraInfo::ConstPtr& m) { guarded("left_camera_info", [&] { onLeftInfoBody(m); }); }
+  void onRightInfo(const sensor_msgs::CameraInfo::ConstPtr& m) { guarded("right_camera_info", [&] { onRightInfoBody(m); }); }
+  void onDisparity(const sensor_msgs::Image::ConstPtr& m) { guarded("disparity", [&] { onDisparityBody(m); }); }
+  void onDetections(const topic_tools::ShapeShifter::ConstPtr& m) { guarded("detections", [&] { onDetectionsBody(m); }); }
+  void onPhase(const std_msgs::String::ConstPtr& m) { guarded("mission_state", [&] { onPhaseBody(m); }); }
+  void onTarget(const std_msgs::Int32::ConstPtr& m) { guarded("hop_target", [&] { onTargetBody(m); }); }
+  void onPose(const geometry_msgs::PoseStamped::ConstPtr& m) { guarded("pose", [&] { onPoseBody(m); }); }
+  void onFrameTimer(const ros::TimerEvent& e) { guarded("frame_timer", [&] { onFrameTimerBody(e); }); }
+  void onMapTimer(const ros::TimerEvent& e) { guarded("map_timer", [&] { onMapTimerBody(e); }); }
+  void onHealthTimer(const ros::WallTimerEvent& e) { guarded("health_timer", [&] { onHealthTimerBody(e); }); }
+  void onCountersTimer(const ros::TimerEvent& e) { guarded("counters_timer", [&] { onCountersTimerBody(e); }); }
+  bool onGetTrees(treemapper_msgs::GetTrees::Request& req, treemapper_msgs::GetTrees::Response& res) {
+    if (!guarded("get_trees", [&] { onGetTreesBody(req, res); })) {
+      res = treemapper_msgs::GetTrees::Response();
+      res.found = false;
+      res.message = "internal error: " + guard_.lastError();
+    }
+    return true;
+  }
+  bool onSetSprayed(treemapper_msgs::SetTreeSprayed::Request& req, treemapper_msgs::SetTreeSprayed::Response& res) {
+    if (!guarded("set_tree_sprayed", [&] { onSetSprayedBody(req, res); })) {
+      res.success = false;
+      res.message = "internal error: " + guard_.lastError();
+    }
+    return true;
   }
 
   // ------------------------------------------------------------------ calibration
-  void onLeftInfo(const sensor_msgs::CameraInfo::ConstPtr& m) {
+  void onLeftInfoBody(const sensor_msgs::CameraInfo::ConstPtr& m) {
     if (mapper_) return;
     left_ = *m;
     have_left_ = true;
     tryCreateMapper();
   }
-  void onRightInfo(const sensor_msgs::CameraInfo::ConstPtr& m) {
+  void onRightInfoBody(const sensor_msgs::CameraInfo::ConstPtr& m) {
     if (mapper_) return;
     right_ = *m;
     have_right_ = true;
@@ -267,7 +306,7 @@ class TreemapperNode {
   }
 
   // ------------------------------------------------------------------ inputs
-  void onDisparity(const sensor_msgs::Image::ConstPtr& m) {
+  void onDisparityBody(const sensor_msgs::Image::ConstPtr& m) {
     const double t = nowSec();
     last_input_t_ = t;
     ++node_counters_["disparity_msgs"];
@@ -291,7 +330,7 @@ class TreemapperNode {
     for (auto& f : sync_.addDisparity(t, s, std::move(g))) processFrame(f);
   }
 
-  void onDetections(const topic_tools::ShapeShifter::ConstPtr& m) {
+  void onDetectionsBody(const topic_tools::ShapeShifter::ConstPtr& m) {
     const double t = nowSec();
     last_input_t_ = t;
     std::vector<treemapper::Detection2D> boxes;
@@ -321,7 +360,7 @@ class TreemapperNode {
     for (auto& f : sync_.addDetections(t, stamp, std::move(boxes), phase_raw_, hop_target_)) processFrame(f);
   }
 
-  void onPhase(const std_msgs::String::ConstPtr& m) {
+  void onPhaseBody(const std_msgs::String::ConstPtr& m) {
     have_phase_msg_ = true;
     if (m->data == phase_raw_) return;
     const MissionPhase p = treemapper::parseMissionPhase(m->data);
@@ -342,12 +381,12 @@ class TreemapperNode {
     }
   }
 
-  void onTarget(const std_msgs::Int32::ConstPtr& m) {
+  void onTargetBody(const std_msgs::Int32::ConstPtr& m) {
     if (m->data != hop_target_) ROS_INFO("hop target %d -> %d", hop_target_, m->data);
     hop_target_ = m->data < 0 ? treemapper::kNoTree : m->data;
   }
 
-  void onPose(const geometry_msgs::PoseStamped::ConstPtr& m) {
+  void onPoseBody(const geometry_msgs::PoseStamped::ConstPtr& m) {
     geometry_msgs::TransformStamped ts;
     ts.header = m->header;
     if (ts.header.frame_id.empty()) ts.header.frame_id = world_frame_;
@@ -429,7 +468,7 @@ class TreemapperNode {
     ++node_counters_["heartbeat_frames"];
   }
 
-  void onFrameTimer(const ros::TimerEvent&) {
+  void onFrameTimerBody(const ros::TimerEvent&) {
     if (!mapper_) { tryCreateMapper(); return; }
     const double t = nowSec();
     for (auto& f : sync_.poll(t)) processFrame(f);
@@ -460,9 +499,9 @@ class TreemapperNode {
     frame_n_ = sample_n_ = 0;
     pub_timing_.publish(toTimingMsg(h, ms));
   }
-  void onMapTimer(const ros::TimerEvent&) { publishMap(nowSec()); }
+  void onMapTimerBody(const ros::TimerEvent&) { publishMap(nowSec()); }
 
-  void onHealthTimer(const ros::WallTimerEvent&) {
+  void onHealthTimerBody(const ros::WallTimerEvent&) {
     const double t = nowSec();
     treemapper_msgs::Health h;
     h.header.stamp = ros::Time::now();
@@ -478,7 +517,11 @@ class TreemapperNode {
     if (last_input_t_ > 0.0 && t - last_input_t_ > input_stale_warn_ && !isSleepPhase(phase_)) {
       h.warnings.push_back("no camera/detection input for " + std::to_string(t - last_input_t_) + " s");
     }
-    if (!calibration_error_.empty()) {
+    if (guard_.total() > 0) h.warnings.push_back(guard_.lastError());
+    if (guard_.faultActive(ros::WallTime::now().toSec())) {
+      h.state = treemapper_msgs::Health::FAULT;
+      h.reason = guard_.lastError() + "; node kept alive";
+    } else if (!calibration_error_.empty()) {
       h.state = treemapper_msgs::Health::FAULT;
       h.reason = "calibration rejected: " + calibration_error_;
     } else if (!mapper_) {
@@ -498,17 +541,18 @@ class TreemapperNode {
     pub_health_.publish(h);
   }
 
-  void onCountersTimer(const ros::TimerEvent&) {
+  void onCountersTimerBody(const ros::TimerEvent&) {
     std_msgs::Header h;
     h.stamp = ros::Time::now();
     h.frame_id = world_frame_;
     auto input = node_counters_;
     for (const auto& kv : sync_.counters()) input["sync_" + kv.first] = kv.second;
+    for (const auto& kv : guard_.counters()) input[kv.first] = kv.second;
     pub_counters_.publish(toCountersMsg(h, "input", input));
     if (mapper_) pub_counters_.publish(toCountersMsg(h, "mapper", mapper_->counters()));
   }
 
-  bool onGetTrees(treemapper_msgs::GetTrees::Request& req, treemapper_msgs::GetTrees::Response& res) {
+  bool onGetTreesBody(treemapper_msgs::GetTrees::Request& req, treemapper_msgs::GetTrees::Response& res) {
     if (!mapper_) {
       res.found = false;
       res.message = "mapper not running yet (waiting for calibration)";
@@ -523,7 +567,7 @@ class TreemapperNode {
     return true;
   }
 
-  bool onSetSprayed(treemapper_msgs::SetTreeSprayed::Request& req, treemapper_msgs::SetTreeSprayed::Response& res) {
+  bool onSetSprayedBody(treemapper_msgs::SetTreeSprayed::Request& req, treemapper_msgs::SetTreeSprayed::Response& res) {
     if (!mapper_) {
       res.success = false;
       res.message = "mapper not running yet";
@@ -593,6 +637,7 @@ class TreemapperNode {
   double frame_ms_{0.0}, sample_ms_{0.0};
   std::uint64_t frame_n_{0}, sample_n_{0};
   TreeMetaTracker tracker_;
+  CallbackGuard guard_{10.0};
   std::map<std::string, std::uint64_t> node_counters_;
   std::map<std::string, double> warn_last_;
 

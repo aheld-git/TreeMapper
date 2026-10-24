@@ -3,7 +3,11 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
+#include "treemapper/simple_mapper.hpp"
 #include "treemapper_ros/conversions.hpp"
 
 using namespace treemapper_ros;
@@ -23,7 +27,8 @@ TreeEntry square(int id, double cx, double cy, double h, bool sprayed = false) {
 }  // namespace
 
 TEST(Conversions, TreeEntryRoundTrip) {
-  const TreeEntry e = square(7, 3.5, -2.25, 4.75, true);
+  TreeEntry e = square(7, 3.5, -2.25, 4.75, true);
+  e.observations = 9;
   TreeMeta meta;
   meta.first_published = 12.5;
   meta.last_updated = 20.25;
@@ -36,6 +41,8 @@ TEST(Conversions, TreeEntryRoundTrip) {
   EXPECT_DOUBLE_EQ(m.centre.y, -2.25);
   EXPECT_DOUBLE_EQ(m.height, 4.75);
   EXPECT_TRUE(m.sprayed);
+  EXPECT_EQ(m.observations, 9u);
+  EXPECT_FLOAT_EQ(m.confidence, 0.0f);  // reserved
   EXPECT_TRUE(m.locked);
   EXPECT_DOUBLE_EQ(m.first_published.toSec(), 12.5);
   EXPECT_DOUBLE_EQ(m.last_updated.toSec(), 20.25);
@@ -145,4 +152,45 @@ int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   ros::Time::init();
   return RUN_ALL_TESTS();
+}
+
+// S13: health's SLEEPING must mean exactly "the mapper is asleep" (phasePolicy), so SCAN_APPROACH, where the
+// mapper maps, is awake (and a stale input there is warned about, not hidden).
+TEST(NodeSupport, SleepPhasesAreExactlyThePhasesTheMapperSleeps) {
+  for (int k = 0; k <= static_cast<int>(MissionPhase::kError); ++k) {
+    const auto p = static_cast<MissionPhase>(k);
+    EXPECT_EQ(isSleepPhase(p), !treemapper::phasePolicy(p, treemapper::kNoTree).awake) << treemapper::toString(p);
+  }
+  EXPECT_FALSE(isSleepPhase(MissionPhase::kScanApproach));
+  EXPECT_FALSE(isSleepPhase(MissionPhase::kScan));
+  EXPECT_TRUE(isSleepPhase(MissionPhase::kSpraying));
+  EXPECT_TRUE(isSleepPhase(MissionPhase::kIdle));
+  EXPECT_TRUE(isSleepPhase(MissionPhase::kReturn));
+}
+
+// B1: a throwing callback body is contained (logged, counted, FAULT for the hold window); a fatal
+// configuration error still propagates so startup misconfiguration ends the node.
+TEST(NodeSupport, CallbackGuardContainsExceptionsButNotFatalConfigErrors) {
+  CallbackGuard g(10.0);
+  std::vector<std::string> logs;
+  auto log = [&](const std::string& m) { logs.push_back(m); };
+  int ran = 0;
+  EXPECT_TRUE(g.run("ok", 100.0, [&] { ++ran; }, log));
+  EXPECT_EQ(ran, 1);
+  EXPECT_FALSE(g.faultActive(100.0));
+  EXPECT_TRUE(g.lastError().empty());
+  EXPECT_FALSE(g.run("disparity", 100.0, [] { throw std::out_of_range("vector::at"); }, log));
+  EXPECT_FALSE(g.run("disparity", 101.0, [] { throw 42; }, log));
+  ASSERT_EQ(logs.size(), 2u);
+  EXPECT_NE(logs[0].find("disparity"), std::string::npos);
+  EXPECT_NE(logs[0].find("vector::at"), std::string::npos);
+  EXPECT_EQ(g.total(), 2u);
+  const auto c = g.counters();
+  EXPECT_EQ(c.at("callback_exceptions"), 2u);
+  EXPECT_EQ(c.at("callback_exceptions_disparity"), 2u);
+  EXPECT_TRUE(g.faultActive(105.0));
+  EXPECT_FALSE(g.faultActive(111.5));  // the FAULT window ends; the warning (lastError) stays
+  EXPECT_NE(g.lastError().find("2 total"), std::string::npos);
+  EXPECT_THROW(g.run("config", 120.0, [] { throw FatalConfigError("bad ~disparity_offset"); }, log), FatalConfigError);
+  EXPECT_EQ(g.total(), 2u);
 }
