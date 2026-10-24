@@ -32,6 +32,7 @@ camera_frame_is_optical: true # false: camera_frame is a ROS camera frame (x = o
 
 # --- stereo / detections
 disparity_stride: 4           # px, disparity sampling grid (the mapper's StereoCalibration::stride)
+disparity_offset: none        # none | auto (= cx_left - cx_right from camera_info, subtracted) | <px>
 disparity_quantum_px: 0.0     # px, 0 = full precision; 0.00390625 reproduces the frames.bin cache (offline A/B only)
 detection_scale: 1.0          # detector pixels -> calibrated image pixels
 

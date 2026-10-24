@@ -52,7 +52,7 @@ TEST(Disparity, SamplesStrideGridWithHalfStrideOffsetAndInvalidates) {
   setPx(&img, w, 10, 2, std::numeric_limits<float>::infinity());       // grid (0, 2): inf -> NaN
   setPx(&img, w, 14, 6, 0.0f);                                         // grid (1, 3): zero -> NaN
   DisparityGrid g;
-  ASSERT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size(), s, w, h, 0.0, &g), DisparityStatus::kOk);
+  ASSERT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size(), s, w, h, 0.0, 0.0, &g), DisparityStatus::kOk);
   ASSERT_EQ(g.grid_w, 4);
   ASSERT_EQ(g.grid_h, 2);
   EXPECT_FLOAT_EQ(g.data[0], 33.0f);
@@ -68,13 +68,23 @@ TEST(Disparity, RejectsMalformedAndMismatchedImages) {
   auto img = floatImage(w, h, 5.0f);
   DisparityGrid g;
   // the Isaac recording's malformed twin: step = width, 1 byte per pixel worth of data
-  EXPECT_EQ(sampleDisparity("32FC1", w, h, w, false, img.data(), static_cast<std::size_t>(w) * h, 4, 0, 0, 0.0, &g),
+  EXPECT_EQ(sampleDisparity("32FC1", w, h, w, false, img.data(), static_cast<std::size_t>(w) * h, 4, 0, 0, 0.0, 0.0, &g),
             DisparityStatus::kMalformed);
-  EXPECT_EQ(sampleDisparity("16UC1", w, h, 4 * w, false, img.data(), img.size(), 4, 0, 0, 0.0, &g), DisparityStatus::kMalformed);
-  EXPECT_EQ(sampleDisparity("32FC1", w, h, 4 * w, true, img.data(), img.size(), 4, 0, 0, 0.0, &g), DisparityStatus::kMalformed);
-  EXPECT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size() - 4, 4, 0, 0, 0.0, &g), DisparityStatus::kMalformed);
-  EXPECT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size(), 4, 2 * w, h, 0.0, &g),
+  EXPECT_EQ(sampleDisparity("16UC1", w, h, 4 * w, false, img.data(), img.size(), 4, 0, 0, 0.0, 0.0, &g), DisparityStatus::kMalformed);
+  EXPECT_EQ(sampleDisparity("32FC1", w, h, 4 * w, true, img.data(), img.size(), 4, 0, 0, 0.0, 0.0, &g), DisparityStatus::kMalformed);
+  EXPECT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size() - 4, 4, 0, 0, 0.0, 0.0, &g), DisparityStatus::kMalformed);
+  EXPECT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size(), 4, 2 * w, h, 0.0, 0.0, &g),
             DisparityStatus::kResolutionMismatch);
+}
+
+TEST(Disparity, PrincipalPointOffsetIsSubtractedBeforeTheValidityTest) {
+  const int w = 8, h = 4;
+  auto img = floatImage(w, h, 10.0f);
+  setPx(&img, w, 6, 2, 1.5f);  // grid (0, 1): 1.5 - 2 < 0 -> invalid
+  DisparityGrid g;
+  ASSERT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size(), 4, 0, 0, 2.0, 0.0, &g), DisparityStatus::kOk);
+  EXPECT_FLOAT_EQ(g.data[0], 8.0f);
+  EXPECT_TRUE(std::isnan(g.data[1]));
 }
 
 TEST(Disparity, QuantumReproducesTheFramesBinCache) {
@@ -82,11 +92,11 @@ TEST(Disparity, QuantumReproducesTheFramesBinCache) {
   auto img = floatImage(w, h, 12.3456789f);
   setPx(&img, w, 2, 2, 1e-5f);  // tiny but valid -> clipped up to one quantum, as frames.py does
   DisparityGrid g;
-  ASSERT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size(), 4, 0, 0, 1.0 / 256, &g), DisparityStatus::kOk);
+  ASSERT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img.data(), img.size(), 4, 0, 0, 0.0, 1.0 / 256, &g), DisparityStatus::kOk);
   ASSERT_EQ(g.data.size(), 1u);
   EXPECT_FLOAT_EQ(g.data[0], 1.0f / 256);
   auto img2 = floatImage(w, h, 12.3456789f);
-  ASSERT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img2.data(), img2.size(), 4, 0, 0, 1.0 / 256, &g), DisparityStatus::kOk);
+  ASSERT_EQ(sampleDisparity("32FC1", w, h, 4 * w, false, img2.data(), img2.size(), 4, 0, 0, 0.0, 1.0 / 256, &g), DisparityStatus::kOk);
   EXPECT_FLOAT_EQ(g.data[0], std::nearbyint(12.3456789f * 256.0f) / 256.0f);
 }
 

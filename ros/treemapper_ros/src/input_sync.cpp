@@ -21,7 +21,8 @@ int gridSize(int pixels, int stride) {
 
 DisparityStatus sampleDisparity(const std::string& encoding, std::uint32_t width, std::uint32_t height,
                                 std::uint32_t step, bool bigendian, const std::uint8_t* data, std::size_t size,
-                                int stride, int expected_w, int expected_h, double quantum_px, DisparityGrid* out) {
+                                int stride, int expected_w, int expected_h, double offset_px, double quantum_px,
+                                DisparityGrid* out) {
   if (encoding != "32FC1" || bigendian || width == 0 || height == 0 || step != 4u * width ||
       size != static_cast<std::size_t>(step) * height || data == nullptr || stride <= 0) {
     return DisparityStatus::kMalformed;
@@ -35,11 +36,13 @@ DisparityStatus sampleDisparity(const std::string& encoding, std::uint32_t width
   out->grid_h = gridSize(static_cast<int>(height), stride);
   out->data.assign(static_cast<std::size_t>(out->grid_w) * out->grid_h, std::numeric_limits<float>::quiet_NaN());
   const float q = static_cast<float>(quantum_px);
+  const float off = static_cast<float>(offset_px);
   for (int r = 0; r < out->grid_h; ++r) {
     const std::uint8_t* row = data + static_cast<std::size_t>(r * stride + o) * step;
     for (int c = 0; c < out->grid_w; ++c) {
       float d;
       std::memcpy(&d, row + static_cast<std::size_t>(c * stride + o) * 4u, sizeof(float));
+      d -= off;
       if (!std::isfinite(d) || d <= 0.0f) continue;
       if (q > 0.0f) {  // frames.bin: clip(round(d / q), 1, 65535) * q
         float k = std::nearbyint(d / q);

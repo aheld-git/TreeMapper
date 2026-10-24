@@ -42,11 +42,15 @@ enum class DisparityStatus { kOk, kMalformed, kResolutionMismatch };
 int gridSize(int pixels, int stride);
 
 /// Samples a disparity image onto the stride grid. `expected_w/h` = the calibrated image size (0 = do
-/// not check). `quantum_px` > 0 rounds every valid value like the frames.bin cache does (1/256 px), so a
-/// live run can be compared bit-for-bit with an offline replay; 0 keeps full float precision.
+/// not check). `offset_px` is subtracted from every raw value first (d - (cx_left - cx_right) when the
+/// driver's disparity is measured between unequal principal points, as on the real drone; 0 in Isaac);
+/// a value that is then <= 0 or non-finite is invalid (NaN). `quantum_px` > 0 rounds every valid value like
+/// the frames.bin cache does (1/256 px), so a live run can be compared with an offline replay; 0 keeps full
+/// float precision.
 DisparityStatus sampleDisparity(const std::string& encoding, std::uint32_t width, std::uint32_t height,
                                 std::uint32_t step, bool bigendian, const std::uint8_t* data, std::size_t size,
-                                int stride, int expected_w, int expected_h, double quantum_px, DisparityGrid* out);
+                                int stride, int expected_w, int expected_h, double offset_px, double quantum_px,
+                                DisparityGrid* out);
 
 // ------------------------------------------------------------------------------------------ calibration
 

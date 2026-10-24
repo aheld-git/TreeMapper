@@ -109,6 +109,7 @@ class TreemapperNode {
     pnh_.param<bool>("camera_frame_is_optical", camera_frame_is_optical_, true);
     pnh_.param<int>("disparity_stride", stride_, 4);
     pnh_.param<double>("disparity_quantum_px", quantum_px_, 0.0);
+    pnh_.param<std::string>("disparity_offset", disp_offset_mode_, "none");
     pnh_.param<double>("detection_scale", detection_scale_, 1.0);
     FrameSync::Params sp;
     pnh_.param<double>("sync_wait", sp.wait_s, 0.5);
@@ -237,6 +238,17 @@ class TreemapperNode {
       have_left_ = have_right_ = false;  // retry with the next pair
       return;
     }
+    if (disp_offset_mode_ == "auto") {
+      disp_offset_px_ = left_.P[2] - right_.P[2];
+    } else if (disp_offset_mode_ == "none") {
+      disp_offset_px_ = 0.0;
+    } else {
+      try { disp_offset_px_ = std::stod(disp_offset_mode_); } catch (const std::exception&) {
+        fatal("~disparity_offset must be 'none', 'auto' or a number (px), got '" + disp_offset_mode_ + "'");
+      }
+    }
+    ROS_INFO("disparity offset: %s -> %.4f px subtracted (cx_left - cx_right = %.4f px)", disp_offset_mode_.c_str(),
+             disp_offset_px_, left_.P[2] - right_.P[2]);
     calibration_error_.clear();
     try {
       mapper_ = treemapper::createMapper(mapper_name_, mapper_config_, cal);
@@ -261,7 +273,7 @@ class TreemapperNode {
     DisparityGrid g;
     const DisparityStatus st = sampleDisparity(m->encoding, m->width, m->height, m->step, m->is_bigendian != 0,
                                                m->data.data(), m->data.size(), stride_, cal_.width, cal_.height,
-                                               quantum_px_, &g);
+                                               disp_offset_px_, quantum_px_, &g);
     sample_ms_ += wallMs(t0);
     ++sample_n_;
     if (st == DisparityStatus::kMalformed) { ++node_counters_["disparity_rejected_malformed"]; return; }
@@ -540,6 +552,8 @@ class TreemapperNode {
   treemapper::Transform mount_;
   bool mount_ready_{false};
   int stride_{4};
+  std::string disp_offset_mode_{"none"};
+  double disp_offset_px_{0.0};
   double quantum_px_{0.0}, detection_scale_{1.0}, pose_wait_{0.1}, pose_max_age_{0.5};
   double heartbeat_frame_period_{0.2}, health_rate_{2.0}, map_rate_{5.0}, input_stale_warn_{2.0};
 

@@ -1,8 +1,14 @@
 <!-- treemapper_node on the drone or on a replayed real flight log.
-     Every frame and topic name is an argument. The real camera mount is the static TF body -> sensor_down
-     (~15 deg off nadir, 75 deg about y in the Jan 2026 farm log); sensor_down is a ROS-convention camera frame
-     (x = optical axis), so the fixed ROS-camera -> optical rotation is appended (camera_frame_is_optical false).
-     UNVERIFIED on hardware: the mount convention and the camera_info frame_id ("sensor" in the log) - see README. -->
+     Every frame and topic name is an argument.
+     Camera mount: sensor_down is a ROS-convention camera frame (x = optical axis), so the fixed ROS-camera -> optical
+     rotation is appended (camera_frame_is_optical false). The log's /tf_static body -> sensor_down says lever
+     (0.30, 0.08, -0.20) m and 75 deg about +y, but the no-ground-truth camera-chain check of the real flight
+     (tools/treemapper_tools/real_frames.py, results/real_flight_geometry.md, docs/REAL_FLIGHT.md) puts the pitch at
+     82 deg (+-1.5): with 75 deg the ground tilts ~7 deg. Default here = that data-verified mount as a parameter
+     (camera_mount_source param); camera_mount_source:=tf uses the TF as published.
+     Disparity: the real driver measures disparity between unequal principal points; disparity_offset auto subtracts
+     cx_left - cx_right (camera_info), as the offline real-flight reader does.
+     UNVERIFIED on hardware - see README. -->
 <launch>
   <arg name="use_sim_time" default="false"/>           <!-- true when replaying a log with rosbag play and its clock -->
   <arg name="mapper_config_file" default=""/>          <!-- "" = config/treemapper.yaml's pointer -->
@@ -10,6 +16,10 @@
   <arg name="body_frame" default="body"/>
   <arg name="camera_frame" default="sensor_down"/>
   <arg name="camera_frame_is_optical" default="false"/>
+  <arg name="camera_mount_source" default="param"/>     <!-- param (below) | tf (body_frame <- camera_frame) -->
+  <!-- body <- sensor_down (ROS camera convention): lever (0.30, 0.08, -0.20), Ry(82 deg) = q (0, sin 41, 0, cos 41) -->
+  <arg name="camera_mount" default="[0.30, 0.08, -0.20, 0.0, 0.6560590289905073, 0.0, 0.7547095802227720]"/>
+  <arg name="disparity_offset" default="auto"/>
   <arg name="pose_source" default="tf"/>               <!-- tf | pose_topic -->
   <arg name="pose_topic" default="/treemapper/drone_pose"/>
   <arg name="left_camera_info_topic" default="/cam/bottom/left/half/camera_info"/>
@@ -27,7 +37,9 @@
     <param if="$(eval arg('mapper_config_file') != '')" name="mapper_config_file" value="$(arg mapper_config_file)"/>
     <param name="world_frame" value="$(arg world_frame)"/>
     <param name="body_frame" value="$(arg body_frame)"/>
-    <param name="camera_mount_source" value="tf"/>
+    <param name="camera_mount_source" value="$(arg camera_mount_source)"/>
+    <rosparam param="camera_mount" subst_value="true">$(arg camera_mount)</rosparam>
+    <param name="disparity_offset" value="$(arg disparity_offset)"/>
     <param name="camera_frame" value="$(arg camera_frame)"/>
     <param name="camera_frame_is_optical" value="$(arg camera_frame_is_optical)"/>
     <param name="pose_source" value="$(arg pose_source)"/>
