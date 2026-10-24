@@ -38,6 +38,9 @@ struct Config {
   double min_range{0.5};            ///< m, optical depth gate
   double max_range{30.0};           ///< m
   double above_drone_margin{0.5};   ///< m, drop points higher than drone z - margin
+  double max_frame_noise{2.0};      ///< m, frame dropped when 1.4826 * median per-cell MAD of z exceeds this (noise burst)
+  double height_sample_clearance{2.0};  ///< m, a crown top closer than this to the drone altitude gives no height
+                                        ///< sample (the above-drone cap may have cut the real top: a shoulder would be sampled)
   double cell{0.4};                 ///< m, world lattice cell (shared by the frame CHM and every instance)
   int min_cell_points{2};           ///< fewer valid points -> cell unknown
   int max_grid{160};                ///< cap of the per-frame CHM window, cells per side
@@ -50,7 +53,9 @@ struct Config {
   double min_prominence{0.8};       ///< m, a peak this little above its saddle is merged into the neighbour
   int min_basin_cells{4};           ///< smaller crowns are ignored
   double box_dilate{0.15};          ///< boxes grown by this fraction of their size before the peak test
-  double border_px{8.0};            ///< px, a crown with cells this close to the image edge is truncated
+  double peak_border_px{40.0};      ///< px, a crown whose top is this close to the image edge is truncated
+                                    ///< (its top may be outside the image): no seeding, no height sample
+  bool hull_cell_corners{false};    ///< outline from latched cell corners (true) or cell centres (false)
   // --- instances
   int window{28};                   ///< cells per side of an instance's evidence window (anchored at birth)
   double match_radius{2.0};         ///< m, a peak this close to an instance centre is that instance
@@ -77,7 +82,7 @@ struct Config {
 /// Key/value -> Config (keys = field names); unknown keys throw std::invalid_argument.
 Config configFrom(const MapperConfig& config);
 /// Number of tunables, for the config-file test.
-constexpr int kConfigKeyCount = 28;
+constexpr int kConfigKeyCount = 31;
 
 /// One crown observation handed to the instance layer (built by the CHM stage, or by tests).
 struct Crown {
@@ -85,7 +90,7 @@ struct Crown {
   Point2 peak;                             ///< world xy of the crown top
   double peak_z{0.0};                      ///< world z of the crown top (height sample)
   bool boxed{true};                        ///< peak lies inside a detection box
-  bool truncated{false};                   ///< touches the image border (no height sample)
+  bool truncated{false};                   ///< top too close to the image border (no seed, no height sample)
 };
 
 /// The per-frame view the instance layer needs besides the crowns: which lattice cells were judged.

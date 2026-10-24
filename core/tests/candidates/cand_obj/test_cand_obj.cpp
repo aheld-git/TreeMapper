@@ -112,9 +112,9 @@ MapperConfig readCfgFile(const std::string& path) {
 // ------------------------------------------------------------------------------- config
 
 #define CAND_OBJ_FIELDS(X)                                                                                  \
-  X(min_range) X(max_range) X(above_drone_margin) X(cell) X(min_cell_points) X(max_grid)                     \
+  X(min_range) X(max_range) X(above_drone_margin) X(max_frame_noise) X(height_sample_clearance) X(cell) X(min_cell_points) X(max_grid)                     \
   X(ground_low_fraction) X(ground_inlier_band) X(ground_max_slope) X(min_above_ground) X(min_prominence)     \
-  X(min_basin_cells) X(box_dilate) X(border_px) X(window) X(match_radius) X(max_cell_radius) X(latch_frames) \
+  X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(window) X(match_radius) X(max_cell_radius) X(latch_frames) \
   X(latch_ratio) X(confirm_frames) X(min_height_samples) X(min_publish_area) X(min_tree_height)             \
   X(tentative_timeout) X(height_buffer) X(merge_overlap) X(merge_centre_dist) X(post_spray_hold_radius)
 
@@ -167,12 +167,12 @@ TEST(CandObjRules, PublishesOnlyAfterConfirmationWithFiniteRobustHeight) {
   EXPECT_TRUE(m.publishedTrees().empty());
   // a frame whose height sample is NaN and one above the drone contribute nothing to the height
   step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, std::nan(""))});
-  step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 14.9)});
+  step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 13.5)});  // within 2 m of the drone at 15 m
   auto trees = m.publishedTrees();
   ASSERT_EQ(trees.size(), 1u);
   EXPECT_TRUE(std::isfinite(trees[0].height));
   EXPECT_NEAR(trees[0].height, 4.0, 1e-9);
-  EXPECT_EQ(cnt(m, "height_samples_dropped_above_drone_or_nan"), 2u);
+  EXPECT_EQ(cnt(m, "height_samples_dropped_near_drone_or_nan"), 2u);
   // one wild height sample does not move the median
   step(m, t, MissionPhase::kScan, kNoTree, {disc(0, 0, 2.0, 9.0)});
   EXPECT_NEAR(m.publishedTrees()[0].height, 4.0, 1e-9);
@@ -432,4 +432,34 @@ TEST(CandObjFrames, HeartbeatsHoldsAndSleepAreCounted) {
   EXPECT_EQ(cnt(m, "frames_heartbeat_only"), 1u);
   EXPECT_EQ(cnt(m, "frames_held_no_pose"), 1u);
   EXPECT_EQ(cnt(m, "frames_skipped_sleeping"), 1u);
+}
+
+// Rule 6 / brief section 5: a noise burst (blur, fast turn) is detected from the per-cell point spread and the
+// frame is dropped, counted and logged, instead of seeding crowns from garbage.
+TEST(CandObjCHM, NoiseBurstFramesAreDroppedAndCounted) {
+  StereoCalibration cal;
+  cal.width = 640; cal.height = 400; cal.fx = cal.fy = 454.53; cal.cx = 346.71; cal.cy = 209.68;
+  cal.baseline = 0.16; cal.stride = 4;
+  cal.body_cam = {0, 0, 0, -0.70710678, 0.70710678, 0, 0};
+  CandObj m(Config{}, cal);
+  FrameInput f;
+  f.t = 1.0; f.pose = poseAt(0, 0, 15.0); f.phase = MissionPhase::kScan;
+  f.grid_w = 160; f.grid_h = 100;
+  f.disparity.resize(160 * 100);
+  std::uint32_t seed = 12345;
+  for (auto& d : f.disparity) {  // white disparity noise of +-2 px about 4.85 px (Z 15 m): sigma_Z about 3.5 m
+    seed = seed * 1664525u + 1013904223u;
+    d = 4.85f + 4.0f * (static_cast<float>(seed >> 8) / 16777216.0f - 0.5f);
+  }
+  Detection2D box; box.x = 100; box.y = 100; box.width = 300; box.height = 200; f.boxes.push_back(box);
+  FrameView view;
+  std::vector<Crown> crowns;
+  m.extractCrowns(f, &view, &crowns);
+  EXPECT_TRUE(crowns.empty());
+  EXPECT_EQ(cnt(m, "frames_dropped_noise_burst"), 1u) << dump(m);
+  // a clean frame (flat ground) passes the gate and simply has no canopy
+  for (auto& d : f.disparity) d = static_cast<float>(cal.fx * cal.baseline / 15.0);
+  m.extractCrowns(f, &view, &crowns);
+  EXPECT_EQ(cnt(m, "frames_dropped_noise_burst"), 1u);
+  EXPECT_EQ(cnt(m, "frames_without_canopy"), 1u) << dump(m);
 }

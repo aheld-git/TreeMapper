@@ -50,6 +50,8 @@ Config Config::sanitized(const std::function<void(const std::string&)>& log) con
   c.min_range = clampLog("min_range", c.min_range, 0.0, 100.0, log);
   c.max_range = clampLog("max_range", c.max_range, c.min_range, 200.0, log);
   c.above_drone_margin = clampLog("above_drone_margin", c.above_drone_margin, 0.0, 10.0, log);
+  c.max_frame_noise = clampLog("max_frame_noise", c.max_frame_noise, 0.0, 100.0, log);
+  c.height_sample_clearance = clampLog("height_sample_clearance", c.height_sample_clearance, 0.0, 50.0, log);
   c.cell = clampLog("cell", c.cell, 0.1, 2.0, log);
   c.min_cell_points = clampLog("min_cell_points", c.min_cell_points, 1, 1000, log);
   c.max_grid = clampLog("max_grid", c.max_grid, 16, 1024, log);
@@ -60,7 +62,7 @@ Config Config::sanitized(const std::function<void(const std::string&)>& log) con
   c.min_prominence = clampLog("min_prominence", c.min_prominence, 0.0, 20.0, log);
   c.min_basin_cells = clampLog("min_basin_cells", c.min_basin_cells, 1, 100000, log);
   c.box_dilate = clampLog("box_dilate", c.box_dilate, 0.0, 2.0, log);
-  c.border_px = clampLog("border_px", c.border_px, 0.0, 1000.0, log);
+  c.peak_border_px = clampLog("peak_border_px", c.peak_border_px, 0.0, 1000.0, log);
   c.window = clampLog("window", c.window, 4, 256, log);
   c.match_radius = clampLog("match_radius", c.match_radius, 0.0, 50.0, log);
   c.max_cell_radius = clampLog("max_cell_radius", c.max_cell_radius, 0.0, 50.0, log);
@@ -84,6 +86,8 @@ Config configFrom(const MapperConfig& config) {
   c.min_range = r.getDouble("min_range", c.min_range);
   c.max_range = r.getDouble("max_range", c.max_range);
   c.above_drone_margin = r.getDouble("above_drone_margin", c.above_drone_margin);
+  c.max_frame_noise = r.getDouble("max_frame_noise", c.max_frame_noise);
+  c.height_sample_clearance = r.getDouble("height_sample_clearance", c.height_sample_clearance);
   c.cell = r.getDouble("cell", c.cell);
   c.min_cell_points = r.getInt("min_cell_points", c.min_cell_points);
   c.max_grid = r.getInt("max_grid", c.max_grid);
@@ -94,7 +98,8 @@ Config configFrom(const MapperConfig& config) {
   c.min_prominence = r.getDouble("min_prominence", c.min_prominence);
   c.min_basin_cells = r.getInt("min_basin_cells", c.min_basin_cells);
   c.box_dilate = r.getDouble("box_dilate", c.box_dilate);
-  c.border_px = r.getDouble("border_px", c.border_px);
+  c.peak_border_px = r.getDouble("peak_border_px", c.peak_border_px);
+  c.hull_cell_corners = r.getBool("hull_cell_corners", c.hull_cell_corners);
   c.window = r.getInt("window", c.window);
   c.match_radius = r.getDouble("match_radius", c.match_radius);
   c.max_cell_radius = r.getDouble("max_cell_radius", c.max_cell_radius);
@@ -227,6 +232,8 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
   }
   std::vector<double> z(NC, 0.0);
   std::vector<std::uint8_t> valid(NC, 0);
+  std::vector<double> mads;
+  std::vector<double> dev;
   int n_valid = 0;
   for (int c = 0; c < NC; ++c) {
     if (cnt[c] < cfg_.min_cell_points) { if (cnt[c] > 0) count("cells_dropped_too_few_points"); continue; }
@@ -236,8 +243,26 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
     z[c] = *m;
     valid[c] = 1;
     ++n_valid;
+    if (cnt[c] >= 5) {  // per-cell spread of the points: a scene-independent noise measure
+      dev.clear();
+      for (auto it = b; it != e; ++it) dev.push_back(std::fabs(*it - z[c]));
+      auto md = dev.begin() + static_cast<long>(dev.size() / 2);
+      std::nth_element(dev.begin(), md, dev.end());
+      mads.push_back(*md);
+    }
   }
   if (n_valid < 8) { count("frames_dropped_too_few_cells"); return; }
+  if (mads.size() >= 8) {
+    auto md = mads.begin() + static_cast<long>(mads.size() / 2);
+    std::nth_element(mads.begin(), md, mads.end());
+    const double sigma = 1.4826 * *md;
+    count("frame_noise_bucket_" + std::to_string(std::min(20, static_cast<int>(sigma / 0.5))));
+    if (sigma > cfg_.max_frame_noise) {  // noise burst (blur / fast turn): nothing from this frame is trusted
+      count("frames_dropped_noise_burst");
+      warnOnce("burst", "frame noise above max_frame_noise: dropping frames while the burst lasts (fail closed)");
+      return;
+    }
+  }
   // --- ground plane: least squares over the lowest cells, refit on the inliers
   const double cxw = (i0 + 0.5 * W) * cell, cyw = (j0 + 0.5 * H) * cell;
   std::vector<int> vc;
@@ -409,10 +434,6 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
     Crown& cr = (*crowns)[crown_index[b]];
     cr.cells.emplace_back(i0 + c % W, j0 + c / W);
     view->crown[c] = crown_index[b];
-    const double um = su[c] / cnt[c], vm = sv[c] / cnt[c];
-    if (um < cfg_.border_px || vm < cfg_.border_px || um > cal_.width - cfg_.border_px || vm > cal_.height - cfg_.border_px) {
-      cr.truncated = true;
-    }
   }
   for (int b = 0; b < NB; ++b) {
     if (dsu.find(b) != b || crown_index[b] < 0) continue;
@@ -427,6 +448,8 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
     cr.peak_z = z[pk];
     cr.boxed = false;
     const double um = su[pk] / cnt[pk], vm = sv[pk] / cnt[pk];
+    const double bpx = cfg_.peak_border_px;
+    cr.truncated = um < bpx || vm < bpx || um > cal_.width - bpx || vm > cal_.height - bpx;
     for (const auto& bx : f.boxes) {
       const double dx = dil * bx.width, dy = dil * bx.height;
       if (um >= bx.x - dx && um <= bx.x + bx.width + dx && vm >= bx.y - dy && vm <= bx.y + bx.height + dy) {
@@ -533,7 +556,11 @@ void CandObj::refreshHull(Instance& in) {
     for (int li = 0; li < cfg_.window; ++li) {
       if (!in.latched[lj * cfg_.window + li]) continue;
       const double x = (in.ai + li) * h, y = (in.aj + lj) * h;
-      pts.push_back({x, y}); pts.push_back({x + h, y}); pts.push_back({x + h, y + h}); pts.push_back({x, y + h});
+      if (cfg_.hull_cell_corners) {
+        pts.push_back({x, y}); pts.push_back({x + h, y}); pts.push_back({x + h, y + h}); pts.push_back({x, y + h});
+      } else {
+        pts.push_back({x + 0.5 * h, y + 0.5 * h});  // the true edge lies somewhere inside the edge cell
+      }
     }
   }
   in.hull = pts.size() >= 3 ? convexHull(std::move(pts)) : Polygon2{};
@@ -582,6 +609,7 @@ void CandObj::mergeInstances(double t) {
         if (ea.n_latched == 0 || eb.n_latched == 0) continue;
         refreshHull(ea);
         refreshHull(eb);
+        if (dist(ea.centre, eb.centre) > 2.0 * cfg_.max_cell_radius) continue;  // cannot overlap
         bool same = dist(ea.centre, eb.centre) < cfg_.merge_centre_dist;
         if (!same) {
           // latched overlap on the shared lattice
@@ -633,7 +661,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
   if (pol.freeze_non_target && target < 0) {
     warnOnce("notarget", "descent/hold without a valid hop target: freezing every tree (fail closed)");
   }
-  const double z_cap = pose.z - cfg_.above_drone_margin;
+  const double z_cap = pose.z - std::max(cfg_.above_drone_margin, cfg_.height_sample_clearance);
   std::vector<int> cell_owner(view.state.size(), -1);
   std::vector<char> seen(instances_.size(), 0);
   std::vector<char> updatable(instances_.size(), 0);
@@ -688,7 +716,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
           else in.heights.pop_back();
         }
       } else {
-        count("height_samples_dropped_above_drone_or_nan");
+        count("height_samples_dropped_near_drone_or_nan");
       }
     } else {
       count("height_samples_skipped_truncated_crown");
