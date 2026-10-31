@@ -25,6 +25,19 @@ grep -E "warning" "$BUILD.core.build.log" | head -20 || true
 echo "== C++ core: ctest"
 (cd "$BUILD/core" && ctest --output-on-failure) || rc=1
 
+echo "== C++ nav (corridor_nav): configure + build ($BUILD/nav, -j$JOBS)"
+cmake -S "$ROOT/nav/corridor_nav" -B "$BUILD/nav" -DCMAKE_BUILD_TYPE=RelWithDebInfo > "$BUILD.nav.cmake.log" 2>&1 \
+  || { cat "$BUILD.nav.cmake.log"; echo "TESTS FAILED"; exit 1; }
+if ! cmake --build "$BUILD/nav" -j"$JOBS" > "$BUILD.nav.build.log" 2>&1; then
+  grep -E "error|Error" "$BUILD.nav.build.log" | head -40 || true
+  echo "NAV BUILD FAILED (full log: $BUILD.nav.build.log)"
+  echo "TESTS FAILED"
+  exit 1
+fi
+grep -E "warning" "$BUILD.nav.build.log" | head -20 || true
+echo "== C++ nav: ctest"
+(cd "$BUILD/nav" && ctest --output-on-failure) || rc=1
+
 echo "== Python tools: pytest"
 (cd "$ROOT/tools" && python3 -m pytest -q -p no:cacheprovider tests) || rc=1
 
