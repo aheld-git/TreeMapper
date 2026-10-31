@@ -91,8 +91,17 @@ if [ "${TM_ROS_TESTS:-0}" = "1" ]; then
   echo "== ROS: catkin run_tests corridor_nav_ros (gtests + nav_sim_lite)"
   rm -rf "$WS/build/corridor_nav_ros/test_results"   # no stale verdicts from an earlier run
   (cd "$WS" && catkin run_tests corridor_nav_ros --no-deps --no-status) > "$WS.run_tests.log" 2>&1 || true
-  # catkin_test_results is the verdict (run_tests' exit status does not reflect every failure)
-  if ! (cd "$WS" && catkin_test_results build/corridor_nav_ros); then
+  # catkin_test_results is the verdict (run_tests' exit status does not reflect every failure). It also exits 0 on an
+  # empty results directory ("Summary: 0 tests"), so a run that produced no results at all must fail here.
+  ros_verdict() {   # $1 = results directory; fails on failed tests, a missing directory, or a total of 0 tests
+    local out total
+    if [ ! -d "$1" ]; then echo "ROS test results missing: $1"; return 1; fi
+    out="$(catkin_test_results "$1" 2>&1)" || { echo "$out"; return 1; }
+    echo "$out"
+    total="$(printf '%s\n' "$out" | sed -n 's/^Summary: \([0-9][0-9]*\) tests.*/\1/p' | tail -n 1)"
+    if [ -z "$total" ] || [ "$total" -eq 0 ]; then echo "ROS tests: no tests ran (total ${total:-unparsed})"; return 1; fi
+  }
+  if ! (cd "$WS" && ros_verdict build/corridor_nav_ros); then
     grep -E "FAIL|Failure|Error|error" "$WS.run_tests.log" | head -40 || true
     echo "ROS tests failed (full log: $WS.run_tests.log)"
     rc=1
