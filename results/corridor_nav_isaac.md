@@ -79,6 +79,29 @@ Notes on the two unmatched episodes (no truth tree missed, so no miss needs expl
   after this smoke the navigator skips a target published above home + `expected_canopy_top_max` +
   `target_height_margin` (7 + 2 = 9 m here), counted `target_height_implausible`: this phantom would now be skipped.
 
+### Re-run after review fix round 1: `--strategy corridor --runs 2` (gate passed in both runs)
+
+`scripts/sim_mission.sh sim/specs/3x3_smoke.json --strategy corridor --runs 2 --out /data/work/sim_runs/smoke16b_fr1
+--timeout 900` at commit e7db18f (implausible-height skip, failure containment, run inputs from `sim_inputs.py`):
+exit 0, `compare.md` written.
+
+| Scorecard row | run_1 | run_2 |
+|---|---|---|
+| Mission completed (DONE, aborts 0, hold timeouts 0, never ERROR) | PASS | PASS |
+| Minimum clearance over the truth canopy | 2.565 m PASS | 2.562 m PASS |
+| Nozzle open outside DOSE | 0 PASS | 0 PASS |
+| Sprayed tree targeted again | 0 PASS | 0 PASS |
+| Truth trees sprayed | 9 of 9 | 9 of 9 |
+| Dose episodes / unmatched / double-sprayed | 9 / 0 / 0 | 9 / 0 / 0 |
+| On-target fraction; off-target litres | 0.889; 0.278 L | 0.860; 0.331 L |
+| Mission time; path length; seconds per sprayed tree | 197.5 s; 307.1 m; 21.9 s | 199.0 s; 310.0 m; 22.1 s |
+| Map (final): published / matched; centre RMSE; mean IoU; height bias; spill | 9 / 9; 0.35 m; 0.55; +0.65 m; 0.43 | 9 / 9; 0.51 m; 0.59; +0.56 m; 0.36 |
+| target_height_implausible | 0 | 0 |
+| Real-time factor; wall time of the run; bag | 1.000; 368 s; 2.4 MB | 1.000; 370 s; 2.4 MB |
+
+No phantom was published in either run, so the new skip did not act; it is covered by the navigator test
+(`Navigator.ImplausiblyHighTargetIsNeverVisited`).
+
 ### Smoke attempt 1 (failed the spray criterion) and its fix
 
 `/data/work/sim_runs/smoke16b_a/run_1`: DONE and every safety row passed, but 6 of 9 trees sprayed (missed 1, 3, 4),
@@ -110,7 +133,7 @@ are not a strategy comparison.
 - The recorded Isaac mission's `/disparity_image_down_float` is rendered depth (100 % valid, noise-free; ground at 15 m
   4.8 px everywhere), so every earlier Isaac result of TreeMapper (`results/ros_replay_isaac.md`: centre RMSE 0.19 m,
   IoU 0.87) was on perfect stereo. In this loop the disparity is SGBM on rendered images; with the textured ground the
-  map is clearly worse than on the recording (centre RMSE 0.38 .. 0.70 m, IoU 0.55 .. 0.62, height bias +0.4 .. +0.6 m,
-  outlines spill 0.32 .. 0.44 outside the canopies over the three good runs). Spray outcomes are limited by that map.
+  map is clearly worse than on the recording (centre RMSE 0.35 .. 0.70 m, IoU 0.55 .. 0.62, height bias +0.4 .. +0.65 m,
+  outlines spill 0.32 .. 0.44 outside the canopies over the five runs on the textured ground). Spray outcomes are limited by that map.
 - Per run (3x3, RTF 1.0): ~150 s Isaac startup, the mission (170 .. 220 sim s), ~5 s teardown, ~10 s scoring;
-  340 .. 395 s wall in total. Bag 2.0 .. 2.6 MB, run directory 5 .. 6 MB.
+  340 .. 395 s wall in total (3x3; 153 s to /clock in the re-run). Bag 2.0 .. 2.6 MB, run directory 5 .. 6 MB.
