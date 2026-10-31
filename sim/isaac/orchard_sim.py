@@ -91,9 +91,10 @@ def main():
         raise SystemExit("no tree assets: pass --assets-dir or set assets_dir in the spec")
     dt = 1.0 / args.physics_hz
     clutter = spec.get("clutter") or {}
-    if clutter.get("grass") or clutter.get("rocks"):
-        log("WARNING: spec clutter %s is requested but not implemented: the ground is a flat-colour mesh, no grass or rocks"
-            % json.dumps(clutter))
+    if clutter.get("rocks"):
+        log("WARNING: spec clutter.rocks %s is requested but not implemented (no rock geometry)" % json.dumps(clutter))
+    if clutter.get("grass"):
+        log("clutter.grass: rendered as a grass texture on the ground (sim/isaac/ground_texture.py), no grass geometry")
 
     from isaacsim import SimulationApp
     app = SimulationApp({"headless": True, "renderer": args.renderer, "width": rig.width, "height": rig.height})
@@ -127,7 +128,7 @@ def run(app, args, spec, rig, assets_dir, dt):
     world = World(stage_units_in_meters=1.0, physics_dt=dt, rendering_dt=n_sub * dt)
     stage = omni.usd.get_context().get_stage()
 
-    trees = scene.build_scene(stage, spec, assets_dir)
+    trees = scene.build_scene(stage, spec, assets_dir, texture_dir=args.out)
     truth_path = os.path.join(args.out, "truth.json")
     truth.write_truth(truth_path, trees, frame="world")
     log("scene built: %d trees, top_z %.2f..%.2f m; truth -> %s"

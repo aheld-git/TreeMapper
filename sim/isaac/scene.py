@@ -5,7 +5,7 @@ Stage conventions: z up, metres. The tree assets are Y-up and in centimetres, so
 ``T(x, y, z_ground) Rz(yaw) Rx(90 deg) S(0.01 * scale)``.
 
 Prim layout
-    /World/Ground                          sloped ground mesh over ``field.polygon``
+    /World/Ground                          sloped ground mesh over ``field.polygon`` (grass texture with clutter.grass)
     /World/Orchard/tree_<id>               Xform with the placement
     /World/Orchard/tree_<id>/asset         instanceable reference to Orange_Tree.usd / Lemon_Tree.usd
     /World/Colliders/tree_<id>/hull        invisible convex-hull collider of the canopy (collision group ``canopy``)
@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade, Vt
 
-from isaac import layout, truth
+from isaac import ground_texture, layout, truth
 from isaac.paths import COLLIDER_ROOT, COLLISION_GROUP, canopy_collider_path  # noqa: F401  (re-exported)
 
 SPECIES_FILE = {"orange": "Orange_Tree.usd", "lemon": "Lemon_Tree.usd"}
@@ -60,7 +60,30 @@ def _material(stage: Usd.Stage, path: str, rgb: Tuple[float, float, float], roug
     return mat
 
 
-def _build_ground(stage: Usd.Stage, spec: Dict[str, Any]) -> None:
+def _textured_material(stage: Usd.Stage, path: str, texture_file: str, roughness: float = 1.0):
+    """UsdPreviewSurface whose diffuse colour is ``texture_file``, read through the mesh's ``st`` primvar (repeat)."""
+    mat = UsdShade.Material.Define(stage, path)
+    st = UsdShade.Shader.Define(stage, path + "/st")
+    st.CreateIdAttr("UsdPrimvarReader_float2")
+    st.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+    tex = UsdShade.Shader.Define(stage, path + "/diffuse_texture")
+    tex.CreateIdAttr("UsdUVTexture")
+    tex.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(texture_file)
+    tex.CreateInput("wrapS", Sdf.ValueTypeNames.Token).Set("repeat")
+    tex.CreateInput("wrapT", Sdf.ValueTypeNames.Token).Set("repeat")
+    tex.CreateInput("sourceColorSpace", Sdf.ValueTypeNames.Token).Set("sRGB")
+    tex.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(st.ConnectableAPI(), "result")
+    tex.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
+    sh = UsdShade.Shader.Define(stage, path + "/shader")
+    sh.CreateIdAttr("UsdPreviewSurface")
+    sh.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(tex.ConnectableAPI(), "rgb")
+    sh.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(float(roughness))
+    sh.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+    mat.CreateSurfaceOutput().ConnectToSource(sh.ConnectableAPI(), "surface")
+    return mat
+
+
+def _build_ground(stage: Usd.Stage, spec: Dict[str, Any], texture_dir: str = "") -> None:
     poly = [(float(x), float(y)) for x, y in spec["field"]["polygon"]]
     cx = sum(p[0] for p in poly) / len(poly)
     cy = sum(p[1] for p in poly) / len(poly)
@@ -77,7 +100,20 @@ def _build_ground(stage: Usd.Stage, spec: Dict[str, Any]) -> None:
     mesh.CreateSubdivisionSchemeAttr("none")
     rgb = tuple(float(c) for c in spec["terrain"].get("color", GROUND_RGB))   # optional spec key terrain.color
     mesh.CreateDisplayColorAttr(Vt.Vec3fArray([Gf.Vec3f(*rgb)]))
-    mat = _material(stage, "/World/Looks/ground", rgb)
+    if (spec.get("clutter") or {}).get("grass"):
+        # grass = a band-limited brightness texture on the terrain colour (ground_texture.py: why)
+        if not texture_dir:
+            raise ValueError("clutter.grass needs a directory for the ground texture")
+        from PIL import Image
+        tex_file = os.path.join(texture_dir, "ground_texture.png")
+        Image.fromarray(ground_texture.grass_texture(rgb, seed=int(spec.get("seed", 0)))).save(tex_file)
+        uv = ground_texture.ground_uv([p[:2] for p in pts])
+        pv = UsdGeom.PrimvarsAPI(mesh.GetPrim()).CreatePrimvar("st", Sdf.ValueTypeNames.TexCoord2fArray,
+                                                               UsdGeom.Tokens.vertex)
+        pv.Set(Vt.Vec2fArray([Gf.Vec2f(float(u), float(v)) for u, v in uv]))
+        mat = _textured_material(stage, "/World/Looks/ground", tex_file)
+    else:
+        mat = _material(stage, "/World/Looks/ground", rgb)
     UsdShade.MaterialBindingAPI(mesh.GetPrim()).Bind(mat)
 
 
@@ -158,8 +194,10 @@ def _add_collider(stage: Usd.Stage, tree_id: int, canopy_world: np.ndarray) -> N
     UsdGeom.Imageable(prim).CreatePurposeAttr(UsdGeom.Tokens.guide)
 
 
-def build_scene(stage: Usd.Stage, spec: Dict[str, Any], assets_dir: str) -> List[Dict[str, Any]]:
+def build_scene(stage: Usd.Stage, spec: Dict[str, Any], assets_dir: str,
+                texture_dir: str = "") -> List[Dict[str, Any]]:
     """Build the whole orchard on ``stage`` and return the per-tree ground truth (``truth.tree_truth``).
+    ``texture_dir`` receives the generated ground texture (needed when the spec asks for ``clutter.grass``).
 
     Raises on any problem (missing asset, unknown species, degenerate canopy): the caller must not run a
     half-built scene.
@@ -176,7 +214,7 @@ def build_scene(stage: Usd.Stage, spec: Dict[str, Any], assets_dir: str) -> List
         if not os.path.isfile(f):
             raise FileNotFoundError("tree asset missing: %s" % f)
 
-    _build_ground(stage, spec)
+    _build_ground(stage, spec, texture_dir)
     _build_lights(stage)
     UsdGeom.Xform.Define(stage, "/World/Orchard")
     UsdGeom.Xform.Define(stage, COLLIDER_ROOT)
