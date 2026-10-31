@@ -140,8 +140,11 @@ All functions below are pure and individually tested.
   If `w_max < corridor_width_min`, refuse to plan (fail closed, ERROR state, logged): the camera cannot cover a corridor.
 - The field is cut into `n = ceil(field_extent_across / w)` strips of equal width, clipped to the polygon. Corridors
   shorter than `corridor_length_min` are dropped (counted).
-- Order: boustrophedon. Corridor k is scanned in direction `d_k = (−1)^k · heading`. Its spray-back ends at its scan
-  start, which is adjacent to corridor k+1's scan start.
+- Order: every corridor is scanned in the same direction (`heading`), entry on the same side of the field. Corridor
+  k's spray-back ends at its scan start (its entry), which is one corridor width from corridor k+1's entry, so the
+  hop between corridors is short. (Corrected 2026-10-31: alternating directions would put k+1's entry at the far end,
+  a full corridor length away. Boustrophedon applies only to `field_first`'s scan sequence, where the navigator
+  scans odd corridors exit → entry.)
 - Each corridor has a centre line (scan path, from entry point to exit point) and an axial coordinate `s` along it.
 
 ### 4.2 Tree assignment
@@ -390,8 +393,8 @@ side by side, with mean and worst case over runs.
 ### 9.1 Tests
 
 - **Core (gtest, `nav/corridor_nav/tests`)**, one test that would fail if each rule broke:
-  corridor width respects `w_max` and refuses when coverage is impossible; corridors tile the field and alternate
-  direction; assignment is permanent and late trees go to cleanup; ordering starts at the exit and ends at the entry, 2-opt
+  corridor width respects `w_max` and refuses when coverage is impossible; corridors tile the field and all
+  enter on the same side; assignment is permanent and late trees go to cleanup; ordering starts at the exit and ends at the entry, 2-opt
   never worsens cost and respects its budget; glide never passes below `height_k + transit_clearance` over any
   obstacle (property test over random maps); re-plan on height change; state machine phase strings per table 4.4;
   settle happens in SCAN; nozzle never open outside DOSE or with `xy_err > xy_tol`; dose validity, retry and skip;
