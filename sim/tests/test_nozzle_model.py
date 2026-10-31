@@ -107,3 +107,13 @@ def test_gate_closed_before_any_command_and_follows_commands():
     g.on_command(True, 2.0)
     assert g.is_open(2.4)
     assert not g.is_open(2.6)
+
+
+def test_gate_closed_for_a_command_stamped_in_the_future():
+    # a negative age (clock jump back, or a command stamped ahead of the sim clock) is not fresh: closed
+    g = NozzleGate(timeout=0.5)
+    g.on_command(True, 10.0)
+    assert not g.is_open(9.99)
+    assert not g.is_open(5.0)
+    assert g.is_open(10.0)
+    assert g.is_open(10.5)

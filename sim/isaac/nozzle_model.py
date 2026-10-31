@@ -75,4 +75,9 @@ class NozzleGate:
         self._t_cmd = now
 
     def is_open(self, now: float) -> bool:
-        return self._open and self._t_cmd is not None and now - self._t_cmd <= self.timeout
+        """Open iff the last command said open and its age ``now - t_cmd`` is in [0, timeout]: a command stamped
+        after ``now`` (negative age: a clock that jumped back) is not fresh either."""
+        if not self._open or self._t_cmd is None:
+            return False
+        age = now - self._t_cmd
+        return 0.0 <= age <= self.timeout
