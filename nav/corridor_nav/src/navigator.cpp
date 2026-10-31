@@ -462,6 +462,7 @@ void Navigator::advance(double t) {
       }
       const TreeEntry* tr = tree(id);
       if (!tr || tr->sprayed || attempted_.count(id)) continue;   // never spray twice
+      if (!plausible(*tr)) continue;                              // a phantom: never visited, never marked
       target_ = id;
       corridor_ = cleanup_mode_ ? -1 : tg.corridor;
       retried_ = false;
@@ -477,7 +478,8 @@ void Navigator::advance(double t) {
     std::vector<TreeId> ids;
     for (TreeId id : assignment_.cleanup) {
       const TreeEntry* tr = tree(id);
-      if (tr && !tr->sprayed && !attempted_.count(id) && std::find(ids.begin(), ids.end(), id) == ids.end()) {
+      if (tr && !tr->sprayed && !attempted_.count(id) && plausible(*tr) &&
+          std::find(ids.begin(), ids.end(), id) == ids.end()) {
         ids.push_back(id);
       }
     }
@@ -539,6 +541,19 @@ bool Navigator::atPathEnd(bool need_slow) const {
 
 const TreeEntry* Navigator::tree(TreeId id) const { return support::findTree(map_, id); }
 
+bool Navigator::plausible(const TreeEntry& t) {
+  if (support::heightPlausible(t, home_.z, cfg_)) return true;
+  if (implausible_.insert(t.id).second) {
+    count(counters_, "target_height_implausible");
+    if (log_) {
+      log_("tree " + std::to_string(t.id) + ": published height " + std::to_string(t.height) +
+           " m is above the plausible limit " +
+           std::to_string(home_.z + cfg_.expected_canopy_top_max + cfg_.target_height_margin) + " m, not visited");
+    }
+  }
+  return false;
+}
+
 std::set<TreeId> Navigator::treesInCorridor(int k) const {
   std::set<TreeId> ids;
   if (k < 0) return ids;
@@ -576,7 +591,7 @@ Status Navigator::status() const {
   pending.insert(assignment_.cleanup.begin(), assignment_.cleanup.end());
   for (TreeId id : pending) {
     const TreeEntry* t = tree(id);
-    if (t && !t->sprayed && !attempted_.count(id)) ++s.remaining;
+    if (t && !t->sprayed && !attempted_.count(id) && !implausible_.count(id)) ++s.remaining;
   }
   s.clearance_m = clearance_m_;
   s.warnings = warnings_;

@@ -48,6 +48,10 @@ bool usable(const TreeEntry& t) {
                      [](const Point2& p) { return std::isfinite(p.x) && std::isfinite(p.y); });
 }
 
+bool heightPlausible(const TreeEntry& t, double home_z, const Config& cfg) {
+  return t.height <= home_z + cfg.expected_canopy_top_max + cfg.target_height_margin;
+}
+
 double yawOf(const treemapper::DronePose& p) {
   return std::atan2(2.0 * (p.qw * p.qz + p.qx * p.qy), 1.0 - 2.0 * (p.qy * p.qy + p.qz * p.qz));
 }

@@ -25,6 +25,9 @@ struct Config {
   double w_margin{1.0};                   ///< m
   double expected_canopy_top_max{7.0};    ///< m above home
   double expected_canopy_radius_max{2.5}; ///< m
+  /// m: a target published higher than home + expected_canopy_top_max + this is implausible (a stereo phantom) and
+  /// is never visited (counted target_height_implausible)
+  double target_height_margin{2.0};
   // --- settle / lock
   double settle_s{2.0};
   double settle_timeout_s{8.0};
@@ -72,15 +75,15 @@ struct Config {
 /// strings throw std::invalid_argument.
 Config configFrom(const treemapper::MapperConfig& config);
 /// Number of tunables (numeric fields + strategy + dose_mode), for the config-file test.
-constexpr int kConfigKeyCount = 41;
+constexpr int kConfigKeyCount = 42;
 
 /// Every numeric field (the enums are parsed from strings and checked separately).
 #define CORRIDOR_NAV_FIELDS(X)                                                                              \
   X(z_scan) X(scan_speed) X(corridor_width) X(corridor_width_min) X(corridor_length_min) X(w_margin)        \
-  X(expected_canopy_top_max) X(expected_canopy_radius_max) X(settle_s) X(settle_timeout_s) X(lock_hold_s)   \
-  X(order_budget_ms) X(spray_clearance) X(transit_clearance) X(descent_slack) X(drone_radius)               \
-  X(lateral_margin) X(replan_dz) X(carrot_lead_s) X(max_speed_xy) X(max_speed_z) X(xy_tol) X(z_tol)         \
-  X(arrive_speed) X(dose_s_per_m2) X(dose_min_s) X(dose_max_s) X(dose_fixed_s) X(dose_valid_frac)           \
+  X(expected_canopy_top_max) X(expected_canopy_radius_max) X(target_height_margin) X(settle_s)              \
+  X(settle_timeout_s) X(lock_hold_s) X(order_budget_ms) X(spray_clearance) X(transit_clearance)             \
+  X(descent_slack) X(drone_radius) X(lateral_margin) X(replan_dz) X(carrot_lead_s) X(max_speed_xy)          \
+  X(max_speed_z) X(xy_tol) X(z_tol) X(arrive_speed) X(dose_s_per_m2) X(dose_min_s) X(dose_max_s) X(dose_fixed_s) X(dose_valid_frac)           \
   X(min_clearance) X(guard_hysteresis) X(guard_window) X(guard_min_valid) X(guard_max_age_s)                \
   X(map_stale_s) X(hold_timeout_s) X(reresolve_radius) X(pose_max_age_s) X(service_retries)
 

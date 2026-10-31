@@ -40,6 +40,7 @@ Config Config::sanitized(const Log& log) const {
   c.w_margin = clampLog("w_margin", c.w_margin, kEps, kBig, log);
   c.expected_canopy_top_max = clampLog("expected_canopy_top_max", c.expected_canopy_top_max, kEps, kBig, log);
   c.expected_canopy_radius_max = clampLog("expected_canopy_radius_max", c.expected_canopy_radius_max, kEps, kBig, log);
+  c.target_height_margin = clampLog("target_height_margin", c.target_height_margin, 0.0, kBig, log);
   c.settle_s = clampLog("settle_s", c.settle_s, kEps, kBig, log);
   c.settle_timeout_s = clampLog("settle_timeout_s", c.settle_timeout_s, kEps, kBig, log);
   c.lock_hold_s = clampLog("lock_hold_s", c.lock_hold_s, kEps, kBig, log);
@@ -95,6 +96,7 @@ Config configFrom(const treemapper::MapperConfig& config) {
   c.w_margin = r.getDouble("w_margin", c.w_margin);
   c.expected_canopy_top_max = r.getDouble("expected_canopy_top_max", c.expected_canopy_top_max);
   c.expected_canopy_radius_max = r.getDouble("expected_canopy_radius_max", c.expected_canopy_radius_max);
+  c.target_height_margin = r.getDouble("target_height_margin", c.target_height_margin);
   c.settle_s = r.getDouble("settle_s", c.settle_s);
   c.settle_timeout_s = r.getDouble("settle_timeout_s", c.settle_timeout_s);
   c.lock_hold_s = r.getDouble("lock_hold_s", c.lock_hold_s);

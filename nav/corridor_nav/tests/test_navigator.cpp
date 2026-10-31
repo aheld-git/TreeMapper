@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "corridor_nav/navigator_support.hpp"
 #include "fake_world.hpp"
 
 using namespace corridor_nav;
@@ -251,6 +252,48 @@ TEST(Navigator, SprayedTreeNeverTargeted) {
     }
   }
   EXPECT_EQ(nav.status().sprayed, 11u);
+}
+
+TEST(Navigator, ImplausiblyHighTargetIsNeverVisited) {
+  // Controller ruling: a target published above home + expected_canopy_top_max + target_height_margin (0 + 7 + 2 =
+  // 9 m) is a phantom (the Isaac smoke mapped a 12.98 m "tree" in a 3 m orchard): never glided to, never dosed, never
+  // marked, counted once. A tall but plausible tree (8.9 m) is still sprayed. Both strategies.
+  for (const Strategy strategy : {Strategy::kCorridor, Strategy::kFieldFirst}) {
+    Config cfg;
+    cfg.strategy = strategy;
+    std::vector<TruthTree> trees = grid({6, 12, 18});
+    trees[5].height = 4.0;
+    trees[5].height_bias = 8.98;   // published 12.98 m
+    trees[2].height = 8.9;         // published 8.9 m, below the 9.0 m limit
+    const TreeId phantom = FakeWorld::idOf(5), tall = FakeWorld::idOf(2);
+    FakeWorld w = world(cfg, trees);
+    Navigator nav(cfg, field30x24(), fov90());
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+    EXPECT_EQ(nav.state(), NavState::kDone);
+    ASSERT_TRUE(w.trees[5].published);
+    for (const Sample& s : w.samples) EXPECT_NE(s.target, phantom);
+    EXPECT_EQ(w.trees[5].spray_calls, 0);
+    EXPECT_EQ(std::count(w.requests.begin(), w.requests.end(), phantom), 0);
+    EXPECT_EQ(counter(nav, "target_height_implausible"), 1u);
+    EXPECT_EQ(w.trees[2].spray_calls, 1);
+    EXPECT_EQ(std::count(w.requests.begin(), w.requests.end(), tall), 1);
+    EXPECT_EQ(nav.status().sprayed, 11u);
+    EXPECT_EQ(nav.status().remaining, 0u);
+  }
+}
+
+TEST(NavigatorSupport, HeightPlausibleAgainstHome) {
+  Config cfg;   // expected_canopy_top_max 7, target_height_margin 2
+  treemapper::TreeEntry t;
+  t.height = 9.0;
+  EXPECT_TRUE(support::heightPlausible(t, 0.0, cfg));
+  t.height = 9.01;
+  EXPECT_FALSE(support::heightPlausible(t, 0.0, cfg));
+  EXPECT_TRUE(support::heightPlausible(t, 0.5, cfg));   // limit is above home (take-off z)
+  t.height = 12.98;
+  EXPECT_FALSE(support::heightPlausible(t, 0.0, cfg));
+  cfg.target_height_margin = 6.0;
+  EXPECT_TRUE(support::heightPlausible(t, 0.0, cfg));
 }
 
 TEST(Navigator, FieldFirstScansAllThenSprays) {

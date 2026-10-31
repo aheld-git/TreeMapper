@@ -258,7 +258,7 @@ clamped and logged; non-finite values rejected; built-in defaults equal the ship
 | Group | Keys (default) |
 |---|---|
 | strategy | `strategy` (corridor); the heading comes from the field file (`heading_rad`, else auto) |
-| corridors | `z_scan` (15 m above home), `scan_speed` (4 m/s), `corridor_width` (0 = `w_max`), `corridor_width_min` (3 m), `corridor_length_min` (5 m), `w_margin` (1 m), `expected_canopy_top_max` (7 m above home), `expected_canopy_radius_max` (2.5 m) |
+| corridors | `z_scan` (15 m above home), `scan_speed` (4 m/s), `corridor_width` (0 = `w_max`), `corridor_width_min` (3 m), `corridor_length_min` (5 m), `w_margin` (1 m), `expected_canopy_top_max` (7 m above home), `expected_canopy_radius_max` (2.5 m), `target_height_margin` (2 m: a target published above home + `expected_canopy_top_max` + this is implausible, never visited, counted `target_height_implausible`) |
 | settle / lock | `settle_s` (2), `settle_timeout_s` (8), `lock_hold_s` (0.5) |
 | ordering | `order_budget_ms` (5) |
 | glide | `spray_clearance` (2.5 m), `transit_clearance` (2.0 m), `descent_slack` (0.5 m), `drone_radius` (0.8 m), `lateral_margin` (0.5 m), `replan_dz` (0.3 m), `carrot_lead_s` (0.5), `max_speed_xy` (4), `max_speed_z` (1.5), `xy_tol` (0.3), `z_tol` (0.3), `arrive_speed` (0.3) |

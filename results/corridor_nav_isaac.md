@@ -75,7 +75,9 @@ Notes on the two unmatched episodes (no truth tree missed, so no miss needs expl
   radius): 0.086 L landed on tree 2, which is why tree 2 reads double-sprayed (its own episode delivered 0.20 L).
 - TreeMapper id 65 at (9.92, 4.96) with a published height of **12.98 m** (no tree there; truth tops are 2.3 .. 3.1 m):
   a phantom from stereo outliers. The navigator dosed it from 15.3 m (published height + spray_clearance); 0.04 L of
-  the 0.15 L reached canopies, the rest the ground. Not a safety event (clearance 12 m), but see "Concerns".
+  the 0.15 L reached canopies, the rest the ground. Not a safety event (clearance 12 m). Since the controller ruling
+  after this smoke the navigator skips a target published above home + `expected_canopy_top_max` +
+  `target_height_margin` (7 + 2 = 9 m here), counted `target_height_implausible`: this phantom would now be skipped.
 
 ### Smoke attempt 1 (failed the spray criterion) and its fix
 

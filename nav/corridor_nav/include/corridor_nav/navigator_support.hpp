@@ -17,6 +17,10 @@ namespace support {
 /// A tree the planners can use: finite centre, height and outline, at least a triangle.
 bool usable(const treemapper::TreeEntry& t);
 
+/// A plausible target height: published height <= home_z + expected_canopy_top_max + target_height_margin. A crown
+/// published higher (a stereo phantom: the closed loop once mapped a 12.98 m "tree" in a 3 m orchard) is not visited.
+bool heightPlausible(const treemapper::TreeEntry& t, double home_z, const Config& cfg);
+
 /// Yaw (rad) of the pose's quaternion.
 double yawOf(const treemapper::DronePose& p);
 

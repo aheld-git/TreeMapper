@@ -179,6 +179,8 @@ class Navigator {
   bool atPathEnd(bool need_slow) const;       ///< on the last leg and at its end (and slow, if asked)
   bool reached(const Point3& p) const;
   const treemapper::TreeEntry* tree(treemapper::TreeId id) const;
+  /// support::heightPlausible against home; an implausible tree is counted target_height_implausible once per id.
+  bool plausible(const treemapper::TreeEntry& t);
   std::set<treemapper::TreeId> treesInCorridor(int k) const;
   std::vector<Target> orderStops(const std::vector<treemapper::TreeId>& ids, const Point3& start, const Point3& end,
                                  int corridor) const;
@@ -249,6 +251,7 @@ class Navigator {
   double spray_floor_{-INFINITY};   ///< spray altitude floor of the current target (guard releases); -inf = none
   std::map<treemapper::TreeId, double> planned_heights_;   ///< for the re-plan trigger (needsReplan)
   std::set<treemapper::TreeId> attempted_;                 ///< sprayed, mark given up, or skipped twice
+  std::set<treemapper::TreeId> implausible_;               ///< passed over for a published height above the limit
   std::map<treemapper::TreeId, int> skips_;                ///< times each tree was skipped
   bool retried_{false};                                    ///< the current target had its one retry
   unsigned sprayed_{0}, skipped_{0};                       ///< skipped_: trees skipped twice (left unsprayed)
