@@ -63,7 +63,7 @@ The design was made without reference to the existing spot-spray navigator.
 | Path | What | Language |
 |---|---|---|
 | `nav/corridor_nav/` | ROS-free navigator core: corridor planner, ordering, glide planner, state machine, guards, config | C++17, gtest |
-| `ros/corridor_nav_msgs/` | `Setpoint.msg`, `NavStatus.msg` | ROS 1 msgs |
+| `ros/corridor_nav_msgs/` | `NavStatus.msg` | ROS 1 msgs |
 | `ros/corridor_nav_ros/` | thin node, Isaac flight backend, launch, `nav_sim_lite` rostest | C++17 |
 | `ros/sim_perception/` | `stereo_sgbm_node`, `detector_node` | Python 3.8 (Noetic) |
 | `sim/isaac/` | `orchard_sim.py` (entry), `scene.py`, `drone.py`, `cameras.py`, `nozzle.py`, `truth.py` | Python 3.11 (Isaac) |
@@ -89,15 +89,11 @@ one config file with clamping and logging in one place, every drop / hold / skip
 
 ### 3.2 With the vehicle (Isaac backend)
 
-`corridor_nav_msgs/Setpoint.msg`, on `/corridor_nav/setpoint` at 20 Hz:
-
-```
-Header header                 # frame_id = map frame (world in Isaac)
-geometry_msgs/Point position  # carrot point on the planned 3D path
-float64 yaw                   # rad, map frame
-float64 max_speed_xy          # m/s, the backend must not exceed it
-float64 max_speed_z           # m/s
-```
+`geometry_msgs/PoseStamped` on `/corridor_nav/setpoint` at 20 Hz: `header.frame_id` = map frame (world in Isaac),
+`pose.position` = the carrot point on the planned 3D path, `pose.orientation` = yaw only. The carrot advances at the
+navigator's chosen speed, so no speed limits cross the interface, and only standard message types cross the bridge
+(amended 2026-10-31 in the implementation plan; a custom message would have to be built for Isaac's internal ROS 2
+Python).
 
 `/corridor_nav/spray`: `std_msgs/Bool` (nozzle open), published at 20 Hz while the node runs and immediately on change.
 The sim closes the nozzle when no spray message arrived for 0.5 s (fail closed on the vehicle side too).
@@ -201,7 +197,9 @@ Notes on how this interacts with TreeMapper's phase policy:
 ### 4.5 Glide planner: `planGlide(from, to, map, cfg) -> Path3D`
 
 - Spray point of tree i: `p_i = (centre_i.x, centre_i.y, height_i + spray_clearance)`. `spray_clearance` defaults to
-  2.5 m: TreeMapper's worst observed low bias (1.9 m) plus margin.
+  2.5 m: TreeMapper's worst observed low bias (1.9 m) plus margin. The spray point is raised to `height_k +
+  transit_clearance` when that is higher, for every other tree k whose outline lies within `drone_radius +
+  lateral_margin` of the target centre (a tree the mapper split in two), counted `spray_point_raised`.
 - Obstacles: every published tree `k ∉ {from, to}` whose outline comes within `drone_radius + lateral_margin` of the
   xy segment. Each obstacle requires `z ≥ height_k + transit_clearance` over the part of the segment within that
   distance of its outline. The `from` and `to` trees require `z ≥ height + spray_clearance − descent_slack` outside
@@ -236,7 +234,9 @@ Notes on how this interacts with TreeMapper's phase policy:
   of the window's pixels are valid, or the disparity is older than `guard_max_age_s` (0.5 s): no descent below the
   current altitude until valid again (counted `guard_blind`).
 - **Missing inputs**: no map yet, or map older than `map_stale_s` (2 s) → HOLD(map_stale). No pose in TF, or older than
-  0.2 s → HOLD(no_pose). `set_tree_sprayed` failure → retry 3 times, then HOLD(service). Every HOLD is counted by reason.
+  `pose_max_age_s` (0.2 s) → HOLD(no_pose). `set_tree_sprayed` answering `success=false` (ID unknown, e.g. merged
+  away) → re-resolve once and retry on the new ID, else count `spray_mark_failed` and continue; no answer within 2 s →
+  retry up to `service_retries` (3), then HOLD(service). Every HOLD is counted by reason.
 - **Comparison strategy**: `strategy: field_first` scans all corridors (SCAN_OUT/SCAN_SETTLE for each, no LOCK in
   between), locks once, then sprays corridor by corridor with the same ordering and glide planner. It exists only to
   measure what corridor mode saves.
@@ -248,14 +248,14 @@ clamped and logged; non-finite values rejected; built-in defaults equal the ship
 
 | Group | Keys (default) |
 |---|---|
-| strategy | `strategy` (corridor), `heading_rad` (auto) |
+| strategy | `strategy` (corridor); the heading comes from the field file (`heading_rad`, else auto) |
 | corridors | `z_scan` (15 m above home), `scan_speed` (4 m/s), `corridor_width` (0 = `w_max`), `corridor_width_min` (3 m), `corridor_length_min` (5 m), `w_margin` (1 m), `expected_canopy_top_max` (7 m above home), `expected_canopy_radius_max` (2.5 m) |
 | settle / lock | `settle_s` (2), `settle_timeout_s` (8), `lock_hold_s` (0.5) |
 | ordering | `order_budget_ms` (5) |
 | glide | `spray_clearance` (2.5 m), `transit_clearance` (2.0 m), `descent_slack` (0.5 m), `drone_radius` (0.8 m), `lateral_margin` (0.5 m), `replan_dz` (0.3 m), `carrot_lead_s` (0.5), `max_speed_xy` (4), `max_speed_z` (1.5), `xy_tol` (0.3), `z_tol` (0.3), `arrive_speed` (0.3) |
 | dose | `dose_mode` (area), `dose_s_per_m2` (0.3), `dose_min_s` (2), `dose_max_s` (6), `dose_fixed_s` (4), `dose_valid_frac` (0.8) |
 | guard | `min_clearance` (1.5 m), `guard_hysteresis` (0.5 m), `guard_window` (0.2), `guard_min_valid` (0.3), `guard_max_age_s` (0.5) |
-| inputs | `map_stale_s` (2), `hold_timeout_s` (20), `reresolve_radius` (1.5 m) |
+| inputs | `map_stale_s` (2), `hold_timeout_s` (20), `reresolve_radius` (1.5 m), `pose_max_age_s` (0.2), `service_retries` (3) |
 
 ## 5. Isaac side (`sim/isaac`, Isaac Sim 5.1)
 
@@ -302,9 +302,8 @@ Scene spec (`sim/specs/*.json`):
 
 ### 5.3 Drone (`drone.py`)
 
-- An Xform moved every physics step by a kinematic controller tracking the latest `Setpoint`: velocity limited by the
-  setpoint's `max_speed_xy` / `max_speed_z` and by `v_max` (6 / 2 m/s), acceleration limited to `a_max` (2 m/s²),
-  yaw rate limited to 60 °/s.
+- An Xform moved every physics step by a kinematic controller tracking the latest setpoint (PoseStamped carrot):
+  velocity limited by `v_max` (6 / 2 m/s), acceleration limited to `a_max` (2 m/s²), yaw rate limited to 60 °/s.
 - Roll and pitch follow the commanded horizontal acceleration (`atan(a/g)`, first-order lag 0.15 s), so the cameras see
   realistic tilt in turns and stops.
 - No setpoint for 1 s → hover in place (vehicle-side fail safe).
@@ -331,8 +330,11 @@ Scene spec (`sim/specs/*.json`):
 - Container `tm_sim_bridge`: Ubuntu 20.04, ROS Noetic + ROS 2 Foxy, `ros1_bridge` built from source, running
   `parameter_bridge` with `bridge_topics.yaml`:
   - Isaac → Noetic: both `image_raw`, both `camera_info`, `/tf`, `/tf_static`, `/clock`, `/sim/truth`, `/sim/deposition`.
-  - Noetic → Isaac: `/corridor_nav/setpoint` (custom type: the msg package is built for both ROS 1 and ROS 2 with a
-    mapping rule), `/corridor_nav/spray`.
+  - Noetic → Isaac: `/corridor_nav/setpoint` (`geometry_msgs/PoseStamped`), `/corridor_nav/spray` (`std_msgs/Bool`).
+    Only standard types cross the bridge.
+- The bridge and the whole Noetic sim graph (roscore, perception, `treemapper_node`, `corridor_nav_node`, `rosbag`)
+  run in one container `tm_sim_ros` built from `sim/bridge/Dockerfile`, with GPU access for the detector; `tm_isaac`
+  and `tm_sim_ros` share the docker network `tm_sim_net`. `tm_dev` (no GPU) stays the build and test container.
 - Risk: Humble (Isaac) ↔ Foxy (bridge) DDS interop. Milestone M0 tests it first (section 9). Fallback, decided in M0
   if needed: a small `rclpy` relay inside the bridge container that converts the listed topics to ROS 1 with `rospy`
   (both available on 20.04).
