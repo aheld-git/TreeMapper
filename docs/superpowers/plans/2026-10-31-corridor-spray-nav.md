@@ -342,6 +342,41 @@ Behaviour fixed by this task: IDLE → (start, valid pose) plan corridors (on `!
 
 ---
 
+### Task 9a: Wide-axis alignment (across-track FOV and yaw)
+
+User decision 2026-10-31 (spec 4.1 amended): with the real camera (640×400, fx ≈ 455) the `fov_min` rule refuses to plan
+at the defaults; fly corridor work with the image x-axis across track and size corridors with `hfov`.
+
+**Files:** Modify `nav/corridor_nav/include/corridor_nav/types.hpp`, `src/corridors.cpp`, `src/navigator.cpp` (and
+`navigator_support.cpp` if yaw lives there), `tests/test_corridors.cpp`, `tests/test_navigator.cpp`,
+`ros/corridor_nav_ros/src/corridor_nav_node.cpp`, `src/conversions.cpp` + header, `test/test_conversions.cpp`,
+`config/corridor_nav.yaml`, `launch/corridor_nav.launch`.
+
+**Interfaces:**
+- `struct CameraFov { double hfov_rad{0}, vfov_rad{0}; double x_axis_body_yaw_rad{NAN}; };` — yaw in the body frame of
+  the optical camera's x-axis (image columns increase along it); NaN = mount unknown.
+- `double acrossTrackFov(const CameraFov&);` (corridors.hpp) — `hfov` when `x_axis_body_yaw_rad` is finite, else
+  `min(hfov, vfov)`; `maxCorridorWidth` uses it.
+- `double corridorYaw(double heading_rad, const CameraFov&);` (corridors.hpp) — `heading + π/2 − x_axis_body_yaw_rad`
+  wrapped to (−π, π] when finite, else `heading`. The Navigator commands this yaw wherever it commanded the corridor
+  heading (every state of corridor work, field_first too).
+- Node: `double imageXAxisBodyYaw(const geometry_msgs::Quaternion& optical_to_body);` (conversions) — rotate (1,0,0)
+  by the quaternion, return `atan2(y, x)` of the result; NaN if its xy norm < 0.1 (x-axis near vertical) or the
+  quaternion is invalid. Node params: `~camera_mount` = [x, y, z, qx, qy, qz, qw] optical → body (same format as
+  treemapper_ros' `camera_mount`); if absent, `~camera_mount_source: tf` looks up `body_frame ← left camera frame`
+  once; if neither works, NaN (old behaviour, warn once). `corridor_nav.launch` gets a `camera_mount` arg;
+  the Isaac value is the one in `ros/treemapper_ros/launch/treemapper_sim.launch`.
+
+- [ ] **Step 1: Write failing tests:** `CorridorPlan.WideAxisUsesHfov` (fov 70.2°/47.5°, x-axis yaw 0 → `w_max` ≈
+  2·8·tan(35.1°) − 6 ≈ 5.25; NaN → ≈ 1.0 and planning refuses at defaults); `CorridorPlan.CorridorYaw` (heading 0,
+  φ = 0 → π/2; φ = π/2 → 0; NaN → heading; result wrapped); `Navigator.CommandsAlignedYawDuringCorridorWork` (fake
+  world with φ = −π/2: every setpoint yaw from SCAN_OUT to the end of spraying equals heading + π, wrapped);
+  `Conversions.ImageXAxisBodyYaw` (identity → 0; the Isaac mount quaternion from treemapper_sim.launch → the value
+  computed by hand in the test comment; a quaternion turning x vertical → NaN).
+- [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** the full suite, the corridor_nav_ros gtests and
+  `nav_sim_lite.test` (it must still pass; its camera may now be 640×400 if its launch passes an identity mount).
+- [ ] **Step 5: Commit** `feat(nav): fly corridor work with the wide image axis across track`.
+
 ## Phase C — Isaac-only closed loop
 
 ### Task 10: M0 bridge spike

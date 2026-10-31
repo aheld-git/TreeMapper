@@ -134,6 +134,12 @@ All functions below are pure and individually tested.
   `fov_min = min(hfov, vfov)` from the left `camera_info` (`fov = 2·atan(size / (2·f))`; the smaller one is used so
   the result does not depend on the camera's yaw on the body), `z_scan` = scan altitude, `z_top_max` =
   `expected_canopy_top_max`, `r_canopy_max` = `expected_canopy_radius_max`.
+- **Wide-axis alignment (amended 2026-10-31, user decision).** When the camera mount is known, the drone flies corridor
+  work with the image x-axis (the wide, 640 px axis) across track, and `w_max` uses `hfov` instead of `fov_min`. With the
+  real half-res camera (640×400, fx ≈ 455: hfov 70.2°, vfov 47.5°) `fov_min` gives `w_max` ≈ 1.0 m at the defaults,
+  below `corridor_width_min`, so planning would refuse; `hfov` gives ≈ 5.25 m, about one corridor per tree row. Yaw
+  during corridor work = `heading + π/2 − φ`, where φ is the yaw, in the body frame, of the optical camera's x-axis
+  (from the camera mount). Without a known mount the `fov_min` rule and yaw = heading stay.
 - Width used: `w = w_max` when `corridor_width` is 0 (the default), else `w = min(corridor_width, w_max)`; if
   `corridor_width > w_max`, warn and count `corridor_width_clamped`. Example: `fov_min` 70°, `z_scan` 15 m,
   `z_top_max` 7 m, `r_canopy_max` 2.5 m, `w_margin` 1 m → `w_max` ≈ 5.2 m.
