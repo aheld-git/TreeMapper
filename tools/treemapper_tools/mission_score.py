@@ -17,8 +17,9 @@ Definitions (controller rulings, Task 15 and the interim whole-branch review, I1
   falling edge) inside it, within ``EPISODE_SLACK_S`` of its ends, belong to it: a guard climb that closes the nozzle
   mid-dose does not make a second episode. A nozzle-open interval outside every SPRAYING interval is an *orphan*
   unit of its own (and a failed nozzle safety row).
-* intended dose of an episode = ``flow_lps`` x its SPRAYING duration (orphan: x its open time); emitted = ``flow_lps``
-  x the nozzle-open time.
+* intended dose of an episode = ``flow_lps`` x its nozzle-open time (the ``/corridor_nav/spray`` intervals that also
+  feed the safety rows; a guard climb closes the nozzle inside SPRAYING, and that gap is not intended dose);
+  emitted = ``flow_lps`` x the same open time.
 * an episode's deposit = the cumulative ``/sim/deposition`` at the first sample at or after its window end, minus the
   latest sample at or before its window start (window = the SPRAYING interval widened to its nozzle intervals). The
   window end is clipped at the next unit's start (no shared deposit); with no sample after the end of the last unit
@@ -157,8 +158,14 @@ class Episode:
 
     @property
     def spraying_s(self) -> float:
-        """Duration that sets the intended dose: the SPRAYING interval (orphan: its open time)."""
+        """The SPRAYING interval (orphan: its open time)."""
         return self.open_s if self.orphan else self.end - self.start
+
+    @property
+    def intended_s(self) -> float:
+        """Duration that sets the intended dose: the nozzle-open time. A guard climb inside DOSE closes the nozzle
+        while SPRAYING goes on; that gap is not part of what the nozzle was commanded to deliver."""
+        return self.open_s
 
     @property
     def open_s(self) -> float:
@@ -685,7 +692,7 @@ def score_run(run_dir: str) -> dict:
     if events and b.deposition and final is not None:
         emitted_final = float(depo["emitted"]) if "emitted" in depo else sum(final.values())
         errors += ["deposition inconsistent: " + m for m in deposit_consistency(deposits, final, emitted_final)]
-    intended = [flow * e.spraying_s for e in episodes]
+    intended = [flow * e.intended_s for e in episodes]
     emitted_ep = [flow * e.open_s for e in episodes]
     targets = episode_targets(episodes, snaps, truth)
     sp = spray_metrics(deposits, truth, intended, targets, emitted_ep)

@@ -134,10 +134,10 @@ def test_guard_interruption_is_one_episode_not_a_double_nor_targeted_again():
     series = [(9.0, {}), (11.5, {1: 0.09}), (14.5, {1: 0.26, ms.GROUND: 0.02})]   # 2.8 s open at 0.1 L/s
     deps = ms.per_event_deposit([e.window for e in eps], series)
     flow = 0.1
-    r = ms.spray_metrics(deps, [1], [flow * e.spraying_s for e in eps], targets=[1],
+    r = ms.spray_metrics(deps, [1], [flow * e.intended_s for e in eps], targets=[1],
                          emitted_l_per_event=[flow * e.open_s for e in eps])
     assert r["sprayed_ids"] == [1] and r["double_sprayed_ids"] == [] and r["n_events"] == 1
-    assert r["intended_l_total"] == pytest.approx(0.4)              # 4 s of SPRAYING; 0.26 / 0.4 >= 50 %
+    assert r["intended_l_total"] == pytest.approx(0.28)             # 2.8 s of nozzle-open time; 0.26 / 0.28 >= 50 %
     assert r["on_target_fraction"] == pytest.approx(0.26 / 0.28)
     assert ms.targeted_again(eps, [snap(5.0)]) == []
 
@@ -177,17 +177,35 @@ def test_second_dose_on_a_completed_id_within_one_map_period_is_targeted_again()
     assert ms.targeted_again(eps3, [snap(5.0, sprayed_ids=(5,)), snap(12.0), snap(15.0)]) == [0, 1]
 
 
-def test_short_burst_in_a_long_episode_is_not_sprayed():
-    # 0.2 s of nozzle in a 4 s SPRAYING episode: all of it on tree 1, but 5 % of the intended dose
+def test_intended_dose_is_the_nozzle_open_time_not_the_spraying_interval():
+    # a guard climb closes the nozzle 11 .. 13 s inside a 4 s SPRAYING interval: 2 s open, 2 s off. The tree got 0.15 L
+    # of the 0.2 L the nozzle could deliver: sprayed (it was 0.15 / 0.4 = 38 %, "missed", against the SPRAYING interval)
+    phases = [(10.0, "SPRAYING"), (14.0, "HOPPING")]
+    spray = [(10.0, True), (11.0, False), (13.0, True), (14.0, False)]
+    eps = ms.dose_episodes(phases, [(0.0, 5)], spray, t_end=20.0)
+    assert len(eps) == 1 and eps[0].spraying_s == pytest.approx(4.0) and eps[0].open_s == pytest.approx(2.0)
+    deps = [{1: 0.15, ms.GROUND: 0.02}]
+    flow = 0.1
+    r = ms.spray_metrics(deps, [1], [flow * e.intended_s for e in eps], targets=[1],
+                         emitted_l_per_event=[flow * e.open_s for e in eps])
+    assert r["intended_l_total"] == pytest.approx(0.2) and r["emitted_l_total"] == pytest.approx(0.2)
+    assert r["sprayed_ids"] == [1] and r["missed_ids"] == []
+
+
+def test_short_burst_in_a_long_episode_is_scored_on_what_the_nozzle_delivered():
+    # 0.2 s of nozzle in a 4 s SPRAYING episode, all of it on tree 1: intended is the open time (0.02 L), so the burst
+    # reads sprayed. (The navigator's own dose check - 80 % open - fails such an attempt and retries it; the scorer's
+    # sprayed / missed no longer shows an under-dose by itself.)
     eps = ms.dose_episodes([(10.0, "SPRAYING"), (14.0, "HOPPING")], [(0.0, 5)], [(10.0, True), (10.2, False)],
                            t_end=20.0)
     flow = 0.1
     deps = ms.per_event_deposit([e.window for e in eps], [(9.0, {}), (15.0, {1: 0.02})])
-    r = ms.spray_metrics(deps, [1], [flow * e.spraying_s for e in eps], targets=[1],
+    r = ms.spray_metrics(deps, [1], [flow * e.intended_s for e in eps], targets=[1],
                          emitted_l_per_event=[flow * e.open_s for e in eps])
-    assert r["intended_l_total"] == pytest.approx(0.4) and r["emitted_l_total"] == pytest.approx(0.02)
-    assert r["sprayed_ids"] == [] and r["missed_ids"] == [1]
+    assert r["intended_l_total"] == pytest.approx(0.02) and r["emitted_l_total"] == pytest.approx(0.02)
+    assert r["sprayed_ids"] == [1] and r["missed_ids"] == []
     assert r["on_target_fraction"] == pytest.approx(1.0)
+    assert not eps[0].dose_complete
 
 
 def test_clearance_min_uses_truth_outline():
@@ -399,7 +417,7 @@ def test_end_to_end_synthetic_run(tmp_path, capsys):
     assert card["errors"] == [] and card["end_state"] == "DONE" and card["completed"] is True
     assert card["all_pass"] is True
     assert card["efficiency"]["dose_events"] == 2
-    assert card["spray"]["n_events"] == 2 and card["spray"]["intended_l_total"] == pytest.approx(0.5)  # 2 x 2.5 s SPRAYING
+    assert card["spray"]["n_events"] == 2 and card["spray"]["intended_l_total"] == pytest.approx(0.4)  # the open time (2 x 2 s)
     assert card["spray"]["nav_trees_remaining"] == 0
     assert card["safety"]["sprayed_tree_targeted_again"] == 0
     assert card["efficiency"]["litres_emitted"] == pytest.approx(0.4)
