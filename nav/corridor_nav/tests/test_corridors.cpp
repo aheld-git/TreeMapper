@@ -72,7 +72,9 @@ TEST(CorridorPlan, TilesFieldAndAllEnterOnTheSameSide) {
     // every corridor is scanned along +x (the field heading); entries line up on the same side
     EXPECT_DOUBLE_EQ(cor.heading_rad, 0.0);
     EXPECT_NEAR(cor.exit.x - cor.entry.x, 60.0, 1e-9);
-    if (k > 0) EXPECT_NEAR(dist(cor.entry, plan.corridors[k - 1].entry), 5.0, 1e-9);
+    if (k > 0) {
+      EXPECT_NEAR(dist(cor.entry, plan.corridors[k - 1].entry), 5.0, 1e-9);
+    }
   }
   EXPECT_NEAR(covered, 1200.0, 1e-6);
   EXPECT_TRUE(n.empty());

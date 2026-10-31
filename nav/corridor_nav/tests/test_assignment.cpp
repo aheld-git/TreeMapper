@@ -43,7 +43,7 @@ TEST(Assignment, AssignsOnLockAndIsPermanent) {
   std::vector<TreeEntry> map{tree(1, 3, 2), tree(2, 8, 3), tree(3, 5, 7), tree(4, 12, 8)};
   Assignment a;
   Counters n;
-  const auto got0 = updateAssignment(map, f.corridors, f.field, 0, &a, &n);
+  const auto got0 = updateAssignment(map, f.corridors, f.field, 0, true, &a, &n);
   EXPECT_EQ(got0, (std::vector<TreeId>{1, 2}));
   EXPECT_EQ(a.corridor_of.at(1), 0);
   EXPECT_EQ(a.corridor_of.at(2), 0);
@@ -52,13 +52,13 @@ TEST(Assignment, AssignsOnLockAndIsPermanent) {
 
   // tree 1 drifts into corridor 1 (map refinement): its assignment stays
   map[0].centre = {3, 7};
-  const auto got1 = updateAssignment(map, f.corridors, f.field, 1, &a, &n);
+  const auto got1 = updateAssignment(map, f.corridors, f.field, 1, true, &a, &n);
   EXPECT_EQ(got1, (std::vector<TreeId>{3, 4}));
   EXPECT_EQ(a.corridor_of.at(1), 0);
   EXPECT_TRUE(a.cleanup.empty());
   EXPECT_EQ(n.count("late_trees"), 0u);
   // a repeat call assigns nothing new
-  EXPECT_TRUE(updateAssignment(map, f.corridors, f.field, 1, &a, &n).empty());
+  EXPECT_TRUE(updateAssignment(map, f.corridors, f.field, 1, true, &a, &n).empty());
 }
 
 TEST(Assignment, LateTreeGoesToCleanup) {
@@ -66,27 +66,44 @@ TEST(Assignment, LateTreeGoesToCleanup) {
   std::vector<TreeEntry> map{tree(1, 3, 2), tree(2, 5, 7)};
   Assignment a;
   Counters n;
-  updateAssignment(map, f.corridors, f.field, 0, &a, &n);
-  updateAssignment(map, f.corridors, f.field, 1, &a, &n);
+  updateAssignment(map, f.corridors, f.field, 0, true, &a, &n);
+  updateAssignment(map, f.corridors, f.field, 1, true, &a, &n);
   map.push_back(tree(9, 10, 1));  // corridor 0, published after it locked
-  const auto got = updateAssignment(map, f.corridors, f.field, 1, &a, &n);
+  const auto got = updateAssignment(map, f.corridors, f.field, 1, false, &a, &n);
   EXPECT_TRUE(got.empty());
   EXPECT_EQ(a.cleanup, std::vector<TreeId>{9});
   EXPECT_EQ(a.corridor_of.count(9), 0u);
   EXPECT_EQ(n["late_trees"], 1u);
   // seen again, still once
-  updateAssignment(map, f.corridors, f.field, 1, &a, &n);
-  updateAssignment(map, f.corridors, f.field, -1, &a, &n);
+  updateAssignment(map, f.corridors, f.field, 1, false, &a, &n);
+  updateAssignment(map, f.corridors, f.field, 1, false, &a, &n);
   EXPECT_EQ(a.cleanup, std::vector<TreeId>{9});
   EXPECT_EQ(n["late_trees"], 1u);
 }
 
-TEST(Assignment, JustLockedMinusOneOnlyUpdatesCleanupAndOutside) {
+TEST(Assignment, LateTreeInLatestLockedCorridorGoesToCleanup) {
+  Fixture f;
+  std::vector<TreeEntry> map{tree(1, 3, 2), tree(2, 5, 7)};
+  Assignment a;
+  Counters n;
+  updateAssignment(map, f.corridors, f.field, 0, true, &a, &n);
+  EXPECT_EQ(updateAssignment(map, f.corridors, f.field, 1, true, &a, &n), std::vector<TreeId>{2});
+  map.push_back(tree(8, 12, 8));  // corridor 1, published after its lock
+  EXPECT_TRUE(updateAssignment(map, f.corridors, f.field, 1, false, &a, &n).empty());
+  EXPECT_EQ(a.cleanup, std::vector<TreeId>{8});
+  EXPECT_EQ(a.corridor_of.count(8), 0u);
+  EXPECT_EQ(n["late_trees"], 1u);
+  updateAssignment(map, f.corridors, f.field, 1, false, &a, &n);
+  EXPECT_EQ(a.cleanup, std::vector<TreeId>{8});
+  EXPECT_EQ(n["late_trees"], 1u);
+}
+
+TEST(Assignment, NothingLockedOnlyUpdatesOutsideField) {
   Fixture f;
   std::vector<TreeEntry> map{tree(1, 3, 2), tree(2, 30, 2)};
   Assignment a;
   Counters n;
-  EXPECT_TRUE(updateAssignment(map, f.corridors, f.field, -1, &a, &n).empty());
+  EXPECT_TRUE(updateAssignment(map, f.corridors, f.field, -1, false, &a, &n).empty());
   EXPECT_TRUE(a.corridor_of.empty());
   EXPECT_TRUE(a.cleanup.empty());
   EXPECT_EQ(a.outside_field, std::set<TreeId>{2});
@@ -97,14 +114,14 @@ TEST(Assignment, SprayedAndOutsideFieldNeverAssigned) {
   std::vector<TreeEntry> map{tree(1, 3, 2, 0.5, /*sprayed=*/true), tree(2, 25, 2), tree(3, 6, 2)};
   Assignment a;
   Counters n;
-  const auto got = updateAssignment(map, f.corridors, f.field, 0, &a, &n);
+  const auto got = updateAssignment(map, f.corridors, f.field, 0, true, &a, &n);
   EXPECT_EQ(got, std::vector<TreeId>{3});
   EXPECT_EQ(a.corridor_of.count(1), 0u);
   EXPECT_EQ(a.corridor_of.count(2), 0u);
   EXPECT_EQ(a.outside_field, std::set<TreeId>{2});
   EXPECT_EQ(n["trees_outside_field"], 1u);
   // outside is counted once, and a sprayed tree is never a late tree either
-  updateAssignment(map, f.corridors, f.field, 1, &a, &n);
+  updateAssignment(map, f.corridors, f.field, 1, true, &a, &n);
   EXPECT_EQ(n["trees_outside_field"], 1u);
   EXPECT_TRUE(a.cleanup.empty());
   EXPECT_EQ(n.count("late_trees"), 0u);
@@ -116,9 +133,9 @@ TEST(Assignment, CentreInNoStripButInsideFieldGoesToNearestStrip) {
   f.corridors[1].strip = box(0, 5.1, 20, 10);
   std::vector<TreeEntry> map{tree(1, 5, 4.95), tree(2, 6, 5.08)};
   Assignment a;
-  const auto got = updateAssignment(map, f.corridors, f.field, 0, &a, nullptr);  // null counters are fine
+  const auto got = updateAssignment(map, f.corridors, f.field, 0, true, &a, nullptr);  // null counters are fine
   EXPECT_EQ(got, std::vector<TreeId>{1});
-  const auto got1 = updateAssignment(map, f.corridors, f.field, 1, &a, nullptr);
+  const auto got1 = updateAssignment(map, f.corridors, f.field, 1, true, &a, nullptr);
   EXPECT_EQ(got1, std::vector<TreeId>{2});
 }
 

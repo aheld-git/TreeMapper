@@ -128,27 +128,30 @@ TEST(Ordering, EqualCostTiesKeepTheCurrentOrder) {
 }
 
 TEST(Ordering, RespectsBudget) {
-  std::vector<Stop> s;
-  for (int i = 0; i < 4; ++i) {
-    s.push_back(stop(10 + i, 4.0 * i, 1.5));
-    s.push_back(stop(20 + i, 4.0 * i + 2.0, -1.5));
-  }
-  double t = 0.0;
-  int calls = 0;
-  const auto clock = [&] {
-    ++calls;
-    const double v = t;
-    t += 10.0;
-    return v;
+  // rows 16 m apart: the unlimited search needs several passes, the 5 ms budget must cut it after the first
+  const std::vector<Stop> s{stop(1, 10, 8), stop(2, 9, -8), stop(3, 8, 8), stop(4, 7, -8)};
+  const Point3 start{30, 0, 0}, end{-5, 0, 0};
+  auto run = [&](double budget, int* calls) {
+    double t = 0.0;
+    *calls = 0;
+    return orderTargets(s, start, end, 0.0, euclid, budget, [&] {
+      ++*calls;
+      const double v = t;
+      t += 10.0;
+      return v;
+    });
   };
-  const auto r = orderTargets(s, Point3{18, 0, 0}, Point3{-4, 0, 0}, 0.0, euclid, 5.0, clock);
-  // t0 = 0, after the first pass 10 > 5: one improvement pass, then stop
-  EXPECT_LE(calls, 3);
-  EXPECT_GE(calls, 2);
-  auto a = ids(r), b = ids(s);
+  int limited_calls = 0, full_calls = 0;
+  const auto limited = run(5.0, &limited_calls);
+  EXPECT_EQ(limited_calls, 2);  // t0, then one pass ending at 10 ms > 5 ms
+  auto a = ids(limited), b = ids(s);
   std::sort(a.begin(), a.end());
   std::sort(b.begin(), b.end());
   EXPECT_EQ(a, b);
+
+  const auto full = run(1e9, &full_calls);
+  EXPECT_GT(full_calls, 2);
+  EXPECT_LE(pathCost(full, start, end, euclid), pathCost(limited, start, end, euclid) + 1e-9);
 }
 
 TEST(Ordering, UnlimitedBudgetStopsWhenNoPassImproves) {

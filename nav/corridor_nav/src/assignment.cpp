@@ -57,8 +57,8 @@ bool contains(const std::vector<TreeId>& v, TreeId id) { return std::find(v.begi
 }  // namespace
 
 std::vector<TreeId> updateAssignment(const std::vector<TreeEntry>& map, const std::vector<Corridor>& corridors,
-                                     const Polygon2& field, int just_locked, Assignment* assignment,
-                                     Counters* counters) {
+                                     const Polygon2& field, int locked_upto, bool lock_now,
+                                     Assignment* assignment, Counters* counters) {
   std::vector<TreeId> assigned;
   if (!assignment) return assigned;
   for (const TreeEntry& t : map) {
@@ -74,10 +74,10 @@ std::vector<TreeId> updateAssignment(const std::vector<TreeEntry>& map, const st
     }
     const int k = corridorOf(t.centre, corridors);
     if (k < 0) continue;
-    if (k == just_locked) {
+    if (lock_now && k == locked_upto) {
       assignment->corridor_of[t.id] = k;
       assigned.push_back(t.id);
-    } else if (k < just_locked) {
+    } else if (k <= locked_upto) {
       assignment->cleanup.push_back(t.id);
       count(counters, "late_trees");
     }
