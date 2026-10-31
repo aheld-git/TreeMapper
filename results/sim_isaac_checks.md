@@ -176,8 +176,15 @@ Exit behaviour: SIGTERM/SIGINT write `deposition.json` and `rtf.json` (`{"sim_s"
 
 ## Concerns and limits
 
-- `clutter` (grass, rocks) of the spec is not instantiated: the ground is a flat-colour sloped mesh. Perception that was
-  trained on the Isaac tropical scene may see a different background.
+- `clutter.rocks` of the spec is not instantiated. `clutter.grass` is rendered (since commit 0b9f740, Task 16B) as a
+  periodic band-limited brightness texture on the terrain colour (`sim/isaac/ground_texture.py`), not as grass
+  geometry; before that the ground was a flat-colour mesh, on which SGBM could not match the ground. **The checks on
+  this page were taken on the flat ground.** They are analytically unaffected by the texture: the camera model,
+  topics, clock, square and nozzle checks do not look at the ground's appearance, and the projection / moving-flight
+  checks find the crown as the green blob (g > r + 8 and g > b + 12) on the tan soil of `3x3_check.json` (0.55, 0.42,
+  0.28): the texture multiplies all three channels by the same factor, so the soil keeps r > g everywhere and never
+  becomes "green". Perception that was trained on the Isaac tropical scene may still see a different background
+  (texture, not grass).
 - The canopy collider is a convex hull (a hull vertex limit of 255): it overestimates the foliage volume, so a ray that
   passes through a gap in the crown still counts as a hit. Off-target deposition is therefore a lower bound.
 - Setpoints must carry a header stamp from `/clock`; an unstamped one (stamp 0) is stale for the controller and is ignored.
