@@ -195,67 +195,86 @@ def test_yaw_held_on_timeout():
     assert states[-1].yaw == pytest.approx(yaw_at_timeout, abs=1e-9)
 
 
-# --- moving carrot streamed at 20 Hz (the navigator's real input), physics at 60 Hz ---------
+# --- the navigator's carrot contract, physics at 60 Hz, setpoints at 20 Hz -----------------
+# Each tick the navigator projects the drone onto the current leg and puts the carrot
+# carrot_lead_s of travel further along that leg, clamped at the leg end. It never streams
+# a carrot around a corner: legs are followed one at a time.
 
-def _stream(ctl, carrot_fn, t_end, yaw_fn=lambda t: 0.0):
-    """carrot_fn(stamp) -> (x, y, z). A setpoint goes out every 3rd physics step (20 Hz)."""
+LEAD_M = 1.2 * 4.0  # carrot_lead_s = 1.2 s at the 4 m/s cruise speed
+
+
+def _fly_legs(ctl, legs, t_end, switch_radius=0.3, lead=LEAD_M):
+    """legs: list of ((x0, y0), (x1, y1)). Returns the States, one per physics step (plus the first)."""
     states = [ctl.state]
-    n = int(round(t_end / DT))
-    for i in range(1, n + 1):
+    k = 0
+    for i in range(1, int(round(t_end / DT)) + 1):
         now = i * DT
         sp = None
         if i % 3 == 0:
-            x, y, z = carrot_fn(now)
-            sp = (x, y, z, yaw_fn(now), now)
+            s = ctl.state
+            end = np.array(legs[k][1], dtype=float)
+            if k < len(legs) - 1 and np.hypot(s.x - end[0], s.y - end[1]) <= switch_radius:
+                k += 1
+            a0 = np.array(legs[k][0], dtype=float)
+            a1 = np.array(legs[k][1], dtype=float)
+            length = float(np.linalg.norm(a1 - a0))
+            d = (a1 - a0) / length
+            proj = float(np.clip(np.dot(np.array([s.x, s.y]) - a0, d), 0.0, length))
+            c = a0 + d * min(length, proj + lead)
+            sp = (c[0], c[1], 0.0, 0.0, now)
         states.append(ctl.step(DT, now, sp))
     return states
 
 
-def test_moving_carrot_lag_is_bounded_and_speed_is_reached():
+def test_navigator_carrot_straight_leg_cruises_and_stops_at_the_end():
     ctl = KinematicController()
-    speed, lead = 4.0, 0.5
-    states = _stream(ctl, lambda t: (speed * (t + lead), 0.0, 0.0), 15.0)
+    states = _fly_legs(ctl, [((0.0, 0.0), (40.0, 0.0))], 25.0)
     v = _vel(states)
     p = _pos(states)
-    # steady state over the last 5 s
-    sl = slice(int(10.0 / DT), None)
+    speed = np.hypot(v[:, 0], v[:, 1])
+    assert np.max(speed) >= 3.8
+    assert np.max(speed) <= 6.0 + 1e-9
+    assert np.max(p[:, 0]) - 40.0 <= 0.05
+    assert np.linalg.norm(p[-1] - np.array([40.0, 0.0, 0.0])) < 0.05
+    assert speed[-1] < 0.1
+    a = np.linalg.norm(np.diff(v, axis=0), axis=1) / DT
+    assert np.max(a) <= 2.0 + 1e-9
+
+
+def test_navigator_carrot_cruise_pitch_ripple():
+    ctl = KinematicController()
+    states = _fly_legs(ctl, [((0.0, 0.0), (80.0, 0.0))], 25.0)
+    v = _vel(states)
+    p = _pos(states)
     t = np.arange(len(states)) * DT
-    # the latest carrot message is up to 50 ms old; compare with the message in force
-    stamp = np.floor(t * 20.0 + 1e-9) / 20.0
-    behind = speed * (stamp + lead) - p[:, 0]
-    assert np.max(behind[sl]) <= 2.5
-    assert np.max(np.abs(v[sl, 0] - speed)) < 0.1
-    assert np.max(np.hypot(v[:, 0], v[:, 1])) <= 6.0 + 1e-9
-
-
-def test_moving_carrot_acceleration_ripple_is_small():
-    ctl = KinematicController()
-    states = _stream(ctl, lambda t: (3.0 * (t + 0.5), 0.0, 0.0), 20.0)
-    v = _vel(states)
-    a = np.diff(v, axis=0) / DT
+    # steady cruise: at speed and still more than the carrot lead + stopping distance from the end
+    speed = np.hypot(v[:, 0], v[:, 1])
+    cruise = (t > 6.0) & (p[:, 0] < 80.0 - LEAD_M - 10.0)
+    assert np.count_nonzero(cruise) > 3 * 60
+    a = np.diff(v, axis=0)[:, 0] / DT
     pitch = np.array([s.pitch for s in states])
-    sl = slice(int(12.0 / DT), None)
-    assert np.std(a[sl, 0]) < 0.2
-    assert np.std(pitch[sl]) < 0.005
+    print("cruise: speed mean %.3f, a std %.4f, pitch std %.5f rad"
+          % (speed[cruise].mean(), np.std(a[cruise[1:]]), np.std(pitch[cruise])))
+    assert np.std(pitch[cruise]) < 0.01
 
 
-def test_moving_carrot_corner_is_not_cut():
-    # The carrot itself turns the corner at (L, 0): east, then north. 1 m/s: with a_max = 2 a 90 degree
-    # turn needs sqrt(2)*v/a_max seconds, so the 0.5 m bound is only reachable at low carrot speed.
-    speed, lead, L = 1.0, 0.5, 40.0
-
-    def carrot(t):
-        s = speed * (t + lead)
-        return (min(s, L), max(0.0, s - L), 0.0)
-
+def test_navigator_carrot_two_legs_with_a_90_degree_corner():
+    legs = [((0.0, 0.0), (40.0, 0.0)), ((40.0, 0.0), (40.0, 40.0))]
     ctl = KinematicController()
-    states = _stream(ctl, carrot, L / speed + 15.0)
-    p = _pos(states)
-    # distance to the two-segment path (0,0)-(L,0)-(L,inf)
-    d_east = np.where(p[:, 0] <= L, np.abs(p[:, 1]), np.hypot(p[:, 0] - L, p[:, 1]))
-    d_north = np.where(p[:, 1] >= 0.0, np.abs(p[:, 0] - L), np.hypot(p[:, 0] - L, p[:, 1]))
-    d_path = np.minimum(d_east, d_north)
-    assert np.max(d_path) <= 0.5
+    states = _fly_legs(ctl, legs, 40.0)
+    p = _pos(states)[:, :2]
+
+    def seg_dist(q, a, b):
+        a, b = np.array(a), np.array(b)
+        ab = b - a
+        tt = np.clip(np.sum((q - a) * ab, axis=1) / np.dot(ab, ab), 0.0, 1.0)
+        return np.linalg.norm(q - (a + tt[:, None] * ab), axis=1)
+
+    d_path = np.minimum(seg_dist(p, *legs[0]), seg_dist(p, *legs[1]))
+    print("corner: max distance from path %.3f m, final %s" % (np.max(d_path), p[-1]))
+    assert np.max(d_path) <= 0.3
+    assert np.linalg.norm(p[-1] - np.array([40.0, 40.0])) < 0.05
+    assert np.max(p[:, 1]) - 40.0 <= 0.05
 
 
 def test_non_finite_setpoint_is_ignored():
@@ -274,20 +293,3 @@ def test_non_finite_setpoint_is_ignored():
         # and the controller is still alive and still follows good setpoints afterwards
         s = ctl.step(DT, 61 * DT, (6.0, 0.0, 0.0, 0.0, 61 * DT))
         assert all(math.isfinite(c) for c in s)
-
-
-def test_carrot_velocity_resets_after_gap_and_timeout():
-    ctl = KinematicController()
-    ctl.step(DT, 0.05, (0.2, 0.0, 0.0, 0.0, 0.05))
-    ctl.step(DT, 0.10, (0.4, 0.0, 0.0, 0.0, 0.10))
-    assert ctl._carrot_v[0] == pytest.approx(4.0)
-    ctl.step(DT, 0.15, (0.4, 0.0, 0.0, 0.0, 0.15))  # carrot stopped
-    assert ctl._carrot_v[0] == pytest.approx(0.0)
-    ctl.step(DT, 0.20, (1.0, 0.0, 0.0, 0.0, 0.20))
-    assert ctl._carrot_v[0] == pytest.approx(12.0)
-    ctl.step(DT, 1.0, (2.0, 0.0, 0.0, 0.0, 1.0))  # gap 0.8 s > 0.5 s
-    assert ctl._carrot_v[0] == pytest.approx(0.0)
-    ctl.step(DT, 1.05, (2.2, 0.0, 0.0, 0.0, 1.05))
-    assert ctl._carrot_v[0] == pytest.approx(4.0)
-    ctl.step(DT, 3.0, None)  # timeout
-    assert ctl._carrot_v[0] == pytest.approx(0.0)
