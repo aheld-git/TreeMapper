@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <string>
 
 namespace corridor_nav_ros {
 
@@ -96,16 +97,72 @@ geometry_msgs::Quaternion opticalMountFromRosCamera(const geometry_msgs::Quatern
   return o;
 }
 
-std::optional<corridor_nav::StereoIntrinsics> stereoFrom(const sensor_msgs::CameraInfo& left,
-                                                         const sensor_msgs::CameraInfo& right) {
-  const double fx = left.K[0];
-  if (!positiveFinite(fx) || right.P[0] == 0.0 || !std::isfinite(right.P[0])) return std::nullopt;
-  const double baseline = -right.P[3] / right.P[0];
-  if (!positiveFinite(baseline)) return std::nullopt;
+BaselineResult deduceBaseline(double right_P3, double right_fx) {
+  // Copied from treemapper_ros deduceBaseline() (ros/treemapper_ros/src/input_sync.cpp); keep the two in step.
+  BaselineResult r;
+  constexpr double kMin = 0.01, kMax = 1.0;
+  if (!std::isfinite(right_P3) || !std::isfinite(right_fx) || right_fx <= 0.0) {
+    r.error = "right camera P[0] (fx) must be finite and > 0";
+    return r;
+  }
+  const double b = -right_P3 / right_fx;  // REP-104: Tx = -fx * B
+  auto plausible = [&](double v) { return v >= kMin && v <= kMax; };
+  if (plausible(b)) {
+    r.ok = true;
+    r.baseline_m = b;
+    r.form = "rep104_m";
+  } else if (plausible(b / 1000.0)) {
+    r.ok = true;
+    r.baseline_m = b / 1000.0;
+    r.form = "neg_mm";
+  } else if (plausible(-b / 1000.0)) {
+    r.ok = true;
+    r.baseline_m = -b / 1000.0;
+    r.form = "pos_mm";
+  } else {
+    r.error = "right camera P[3] = " + std::to_string(right_P3) + " gives no baseline in [0.01, 1] m under any "
+              "known convention (-fx*B m, -fx*B mm, +fx*B mm)";
+  }
+  return r;
+}
+
+StereoCalibration stereoFrom(const sensor_msgs::CameraInfo& left, const sensor_msgs::CameraInfo& right) {
+  StereoCalibration out;
+  const double fx = left.P[0];   // rectified fx: the disparity is computed on the rectified pair
+  if (!positiveFinite(fx)) {
+    out.error = "left camera P[0] (rectified fx) must be finite and > 0";
+    return out;
+  }
+  const BaselineResult b = deduceBaseline(right.P[3], right.P[0]);
+  if (!b.ok) {
+    out.error = b.error;
+    return out;
+  }
   corridor_nav::StereoIntrinsics s;
   s.fx = fx;
-  s.baseline = baseline;
-  return s;
+  s.baseline = b.baseline_m;
+  out.stereo = s;
+  out.form = b.form;
+  return out;
+}
+
+corridor_nav::Clearance clearanceFrom(const sensor_msgs::Image& disparity, const sensor_msgs::CameraInfo& left,
+                                      const corridor_nav::StereoIntrinsics& stereo, double roll, double pitch,
+                                      const corridor_nav::Config& cfg, DisparityIssue* issue) {
+  const auto report = [&](DisparityIssue i) {
+    if (issue) *issue = i;
+  };
+  corridor_nav::DisparityView view;
+  if (!disparityView(disparity, &view)) {
+    report(DisparityIssue::kFormat);
+    return corridor_nav::Clearance();
+  }
+  if (disparity.width != left.width || disparity.height != left.height) {
+    report(DisparityIssue::kSizeMismatch);
+    return corridor_nav::Clearance();
+  }
+  report(DisparityIssue::kNone);
+  return corridor_nav::nadirClearance(view, stereo, roll, pitch, cfg);
 }
 
 treemapper::DronePose toDronePose(const geometry_msgs::TransformStamped& wb) {

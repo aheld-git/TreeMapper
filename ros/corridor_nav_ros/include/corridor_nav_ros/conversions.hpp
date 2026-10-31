@@ -47,9 +47,42 @@ double imageXAxisBodyYaw(const geometry_msgs::Quaternion& optical_to_body);
 /// here without the whole node library, hence repeated. A non-finite or zero quaternion stays unusable (NaN follows).
 geometry_msgs::Quaternion opticalMountFromRosCamera(const geometry_msgs::Quaternion& ros_camera_to_body);
 
-/// fx = K[0] of the left info, baseline = -P_right[3] / P_right[0]. nullopt when either is not positive and finite.
-std::optional<corridor_nav::StereoIntrinsics> stereoFrom(const sensor_msgs::CameraInfo& left,
-                                                         const sensor_msgs::CameraInfo& right);
+struct BaselineResult {
+  bool ok{false};
+  double baseline_m{0.0};
+  std::string form;    ///< which P[3] convention matched
+  std::string error;   ///< why it was rejected
+};
+
+/// Stereo baseline from the RIGHT camera's projection matrix: P[3] = Tx, P[0] = fx.
+/// Accepted (mutually exclusive within the plausible range 0.01..1 m):
+///   "rep104_m"  Tx = -fx * B, B in metres (REP-104)
+///   "neg_mm"    Tx = -fx * B, B in millimetres (the field driver and the Isaac recording, sim/specs/camera.json)
+///   "pos_mm"    Tx = +fx * B, B in millimetres
+/// Anything else is rejected (fail closed: no clearance without a trusted baseline).
+/// A copy of treemapper_ros' deduceBaseline() (ros/treemapper_ros/src/input_sync.cpp); not linkable from here without
+/// the whole node library, hence repeated (as opticalMountFromRosCamera).
+BaselineResult deduceBaseline(double right_P3, double right_fx);
+
+/// Stereo intrinsics for the nadir clearance, or why there are none.
+struct StereoCalibration {
+  std::optional<corridor_nav::StereoIntrinsics> stereo;   ///< nullopt = rejected: the clearance stays invalid
+  std::string form;    ///< deduceBaseline's convention when accepted
+  std::string error;   ///< the reason when rejected
+};
+
+/// fx = P[0] of the left info (the rectified focal length the disparity is in), baseline = deduceBaseline(P_right[3],
+/// P_right[0]). Rejected when the left P[0] is not positive and finite or no baseline convention fits.
+StereoCalibration stereoFrom(const sensor_msgs::CameraInfo& left, const sensor_msgs::CameraInfo& right);
+
+enum class DisparityIssue { kNone, kFormat, kSizeMismatch };
+
+/// Nadir clearance (corridor_nav::nadirClearance) of a disparity image. Invalid when the image is not a packed
+/// little-endian 32FC1 (*issue = kFormat) or its size differs from the left camera_info the calibration belongs to
+/// (*issue = kSizeMismatch); else *issue = kNone. `issue` may be null.
+corridor_nav::Clearance clearanceFrom(const sensor_msgs::Image& disparity, const sensor_msgs::CameraInfo& left,
+                                      const corridor_nav::StereoIntrinsics& stereo, double roll, double pitch,
+                                      const corridor_nav::Config& cfg, DisparityIssue* issue);
 
 /// world <- body transform -> drone pose; pose.t = the transform's stamp, valid = all finite and a usable quaternion.
 treemapper::DronePose toDronePose(const geometry_msgs::TransformStamped& world_body);

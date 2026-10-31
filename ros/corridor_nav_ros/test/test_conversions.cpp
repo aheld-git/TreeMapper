@@ -210,16 +210,105 @@ TEST(Conversions, RosCameraMountToOptical) {
   EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(opticalMountFromRosCamera(quat(NAN, 0, 0, 1)))));
 }
 
+TEST(Conversions, DeduceBaselineConventions) {
+  // the table of treemapper_ros' test (test_input_sync.cpp, Calibration.BaselineConventions): same port, same answers
+  const double fx = 454.53;
+  auto r = deduceBaseline(-fx * 0.16, fx);
+  EXPECT_TRUE(r.ok);
+  EXPECT_EQ(r.form, "rep104_m");
+  EXPECT_NEAR(r.baseline_m, 0.16, 1e-12);
+  r = deduceBaseline(-72724.796875, 454.5299987792969);   // the Isaac recording's right P[3] (mm)
+  EXPECT_TRUE(r.ok);
+  EXPECT_EQ(r.form, "neg_mm");
+  EXPECT_NEAR(r.baseline_m, 0.16, 1e-6);
+  r = deduceBaseline(fx * 120.0, fx);
+  EXPECT_TRUE(r.ok);
+  EXPECT_EQ(r.form, "pos_mm");
+  EXPECT_NEAR(r.baseline_m, 0.12, 1e-12);
+  EXPECT_FALSE(deduceBaseline(0.0, fx).ok);           // a left/mono P (Tx = 0): fail closed
+  EXPECT_FALSE(deduceBaseline(fx * 0.16, fx).ok);     // +fx*B metres is not a known convention
+  EXPECT_FALSE(deduceBaseline(-fx * 5.0, fx).ok);     // 5 m baseline: implausible
+  EXPECT_FALSE(deduceBaseline(-fx * 0.16, 0.0).ok);
+  EXPECT_FALSE(deduceBaseline(std::nan(""), fx).ok);
+  EXPECT_FALSE(deduceBaseline(0.0, fx).error.empty());
+}
+
 TEST(Conversions, StereoFromCameraInfo) {
-  const auto left = info(640, 400, 350.0, 350.0, 350.0, 0.0);
-  const auto right = info(640, 400, 350.0, 350.0, 350.0, -35.0);   // baseline 0.1 m
-  const auto st = stereoFrom(left, right);
-  ASSERT_TRUE(st.has_value());
-  EXPECT_DOUBLE_EQ(st->fx, 350.0);
-  EXPECT_NEAR(st->baseline, 0.1, 1e-12);
-  EXPECT_FALSE(stereoFrom(left, info(640, 400, 350, 350, 350.0, 0.0)).has_value());    // zero baseline
-  EXPECT_FALSE(stereoFrom(left, info(640, 400, 350, 350, 0.0, -35.0)).has_value());    // P[0] = 0
-  EXPECT_FALSE(stereoFrom(info(640, 400, 0, 350, 0, 0), right).has_value());
+  // sim/specs/camera.json, exactly: the right P[3] is in millimetres (-fx * 160 mm)
+  sensor_msgs::CameraInfo left = info(640, 400, 454.53265380859375, 454.53265380859375, 454.53265380859375, 0.0);
+  sensor_msgs::CameraInfo right = info(640, 400, 455.0869445800781, 455.0869445800781, 454.5299987792969, -72724.796875);
+  auto st = stereoFrom(left, right);
+  ASSERT_TRUE(st.stereo.has_value()) << st.error;
+  EXPECT_EQ(st.form, "neg_mm");
+  EXPECT_NEAR(st.stereo->baseline, 0.16, 1e-6);
+  EXPECT_DOUBLE_EQ(st.stereo->fx, 454.53265380859375);
+
+  // REP-104 metres still works; fx is the left P[0] (rectified), not K[0]
+  left = info(640, 400, 360.0, 360.0, 350.0, 0.0);
+  right = info(640, 400, 350.0, 350.0, 350.0, -35.0);   // baseline 0.1 m
+  st = stereoFrom(left, right);
+  ASSERT_TRUE(st.stereo.has_value()) << st.error;
+  EXPECT_EQ(st.form, "rep104_m");
+  EXPECT_DOUBLE_EQ(st.stereo->fx, 350.0);
+  EXPECT_NEAR(st.stereo->baseline, 0.1, 1e-12);
+
+  // nonsense is rejected with a reason: clearance invalid, the core fails closed
+  for (const auto& bad : {info(640, 400, 350, 350, 350.0, 0.0),        // zero baseline (a left P)
+                          info(640, 400, 350, 350, 0.0, -35.0),        // P[0] = 0
+                          info(640, 400, 350, 350, 350.0, 35.0),       // +fx*B metres
+                          info(640, 400, 350, 350, 350.0, -350.0 * 5), // 5 m
+                          info(640, 400, 350, 350, 350.0, NAN)}) {
+    st = stereoFrom(left, bad);
+    EXPECT_FALSE(st.stereo.has_value()) << "P[0] " << bad.P[0] << " P[3] " << bad.P[3];
+    EXPECT_FALSE(st.error.empty());
+  }
+  st = stereoFrom(info(640, 400, 350, 350, 0.0, 0.0), right);   // left P[0] = 0 (uncalibrated)
+  EXPECT_FALSE(st.stereo.has_value());
+  EXPECT_FALSE(st.error.empty());
+}
+
+namespace {
+sensor_msgs::Image constantDisparity(unsigned w, unsigned h, float d) {
+  sensor_msgs::Image img;
+  img.header.stamp = ros::Time(4.0);
+  img.width = w;
+  img.height = h;
+  img.encoding = "32FC1";
+  img.step = 4 * w;
+  img.data.resize(static_cast<std::size_t>(img.step) * h);
+  float* f = reinterpret_cast<float*>(img.data.data());
+  for (std::size_t k = 0; k < static_cast<std::size_t>(w) * h; ++k) f[k] = d;
+  return img;
+}
+}  // namespace
+
+TEST(Conversions, ClearanceChecksTheDisparitySizeAgainstTheLeftInfo) {
+  const corridor_nav::Config cfg;
+  const auto left = info(640, 400, 400.0, 400.0, 400.0, 0.0);
+  corridor_nav::StereoIntrinsics stereo;
+  stereo.fx = 400.0;
+  stereo.baseline = 0.12;
+  DisparityIssue issue = DisparityIssue::kNone;
+  // 48 px of disparity at fx * B = 48: Z = 1 m
+  auto c = clearanceFrom(constantDisparity(640, 400, 48.0f), left, stereo, 0.0, 0.0, cfg, &issue);
+  EXPECT_EQ(issue, DisparityIssue::kNone);
+  ASSERT_TRUE(c.valid);
+  EXPECT_NEAR(c.metres, 1.0, 1e-9);
+  EXPECT_DOUBLE_EQ(c.stamp, 4.0);
+  // a full-resolution disparity against the half-resolution info: the calibration does not fit it
+  c = clearanceFrom(constantDisparity(1280, 800, 48.0f), left, stereo, 0.0, 0.0, cfg, &issue);
+  EXPECT_EQ(issue, DisparityIssue::kSizeMismatch);
+  EXPECT_FALSE(c.valid);
+  EXPECT_TRUE(std::isnan(c.metres));
+  c = clearanceFrom(constantDisparity(640, 399, 48.0f), left, stereo, 0.0, 0.0, cfg, &issue);
+  EXPECT_EQ(issue, DisparityIssue::kSizeMismatch);
+  EXPECT_FALSE(c.valid);
+  // not a packed 32FC1
+  auto bad = constantDisparity(640, 400, 48.0f);
+  bad.encoding = "16UC1";
+  c = clearanceFrom(bad, left, stereo, 0.0, 0.0, cfg, &issue);
+  EXPECT_EQ(issue, DisparityIssue::kFormat);
+  EXPECT_FALSE(c.valid);
 }
 
 TEST(Conversions, PoseFromTransformAndRollPitch) {

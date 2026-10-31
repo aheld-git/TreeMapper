@@ -21,6 +21,12 @@
 // Until camera_info (and, without `home` in the field file, a pose) has arrived there is no Navigator: the node
 // publishes IDLE, nozzle closed and a hover setpoint at the current pose if there is one.
 //
+// Nadir clearance: fx = the left P[0], baseline from the right P[3] in any of the conventions TreeMapper accepts
+// (deduceBaseline: REP-104 metres, or millimetres as the Isaac and field camera_infos have it). Without the right
+// camera_info, with a baseline that fits no convention, or with a disparity whose size differs from the left
+// camera_info, the clearance is invalid (the core treats that as blind: no descent) and NavStatus carries the warning
+// "clearance unavailable: <reason>". The right camera_info does not hold up the navigator.
+//
 // All callbacks (timer, subscribers, services) run on the one spinner thread; only the set_tree_sprayed worker
 // runs elsewhere and it touches nothing but its own arguments and its return value. A callback exception is
 // counted (node_callback_exceptions_*), logged, and leaves the node running with the nozzle closed.
@@ -97,6 +103,7 @@ class CorridorNavNode {
     pnh_.param<std::string>("disparity_topic", disparity_topic, "/disparity_image_down_float");
     pnh_.param<std::string>("left_info_topic", left_topic, "/cam/bottom/left/half/camera_info");
     pnh_.param<std::string>("right_info_topic", right_topic, "/cam/bottom/right/half/camera_info");
+    right_topic_ = right_topic;
     pnh_.param<double>("rate", rate, 20.0);
     if (!(rate > 0.0 && rate <= 200.0)) throw std::invalid_argument("~rate must be in (0, 200] Hz");
     pnh_.param<std::string>("camera_mount_source", mount_source_, "tf");
@@ -200,10 +207,25 @@ class CorridorNavNode {
   void updateCalibration() {
     fov_.reset();
     stereo_.reset();
+    stereo_error_.clear();
     if (!left_info_) return;
     fov_ = fovFrom(*left_info_);
     if (fov_) fov_->x_axis_body_yaw_rad = mount_yaw_;
-    if (right_info_) stereo_ = stereoFrom(*left_info_, *right_info_);
+    if (right_info_) {
+      const StereoCalibration sc = stereoFrom(*left_info_, *right_info_);
+      stereo_ = sc.stereo;
+      stereo_error_ = sc.error;
+      if (stereo_ && sc.form != logged_form_) {   // once per convention (camera_info repeats)
+        ROS_INFO("stereo calibration: fx %.2f px (left P[0]), baseline %.4f m (right P[3] convention %s)", stereo_->fx,
+                 stereo_->baseline, sc.form.c_str());
+        logged_form_ = sc.form;
+        logged_error_.clear();
+      } else if (!stereo_ && sc.error != logged_error_) {
+        ROS_ERROR("stereo calibration rejected: %s: clearance invalid (no descent)", sc.error.c_str());
+        logged_error_ = sc.error;
+        logged_form_.clear();
+      }
+    }
     ++calibration_seq_;
   }
 
@@ -360,26 +382,42 @@ class CorridorNavNode {
   }
 
   /// Nadir clearance of the latest disparity, recomputed when a new image (or calibration) arrived. Invalid (which
-  /// the core treats as blind: no descent) while the disparity or the stereo calibration is missing.
+  /// the core treats as blind: no descent) while the disparity or the stereo calibration is missing, and for a
+  /// disparity whose size is not the left camera_info's (counted clearance_size_mismatch).
   corridor_nav::Clearance clearance(const treemapper::DronePose& pose) {
-    if (!disparity_ || !stereo_) {
+    if (!disparity_ || !stereo_ || !left_info_) {
       clearance_ = corridor_nav::Clearance();
       return clearance_;
     }
     if (disparity_seq_ != clearance_disparity_seq_ || calibration_seq_ != clearance_calibration_seq_) {
       clearance_disparity_seq_ = disparity_seq_;
       clearance_calibration_seq_ = calibration_seq_;
-      corridor_nav::DisparityView view;
-      if (!disparityView(*disparity_, &view)) {
+      double roll = 0.0, pitch = 0.0;
+      rollPitch(pose, &roll, &pitch);
+      DisparityIssue issue = DisparityIssue::kNone;
+      clearance_ = clearanceFrom(*disparity_, *left_info_, *stereo_, roll, pitch, cfg_, &issue);
+      size_mismatch_.clear();
+      if (issue == DisparityIssue::kFormat) {
         ROS_WARN_THROTTLE(10.0, "disparity image is not a packed little-endian 32FC1: clearance invalid");
-        clearance_ = corridor_nav::Clearance();
-      } else {
-        double roll = 0.0, pitch = 0.0;
-        rollPitch(pose, &roll, &pitch);
-        clearance_ = corridor_nav::nadirClearance(view, *stereo_, roll, pitch, cfg_);
+      } else if (issue == DisparityIssue::kSizeMismatch) {
+        ++node_counters_["clearance_size_mismatch"];
+        size_mismatch_ = "disparity " + std::to_string(disparity_->width) + "x" + std::to_string(disparity_->height) +
+                         " does not match the left camera_info " + std::to_string(left_info_->width) + "x" +
+                         std::to_string(left_info_->height);
+        ROS_WARN_THROTTLE(10.0, "%s: clearance invalid", size_mismatch_.c_str());
       }
     }
     return clearance_;
+  }
+
+  /// Why the clearance cannot be had from the inputs seen so far ("" = nothing known to be wrong). Before the left
+  /// camera_info there is no navigator and waitingFor() says so.
+  std::string clearanceUnavailable() const {
+    if (!left_info_) return "";
+    if (!right_info_) return "no right camera_info on " + right_topic_;
+    if (!stereo_error_.empty()) return "stereo baseline rejected: " + stereo_error_;
+    if (!size_mismatch_.empty()) return size_mismatch_;
+    return "";
   }
 
   // --- set_tree_sprayed worker --------------------------------------------------------------------------------
@@ -494,6 +532,8 @@ class CorridorNavNode {
       } else {
         status.warnings.push_back("navigator not ready: " + waitingFor());
       }
+      const std::string blind = clearanceUnavailable();
+      if (!blind.empty()) status.warnings.push_back("clearance unavailable: " + blind);
       for (const auto& kv : node_counters_) counters[kv.first] = kv.second;
       if (!last_error_.empty() && stamp.toSec() - last_error_t_ < 10.0) status.warnings.push_back(last_error_);
       pub_status_.publish(toMsg(status, counters, stamp));
@@ -546,11 +586,21 @@ class CorridorNavNode {
   }
 
   // --- helpers ----------------------------------------------------------------------------------------------
+  /// What holds the navigator up; the right camera_info is listed too but does not hold it up (the core fails closed
+  /// on an invalid clearance).
   std::string waitingFor() const {
-    if (!fov_) return "no valid left camera_info yet";
-    if (!mount_resolved_) return "camera mount TF " + body_frame_ + " <- the left camera frame not available yet";
-    if (!field_has_home_) return "no pose " + world_frame_ + " <- " + body_frame_ + " yet (field file has no home)";
-    return "starting";
+    std::string why;
+    if (!fov_) {
+      why = "no valid left camera_info yet";
+    } else if (!mount_resolved_) {
+      why = "camera mount TF " + body_frame_ + " <- the left camera frame not available yet";
+    } else if (!field_has_home_) {
+      why = "no pose " + world_frame_ + " <- " + body_frame_ + " yet (field file has no home)";
+    } else {
+      why = "starting";
+    }
+    if (!right_info_) why += "; no right camera_info on " + right_topic_ + " yet (clearance unavailable, not waited for)";
+    return why;
   }
 
   template <class F>
@@ -573,7 +623,7 @@ class CorridorNavNode {
   }
 
   ros::NodeHandle nh_, pnh_;
-  std::string world_frame_, body_frame_, set_sprayed_service_;
+  std::string world_frame_, body_frame_, set_sprayed_service_, right_topic_;
   corridor_nav::Config cfg_;   ///< sanitized
   corridor_nav::Field field_;
   bool field_has_home_{false};
@@ -590,6 +640,9 @@ class CorridorNavNode {
   bool mount_resolved_{false};
   ros::Time mount_wait_start_;
   std::optional<corridor_nav::StereoIntrinsics> stereo_;
+  std::string stereo_error_;                ///< why the stereo calibration was rejected ("" = accepted or no right info)
+  std::string logged_form_, logged_error_;  ///< last baseline convention / rejection logged
+  std::string size_mismatch_;               ///< latest disparity size mismatch ("" = none)
   unsigned calibration_seq_{0};
   sensor_msgs::Image::ConstPtr disparity_;
   unsigned disparity_seq_{0};
