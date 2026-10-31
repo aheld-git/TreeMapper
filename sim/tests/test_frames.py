@@ -90,3 +90,16 @@ def test_yaw_rotates_the_image():
     u90, v90 = frames.project_world_point(rig, [0, 0, 10.0], frames.body_rotation(0, 0, math.pi / 2), pt)
     assert v0 < rig.cy
     assert u90 > rig.cx + 20
+
+
+def test_clock_skew_guard_is_nan_safe():
+    dt = 1.0 / 60.0
+    assert frames.clock_skew_ok(10.0, 10.0, dt)
+    assert frames.clock_skew_ok(10.0 + 0.49 * dt, 10.0, dt)
+    assert not frames.clock_skew_ok(10.0 + 0.51 * dt, 10.0, dt)
+    assert not frames.clock_skew_ok(10.0 - 0.51 * dt, 10.0, dt)
+    # a NaN graph time, our time or step must stop the sim, not pass (abs(nan) > x is False)
+    assert not frames.clock_skew_ok(float("nan"), 10.0, dt)
+    assert not frames.clock_skew_ok(10.0, float("nan"), dt)
+    assert not frames.clock_skew_ok(10.0, 10.0, float("nan"))
+    assert not frames.clock_skew_ok(float("inf"), 10.0, dt)

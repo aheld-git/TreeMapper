@@ -150,7 +150,7 @@ def run(app, args, spec, rig, assets_dir, dt):
     ctrl = KinematicController(v_max_xy=args.v_max_xy, v_max_z=args.v_max_z)
     drone = drone_mod.Drone(stage, ctrl, start, 0.0)
     cam_paths = cameras.define_cameras(stage, rig)
-    cameras.build_ros_graph(cam_paths, rig, args.domain_id)
+    cameras.build_ros_graph(cam_paths, rig, args.domain_id)   # image publishers start disabled (no pre-clock frames)
 
     saver = None
     if args.save_frame or args.save_hover > 0.0:
@@ -271,12 +271,15 @@ def run(app, args, spec, rig, assets_dir, dt):
                 sim["offset"] = cameras.graph_sim_time() - timeline.get_current_time()
                 log("clock starts on graph time: timeline %.5f s, graph %.5f s, offset %+.5f s"
                     % (timeline.get_current_time(), cameras.graph_sim_time(), sim["offset"]))
+                # The clock starts in the next update: only now may images go out. A frame rendered during warm-up
+                # would carry a stamp before the first /clock and /tf.
+                cameras.set_image_publishers_enabled(True)
             continue
         t = sim["t"]
         g = cameras.graph_sim_time()
         skew = g - t
-        max_skew = max(max_skew, abs(skew))
-        if abs(skew) > 0.5 * dt:
+        max_skew = max(max_skew, abs(skew)) if math.isfinite(skew) else float("nan")
+        if not frames.clock_skew_ok(g, t, dt):
             # the image stamps (graph time) and our /clock, /tf must stay on one time base: stop rather than drift
             raise RuntimeError("sim clock left the image time base: graph %.5f s, ours %.5f s, skew %.5f s "
                                "(limit %.5f s)" % (g, t, skew, 0.5 * dt))

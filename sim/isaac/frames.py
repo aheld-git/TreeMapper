@@ -84,6 +84,16 @@ def rotate_cone(directions_body: np.ndarray, R_body_to_world: np.ndarray) -> np.
     return np.asarray(directions_body, dtype=float) @ np.asarray(R_body_to_world, dtype=float).T
 
 
+def clock_skew_ok(graph_t: float, our_t: float, dt: float) -> bool:
+    """True when the image time base (graph time) and our /clock agree within half a physics step.
+
+    Written as ``abs(skew) <= dt / 2`` so a NaN on either side (or a NaN dt) is NOT ok: ``abs(nan) > x`` is False,
+    which let a NaN graph time pass the old ``if abs(skew) > 0.5 * dt: fail`` guard.
+    """
+    skew = graph_t - our_t
+    return bool(abs(skew) <= 0.5 * dt)
+
+
 def split_stamp(t: float) -> Tuple[int, int]:
     """Seconds as float -> (sec, nanosec) with nanosec in [0, 1e9)."""
     sec = int(math.floor(t))

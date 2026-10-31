@@ -62,7 +62,8 @@ def define_cameras(stage: Usd.Stage, rig: frames.CameraRig, parent: str = DRONE_
 
 
 def build_ros_graph(cam_paths: Dict[str, str], rig: frames.CameraRig, domain_id: int) -> Dict[str, str]:
-    """OmniGraph with the two image publishers (one frame per app update; /clock and TF come from rclpy)."""
+    """OmniGraph with the two image publishers (one frame per app update; /clock and TF come from rclpy). The image
+    publishers start disabled; ``set_image_publishers_enabled(True)`` starts them once the sim clock runs."""
     import omni.graph.core as og
     keys = og.Controller.Keys
     path = "/ActionGraph"
@@ -93,6 +94,8 @@ def build_ros_graph(cam_paths: Dict[str, str], rig: frames.CameraRig, domain_id:
                 ("img_left.inputs:topicName", TOPICS["left"]["image"]),
                 ("img_right.inputs:topicName", TOPICS["right"]["image"]),
                 ("img_left.inputs:frameId", LEFT_FRAME), ("img_right.inputs:frameId", RIGHT_FRAME),
+                # held until orchard_sim starts the clock (set_image_publishers_enabled): no pre-clock image stamps
+                ("img_left.inputs:enabled", False), ("img_right.inputs:enabled", False),
             ],
             keys.CONNECT: [
                 ("tick.outputs:tick", "probe.inputs:execIn"),
@@ -110,6 +113,14 @@ def build_ros_graph(cam_paths: Dict[str, str], rig: frames.CameraRig, domain_id:
         },
     )
     return {"graph": path, "rp_left": path + "/rp_left"}
+
+
+def set_image_publishers_enabled(enabled: bool, graph: str = "/ActionGraph") -> None:
+    """Switch both ROS2CameraHelper image publishers on or off (the helper attaches its writer on the first enabled
+    evaluation). Raises if the attribute does not exist, so a renamed input fails loud instead of never publishing."""
+    import omni.graph.core as og
+    for side in ("left", "right"):
+        og.Controller.attribute("%s/img_%s.inputs:enabled" % (graph, side)).set(bool(enabled))
 
 
 def graph_sim_time() -> float:
