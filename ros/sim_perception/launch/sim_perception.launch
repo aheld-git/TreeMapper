@@ -1,0 +1,36 @@
+<!-- sim_perception: SGBM stereo disparity + YOLOX ONNX detector for the Isaac closed loop.
+       roslaunch sim_perception sim_perception.launch detector_model:=/path/to/yolox.onnx [device:=cpu]
+     detector_model has NO default on purpose: it is the ONNX file shipped with the existing detector.
+     Needs onnxruntime-gpu (or onnxruntime with device:=cpu) in the container; the detector exits loudly without it.
+     Defaults match the existing detector (416x416, 3 channels, already-decoded output, class 0 = tree). -->
+<launch>
+  <arg name="detector_model"/>
+  <arg name="device" default="cuda"/>                       <!-- cuda | cpu -->
+  <arg name="left_topic" default="/cam/bottom/left/half/image_raw"/>
+  <arg name="right_topic" default="/cam/bottom/right/half/image_raw"/>
+  <arg name="input_size" default="[416, 416]"/>             <!-- (h, w) -->
+  <arg name="input_channels" default="3"/>
+  <arg name="decoded" default="true"/>
+  <arg name="score_threshold" default="0.3"/>
+  <arg name="nms_threshold" default="0.45"/>
+  <arg name="class_ids" default="[0]"/>
+  <arg name="output" default="screen"/>
+
+  <node pkg="sim_perception" type="stereo_sgbm_node.py" name="stereo_sgbm" output="$(arg output)">
+    <param name="left_topic" value="$(arg left_topic)"/>
+    <param name="right_topic" value="$(arg right_topic)"/>
+    <rosparam param="sgbm">{num_disparities: 64, block_size: 5, uniqueness: 10, speckle_window: 100, speckle_range: 2, mode: sgbm_3way}</rosparam>
+  </node>
+
+  <node pkg="sim_perception" type="detector_node.py" name="detector" output="$(arg output)">
+    <param name="model_path" value="$(arg detector_model)"/>
+    <param name="device" value="$(arg device)"/>
+    <param name="image_topic" value="$(arg left_topic)"/>
+    <rosparam param="input_size" subst_value="true">$(arg input_size)</rosparam>
+    <param name="input_channels" value="$(arg input_channels)"/>
+    <param name="decoded" value="$(arg decoded)"/>
+    <param name="score_threshold" value="$(arg score_threshold)"/>
+    <param name="nms_threshold" value="$(arg nms_threshold)"/>
+    <rosparam param="class_ids" subst_value="true">$(arg class_ids)</rosparam>
+  </node>
+</launch>

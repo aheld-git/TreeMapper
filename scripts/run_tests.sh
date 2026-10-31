@@ -44,5 +44,8 @@ echo "== Python tools: pytest"
 echo "== Sim layout/truth (pure Python): pytest"
 (cd "$ROOT" && PYTHONPATH="$ROOT/tools:$ROOT/sim${PYTHONPATH:+:$PYTHONPATH}" python3 -m pytest -q -p no:cacheprovider sim/tests) || rc=1
 
+echo "== ROS perception (sim_perception, pure Python, no onnxruntime): pytest"
+(cd "$ROOT" && PYTHONPATH="$ROOT/ros/sim_perception/src${PYTHONPATH:+:$PYTHONPATH}" python3 -m pytest -q -p no:cacheprovider ros/sim_perception/test) || rc=1
+
 if [ "$rc" -eq 0 ]; then echo "ALL TESTS PASSED"; else echo "TESTS FAILED"; fi
 exit "$rc"

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>sim_perception</name>
+  <version>0.1.0</version>
+  <description>Perception for the Isaac-only closed loop: SGBM stereo disparity node and YOLOX ONNX detector node,
+    feeding TreeMapper (/disparity_image_down_float, /object_detection/detections). The detector needs onnxruntime
+    (onnxruntime-gpu for CUDA), which is pip-installed, not a rosdep key.</description>
+  <maintainer email="alex000.held@gmail.com">Alex Held</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>message_filters</depend>
+  <depend>treemapper_msgs</depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+</package>
