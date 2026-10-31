@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <optional>
 #include <string>
@@ -22,9 +23,12 @@ struct Field {
   treemapper::Point2 home;             ///< world xy of the take-off point (the scan altitude is above it)
 };
 
-/// Camera field of view of the scan camera (full angles, rad).
+/// Camera field of view of the scan camera (full angles, rad) and its mount.
+/// x_axis_body_yaw_rad: yaw, in the body frame, of the optical camera's x-axis (image columns increase along it);
+/// NaN = mount unknown (then the smaller fov is used and the drone flies yaw = heading).
 struct CameraFov {
   double hfov_rad{0.0}, vfov_rad{0.0};
+  double x_axis_body_yaw_rad{std::numeric_limits<double>::quiet_NaN()};
 };
 
 /// One scan corridor: a strip of the field flown at z_scan, entered at `entry`, left at `exit`.

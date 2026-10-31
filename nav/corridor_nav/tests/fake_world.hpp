@@ -53,6 +53,7 @@ struct Sample {
   bool cleanup{false};
   int corridor{-1};
   Point3 pos, setpoint;
+  double yaw{0.0};   ///< commanded yaw
 };
 
 struct FakeWorld {
@@ -179,6 +180,7 @@ struct FakeWorld {
     s.corridor = st.corridor;
     s.pos = drone;
     s.setpoint = out.setpoint;
+    s.yaw = out.yaw;
     samples.push_back(s);
     min_clearance = std::min(min_clearance, clearance());
 

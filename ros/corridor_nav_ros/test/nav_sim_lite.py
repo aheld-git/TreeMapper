@@ -9,9 +9,10 @@
              and stays. Service /treemapper/set_tree_sprayed marks a published tree sprayed in later maps.
   disparity  /disparity_image_down_float (32FC1, constant range Z = drone z - 4 m: ground at z = 0, canopies 4 m tall;
              invalid, NaN, while Z < 0.2 m) at 4 Hz sim, with the half camera_infos of the Isaac / farm setup:
-             fx = fy = 400, baseline 0.12 m. The camera is 640 x 640 px (77.3 deg) so that the default config plans
-             exactly 2 corridors in field_lite.yaml (the brief's 640 x 400 would give a 53 deg vertical field of view,
-             a 2 m maximum corridor width and "coverage impossible").
+             fx = fy = 400, baseline 0.12 m. The camera is 640 x 400 px like the real half-res one: hfov 77.3 deg,
+             vfov 53.1 deg. nav_sim_lite.test passes the identity camera mount, so the node sizes corridors with
+             hfov (wide axis across track) and the default config plans exactly 2 corridors in field_lite.yaml (the
+             fov_min rule would give a 2 m maximum corridor width and "coverage impossible").
   stats      /nav_sim_lite/stats (std_srvs/Trigger, JSON in `message`): the world's own account for check_mission.py -
              truth trees, set_tree_sprayed calls, nozzle seconds over a tree / elsewhere, drone pose, lowest clearance.
 Real-time factor: if the machine cannot keep up the loop just runs late (sim time stays consistent); the achieved
@@ -46,7 +47,7 @@ NOZZLE_RADIUS = 0.5          # m xy: nozzle time within this of a tree centre co
 HOME = (0.0, -2.0, 0.0)      # field_lite.yaml home; the drone starts on the ground there
 FX = FY = 400.0
 BASELINE = 0.12
-WIDTH = HEIGHT = 640
+WIDTH, HEIGHT = 640, 400
 
 # id, x, y, canopy top (world z). Corridor 0 is the strip y in [0, 6], corridor 1 the strip y in [6, 12].
 TREES = [

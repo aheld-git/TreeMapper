@@ -98,6 +98,46 @@ TEST(Navigator, FullCorridorMissionSpraysEveryTreeOnce) {
   EXPECT_NEAR(w.drone.z, 0.0, cfg.z_tol);
 }
 
+// The camera's image x-axis points along body -y (phi = -pi/2, the Isaac mount): yaw = heading + pi/2 - phi = pi.
+TEST(Navigator, CommandsAlignedYawDuringCorridorWork) {
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  Navigator nav(cfg, field30x24(), CameraFov{kPi / 2, kPi / 2, -kPi / 2});
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  EXPECT_EQ(nav.state(), NavState::kDone);
+  int checked = 0;
+  for (const Sample& s : w.samples) {
+    switch (s.state) {
+      case NavState::kTransit:
+      case NavState::kScanOut:
+      case NavState::kScanSettle:
+      case NavState::kLock:
+      case NavState::kGlide:
+      case NavState::kDose:
+        EXPECT_GT(s.yaw, -kPi) << "t " << s.t;
+        EXPECT_LE(s.yaw, kPi) << "t " << s.t;
+        EXPECT_NEAR(std::remainder(s.yaw - kPi, 2 * kPi), 0.0, 1e-9) << "t " << s.t;   // heading 0 + pi
+        ++checked;
+        break;
+      default: break;
+    }
+  }
+  EXPECT_GT(checked, 100);
+  for (std::size_t i = 0; i < w.trees.size(); ++i) EXPECT_EQ(w.trees[i].spray_calls, 1) << "tree " << i + 1;
+}
+
+TEST(Navigator, UnknownMountKeepsTheHeadingAsYaw) {
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  Navigator nav(cfg, field30x24(), fov90());   // x_axis_body_yaw_rad = NaN
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  for (const Sample& s : w.samples) {
+    if (s.state == NavState::kScanOut || s.state == NavState::kGlide || s.state == NavState::kDose) {
+      EXPECT_NEAR(s.yaw, 0.0, 1e-12) << "t " << s.t;
+    }
+  }
+}
+
 TEST(Navigator, PhaseSequencePerCorridor) {
   const Config cfg;
   FakeWorld w = world(cfg, grid({6, 12, 18}));

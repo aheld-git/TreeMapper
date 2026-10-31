@@ -14,6 +14,9 @@
 
   <include file="$(find corridor_nav_ros)/launch/corridor_nav.launch">
     <arg name="field_file" value="$(find corridor_nav_ros)/test/field_lite.yaml"/>
+    <!-- identity optical -> body: the image x-axis is the body x-axis (phi = 0), so the node flies yaw = heading + pi/2;
+         the fake world only integrates position, so the yaw changes nothing it checks -->
+    <arg name="camera_mount" value="[0, 0, 0, 0, 0, 0, 1]"/>
     <arg name="use_sim_time" value="true"/>
     <arg name="output" value="screen"/>
   </include>

@@ -14,8 +14,17 @@ namespace corridor_nav {
 /// (rotating calipers over the convex hull's edges). 0 for a degenerate polygon.
 double minAreaRectHeading(const treemapper::Polygon2& field);
 
+/// The field of view across the track: hfov when the mount is known (the drone flies with the image x-axis across
+/// track, see corridorYaw), else min(hfov, vfov) (the camera's yaw on the body is unknown). NaN for a non-finite
+/// hfov or vfov.
+double acrossTrackFov(const CameraFov& fov);
+
+/// Yaw to command during corridor work: heading + pi/2 - x_axis_body_yaw_rad, wrapped to (-pi, pi], so the image
+/// x-axis points across the track; the heading itself when the mount is unknown (NaN).
+double corridorYaw(double heading_rad, const CameraFov& fov);
+
 /// Widest strip that keeps a whole crown in view when its centre is inside the strip:
-/// 2 (z_scan - expected_canopy_top_max) tan(min(hfov, vfov) / 2) - 2 expected_canopy_radius_max - w_margin.
+/// 2 (z_scan - expected_canopy_top_max) tan(acrossTrackFov / 2) - 2 expected_canopy_radius_max - w_margin.
 /// Returns NaN for a non-finite fov.
 double maxCorridorWidth(const CameraFov& fov, const Config& config);
 

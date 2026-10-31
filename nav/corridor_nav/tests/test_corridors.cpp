@@ -42,6 +42,59 @@ TEST(CorridorPlan, MaxWidthUsesTheSmallerFov) {
   EXPECT_NEAR(maxCorridorWidth(CameraFov{70.0 * kDeg, 90.0 * kDeg}, c), maxCorridorWidth(fov(70.0), c), 1e-12);
 }
 
+// The real half-res camera is 640 x 400 with fx ~ 455: hfov 70.2 deg, vfov 47.5 deg.
+TEST(CorridorPlan, WideAxisUsesHfov) {
+  Config c;  // z_scan 15, top 7, radius 2.5, margin 1
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const CameraFov known{70.2 * kDeg, 47.5 * kDeg, 0.0};
+  const CameraFov unknown{70.2 * kDeg, 47.5 * kDeg, nan};
+  EXPECT_NEAR(maxCorridorWidth(known, c), 2 * 8 * std::tan(35.1 * kDeg) - 5 - 1, 1e-9);
+  EXPECT_NEAR(maxCorridorWidth(known, c), 5.25, 0.02);
+  EXPECT_DOUBLE_EQ(acrossTrackFov(known), 70.2 * kDeg);
+  // the mount value itself does not matter, only that it is known
+  EXPECT_DOUBLE_EQ(acrossTrackFov(CameraFov{70.2 * kDeg, 47.5 * kDeg, -1.57}), 70.2 * kDeg);
+  // unknown mount: the fov_min rule, ~1.0 m, below corridor_width_min
+  EXPECT_DOUBLE_EQ(acrossTrackFov(unknown), 47.5 * kDeg);
+  EXPECT_NEAR(maxCorridorWidth(unknown, c), 2 * 8 * std::tan(23.75 * kDeg) - 5 - 1, 1e-9);
+  EXPECT_NEAR(maxCorridorWidth(unknown, c), 1.0, 0.1);
+
+  Field f;
+  f.polygon = rect(60, 12);
+  f.heading_rad = 0.0;
+  const CorridorPlan refused = planCorridors(f, unknown, c, nullptr);
+  EXPECT_FALSE(refused.ok);
+  EXPECT_EQ(refused.error, "coverage impossible");
+  const CorridorPlan plan = planCorridors(f, known, c, nullptr);
+  ASSERT_TRUE(plan.ok);
+  EXPECT_NEAR(plan.w_max, 5.25, 0.02);
+  EXPECT_EQ(plan.corridors.size(), 3u);   // ceil(12 / 5.245)
+  // a non-finite fov still fails closed with a known mount
+  const CameraFov bad{nan, 47.5 * kDeg, 0.0};
+  EXPECT_FALSE(std::isfinite(maxCorridorWidth(bad, c)));
+  EXPECT_FALSE(planCorridors(f, bad, c, nullptr).ok);
+}
+
+TEST(CorridorPlan, CorridorYaw) {
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const auto at = [](double phi) { return CameraFov{70.2 * kDeg, 47.5 * kDeg, phi}; };
+  EXPECT_NEAR(corridorYaw(0.0, at(0.0)), kPi / 2, 1e-12);
+  EXPECT_NEAR(corridorYaw(0.0, at(kPi / 2)), 0.0, 1e-12);
+  EXPECT_NEAR(corridorYaw(0.0, at(-kPi / 2)), kPi, 1e-12);   // heading + pi: wrapped to +pi, not -pi
+  EXPECT_NEAR(corridorYaw(0.5, at(0.2)), 0.5 + kPi / 2 - 0.2, 1e-12);
+  // unknown mount: the heading itself
+  EXPECT_DOUBLE_EQ(corridorYaw(1.25, at(nan)), 1.25);
+  EXPECT_DOUBLE_EQ(corridorYaw(1.25, CameraFov{1.0, 1.0}), 1.25);
+  // always in (-pi, pi]
+  for (double h : {-3.0, -1.0, 0.0, 2.0, 3.1}) {
+    for (double phi : {-3.0, -kPi / 2, 0.0, kPi / 2, 3.0}) {
+      const double y = corridorYaw(h, at(phi));
+      EXPECT_GT(y, -kPi);
+      EXPECT_LE(y, kPi);
+      EXPECT_NEAR(std::remainder(y - (h + kPi / 2 - phi), 2 * kPi), 0.0, 1e-12);
+    }
+  }
+}
+
 TEST(CorridorPlan, HeadingIsLongAxis) {
   const double h = minAreaRectHeading(rect(60, 20, 30.0 * kDeg));
   EXPECT_GE(h, 0.0);

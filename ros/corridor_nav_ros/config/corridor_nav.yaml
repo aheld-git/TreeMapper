@@ -14,5 +14,16 @@ disparity_topic: /disparity_image_down_float            # sensor_msgs/Image 32FC
 left_info_topic: /cam/bottom/left/half/camera_info      # field of view and fx
 right_info_topic: /cam/bottom/right/half/camera_info    # baseline = -P[3] / P[0]
 
+# --- camera mount (wide-axis alignment): the drone flies corridor work with the image x-axis (the wide axis) across
+# track and sizes corridors with hfov. The yaw of that axis on the body comes from, in this order:
+#   ~camera_mount = [x, y, z, qx, qy, qz, qw]  optical camera -> body (treemapper_ros' camera_mount format; set by
+#                                              corridor_nav.launch's camera_mount arg, absent here)
+#   camera_mount_source: tf                    TF body_frame <- the left camera_info's frame_id, looked up once
+#   camera_mount_source: none                  do not look it up
+# The camera frame must be an optical frame. If none gives a mount (waiting camera_mount_wait s for the TF), the
+# yaw is unknown (warned once): corridors are sized with min(hfov, vfov) and flown with yaw = corridor heading.
+camera_mount_source: tf
+camera_mount_wait: 5.0                                  # s of ROS time
+
 # --- cadence
 rate: 20.0                                              # Hz, control tick (setpoint and spray are published each tick)

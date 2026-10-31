@@ -10,6 +10,12 @@
 // Clocks: Inputs.t = ros::Time::now() (sim time under use_sim_time); the map's stamp is TreeMapper's header stamp
 // (it republishes at 5 Hz stamped with ROS now, also while asleep); the pose time is the stamp of the TF transform.
 //
+// Camera mount (wide-axis alignment): ~camera_mount = [x, y, z, qx, qy, qz, qw] (optical camera -> body, the format of
+// treemapper_ros' camera_mount) gives the yaw of the image x-axis on the body; without it ~camera_mount_source = tf
+// looks up body_frame <- left camera_info frame_id once (waits up to ~camera_mount_wait s); if neither works the yaw
+// is unknown (NaN, warned once) and the navigator uses the old fov_min rule with yaw = heading. The camera frame must
+// be an optical frame (x right, y down, z forward), as treemapper_ros' default.
+//
 // Until camera_info (and, without `home` in the field file, a pose) has arrived there is no Navigator: the node
 // publishes IDLE, nozzle closed and a hover setpoint at the current pose if there is one.
 //
@@ -37,6 +43,7 @@
 #include <cmath>
 #include <deque>
 #include <future>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -90,6 +97,26 @@ class CorridorNavNode {
     pnh_.param<std::string>("right_info_topic", right_topic, "/cam/bottom/right/half/camera_info");
     pnh_.param<double>("rate", rate, 20.0);
     if (!(rate > 0.0 && rate <= 200.0)) throw std::invalid_argument("~rate must be in (0, 200] Hz");
+    pnh_.param<std::string>("camera_mount_source", mount_source_, "tf");
+    pnh_.param<double>("camera_mount_wait", mount_wait_s_, 5.0);
+    if (mount_source_ != "tf" && mount_source_ != "none") {
+      throw std::invalid_argument("~camera_mount_source must be 'tf' or 'none'");
+    }
+    if (!(mount_wait_s_ >= 0.0)) throw std::invalid_argument("~camera_mount_wait must be >= 0");
+    if (pnh_.hasParam("camera_mount")) {
+      std::vector<double> m;
+      if (!pnh_.getParam("camera_mount", m) || m.size() != 7) {
+        throw std::invalid_argument("~camera_mount must be [x, y, z, qx, qy, qz, qw] (optical camera -> body)");
+      }
+      geometry_msgs::Quaternion q;
+      q.x = m[3];
+      q.y = m[4];
+      q.z = m[5];
+      q.w = m[6];
+      resolveMountYaw(imageXAxisBodyYaw(q), "~camera_mount");
+    } else if (mount_source_ == "none") {
+      resolveMountYaw(std::numeric_limits<double>::quiet_NaN(), "~camera_mount_source none");
+    }
 
     // Fail at startup, not at the first camera_info: a bad cfg key or field file ends the node.
     if (config_file.empty() || config_file[0] != '/') {
@@ -172,6 +199,7 @@ class CorridorNavNode {
     stereo_.reset();
     if (!left_info_) return;
     fov_ = fovFrom(*left_info_);
+    if (fov_) fov_->x_axis_body_yaw_rad = mount_yaw_;
     if (right_info_) stereo_ = stereoFrom(*left_info_, *right_info_);
     ++calibration_seq_;
   }
@@ -262,8 +290,53 @@ class CorridorNavNode {
     }
   }
 
+  /// Sets the yaw of the image x-axis (NaN = unknown) and says what the navigator will do with it.
+  void resolveMountYaw(double yaw, const std::string& source) {
+    mount_yaw_ = yaw;
+    mount_resolved_ = true;
+    if (std::isfinite(yaw)) {
+      ROS_INFO("camera mount from %s: image x-axis at body yaw %.1f deg -> corridors are flown with the wide axis "
+               "across track, sized with hfov",
+               source.c_str(), yaw * 180.0 / M_PI);
+    } else {
+      ROS_WARN("camera mount from %s: image x-axis yaw unknown (no mount, or the x-axis is near vertical): sizing "
+               "corridors with min(hfov, vfov), yaw = corridor heading",
+               source.c_str());
+    }
+    if (fov_) fov_->x_axis_body_yaw_rad = mount_yaw_;
+  }
+
+  /// camera_mount_source = tf: body <- left camera frame, looked up once (waiting up to ~camera_mount_wait s of ROS
+  /// time from the first attempt). True when the mount is settled, known or not.
+  bool mountSettled() {
+    if (mount_resolved_) return true;
+    const std::string cam = left_info_ ? left_info_->header.frame_id : std::string();
+    if (cam.empty()) {
+      resolveMountYaw(std::numeric_limits<double>::quiet_NaN(), "camera_info (empty frame_id)");
+      return true;
+    }
+    const ros::Time now = ros::Time::now();
+    if (mount_wait_start_.isZero()) mount_wait_start_ = now;
+    try {
+      const auto tr = tf_buffer_.lookupTransform(body_frame_, cam, ros::Time(0));
+      resolveMountYaw(imageXAxisBodyYaw(tr.transform.rotation), "TF " + body_frame_ + " <- " + cam);
+      return true;
+    } catch (const tf2::TransformException& e) {
+      if ((now - mount_wait_start_).toSec() < mount_wait_s_) {
+        ROS_WARN_THROTTLE(2.0, "waiting for the camera mount TF %s <- %s: %s", body_frame_.c_str(), cam.c_str(),
+                          e.what());
+        return false;
+      }
+      resolveMountYaw(std::numeric_limits<double>::quiet_NaN(),
+                      "TF " + body_frame_ + " <- " + cam + " (not available: " + e.what() + ")");
+      return true;
+    }
+  }
+
   void tryCreateNavigator(const treemapper::DronePose& pose) {
     if (!fov_) return;
+    if (!mountSettled()) return;
+    fov_->x_axis_body_yaw_rad = mount_yaw_;
     corridor_nav::Field field = field_;
     if (!field_has_home_) {
       if (!pose.valid) return;
@@ -271,8 +344,11 @@ class CorridorNavNode {
     }
     nav_ = std::make_unique<corridor_nav::Navigator>(
         cfg_, field, *fov_, [](const std::string& m) { ROS_WARN("navigator: %s", m.c_str()); });
-    ROS_INFO("corridor_nav: navigator ready (hfov %.1f deg, vfov %.1f deg, home %.2f %.2f); call ~start",
-             fov_->hfov_rad * 180.0 / M_PI, fov_->vfov_rad * 180.0 / M_PI, field.home.x, field.home.y);
+    const std::string mount =
+        std::isfinite(mount_yaw_) ? std::to_string(mount_yaw_ * 180.0 / M_PI) + " deg" : std::string("unknown");
+    ROS_INFO("corridor_nav: navigator ready (hfov %.1f deg, vfov %.1f deg, image x-axis body yaw %s, home %.2f %.2f); "
+             "call ~start",
+             fov_->hfov_rad * 180.0 / M_PI, fov_->vfov_rad * 180.0 / M_PI, mount.c_str(), field.home.x, field.home.y);
   }
 
   /// Nadir clearance of the latest disparity, recomputed when a new image (or calibration) arrived. Invalid (which
@@ -464,6 +540,7 @@ class CorridorNavNode {
   // --- helpers ----------------------------------------------------------------------------------------------
   std::string waitingFor() const {
     if (!fov_) return "no valid left camera_info yet";
+    if (!mount_resolved_) return "camera mount TF " + body_frame_ + " <- the left camera frame not available yet";
     if (!field_has_home_) return "no pose " + world_frame_ + " <- " + body_frame_ + " yet (field file has no home)";
     return "starting";
   }
@@ -498,6 +575,11 @@ class CorridorNavNode {
 
   sensor_msgs::CameraInfo::ConstPtr left_info_, right_info_;
   std::optional<corridor_nav::CameraFov> fov_;
+  std::string mount_source_;
+  double mount_wait_s_{5.0};
+  double mount_yaw_{std::numeric_limits<double>::quiet_NaN()};   ///< body yaw of the image x-axis; NaN = unknown
+  bool mount_resolved_{false};
+  ros::Time mount_wait_start_;
   std::optional<corridor_nav::StereoIntrinsics> stereo_;
   unsigned calibration_seq_{0};
   sensor_msgs::Image::ConstPtr disparity_;

@@ -142,6 +142,42 @@ TEST(Conversions, FovFromCameraInfo) {
   EXPECT_FALSE(fovFrom(info(640, 400, 320, NAN, 0, 0)).has_value());
 }
 
+namespace {
+geometry_msgs::Quaternion quat(double x, double y, double z, double w) {
+  geometry_msgs::Quaternion q;
+  q.x = x;
+  q.y = y;
+  q.z = z;
+  q.w = w;
+  return q;
+}
+}  // namespace
+
+TEST(Conversions, ImageXAxisBodyYaw) {
+  // identity: the image x-axis is the body x-axis
+  EXPECT_NEAR(imageXAxisBodyYaw(quat(0, 0, 0, 1)), 0.0, 1e-12);
+  // 90 deg about body z: x -> body y
+  EXPECT_NEAR(imageXAxisBodyYaw(quat(0, 0, std::sin(M_PI / 4), std::cos(M_PI / 4))), M_PI / 2, 1e-12);
+  // The Isaac camera mount (treemapper_sim.launch, optical -> body), q = (qx, qy, qz, qw) =
+  // (-0.7071065073, 0.7071070551, 1.3156e-7, 5.1934e-7). Rotating (1, 0, 0) by q:
+  //   x' = 1 - 2 (qy^2 + qz^2) = 1 - 2 (0.50000077 + 1.7e-14) = -7.7e-7
+  //   y' = 2 (qx qy + qw qz)   = 2 (-0.49999997... + 6.8e-14)  = -0.9999999999993
+  //   z' = 2 (qx qz - qw qy)   = -9.2e-7
+  // so the image x-axis points along body -y: atan2(-1.0, -7.7e-7) = -pi/2 - 7.7e-7 = -1.5707971 (hand value
+  // -1.5707963 = -pi/2 to 1e-6). Corridor yaw = heading + pi/2 - phi = heading + pi.
+  const auto isaac = quat(-0.7071065073147165, 0.7071070550580697, 1.315609245066774e-07, 5.193386764157588e-07);
+  EXPECT_NEAR(imageXAxisBodyYaw(isaac), -M_PI / 2, 1e-5);
+  EXPECT_NEAR(imageXAxisBodyYaw(isaac), -1.5707971014, 1e-8);
+  // x-axis turned vertical (90 deg about body y): the xy part is 0 -> NaN
+  EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(quat(0, std::sin(M_PI / 4), 0, std::cos(M_PI / 4)))));
+  // tilted 80 deg: xy norm cos(80 deg) = 0.17 >= 0.1 is still usable
+  EXPECT_NEAR(imageXAxisBodyYaw(quat(0, std::sin(40 * M_PI / 180), 0, std::cos(40 * M_PI / 180))), 0.0, 1e-9);
+  // invalid quaternions
+  EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(quat(0, 0, 0, 0))));
+  EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(quat(NAN, 0, 0, 1))));
+  EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(quat(0, 0, 0, INFINITY))));
+}
+
 TEST(Conversions, StereoFromCameraInfo) {
   const auto left = info(640, 400, 350.0, 350.0, 350.0, 0.0);
   const auto right = info(640, 400, 350.0, 350.0, 350.0, -35.0);   // baseline 0.1 m

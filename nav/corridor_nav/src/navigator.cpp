@@ -133,7 +133,9 @@ Outputs Navigator::finish(NavState before, double t, Outputs out) {
   out.target = hold ? last_target_ : on_target ? target_ : kNoTree;   // HOLD: unchanged
   const bool corridor_work = state_ == NavState::kTransit || state_ == NavState::kScanOut ||
                              state_ == NavState::kScanSettle || state_ == NavState::kLock || on_target;
-  if (corridor_work && corridor_ >= 0) yaw_ = corridors_[static_cast<std::size_t>(corridor_)].heading_rad;
+  if (corridor_work && corridor_ >= 0) {
+    yaw_ = corridorYaw(corridors_[static_cast<std::size_t>(corridor_)].heading_rad, fov_);
+  }
   out.yaw = yaw_;
   out.phase = phase();
   last_phase_ = out.phase;

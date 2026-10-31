@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 
 namespace corridor_nav_ros {
 
@@ -71,6 +72,17 @@ std::optional<corridor_nav::CameraFov> fovFrom(const sensor_msgs::CameraInfo& le
   fov.hfov_rad = 2.0 * std::atan(static_cast<double>(left.width) / (2.0 * fx));
   fov.vfov_rad = 2.0 * std::atan(static_cast<double>(left.height) / (2.0 * fy));
   return fov;
+}
+
+double imageXAxisBodyYaw(const geometry_msgs::Quaternion& q) {
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double n = quatNorm(q.x, q.y, q.z, q.w);
+  if (!std::isfinite(n) || n <= 1e-6) return nan;
+  const double x = q.x / n, y = q.y / n, z = q.z / n, w = q.w / n;
+  const double ax = 1.0 - 2.0 * (y * y + z * z);   // first column of the rotation matrix: R (1, 0, 0)
+  const double ay = 2.0 * (x * y + w * z);
+  if (!(std::hypot(ax, ay) >= 0.1)) return nan;
+  return std::atan2(ay, ax);
 }
 
 std::optional<corridor_nav::StereoIntrinsics> stereoFrom(const sensor_msgs::CameraInfo& left,

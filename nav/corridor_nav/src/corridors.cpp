@@ -72,11 +72,23 @@ double minAreaRectHeading(const Polygon2& field) {
   return best >= kPi ? 0.0 : best;  // a tiny negative angle shifted by pi can round to exactly pi
 }
 
-double maxCorridorWidth(const CameraFov& fov, const Config& config) {
+double acrossTrackFov(const CameraFov& fov) {
   // std::min would silently drop a NaN second argument: a non-finite fov must stay non-finite (fail closed)
   if (!std::isfinite(fov.hfov_rad) || !std::isfinite(fov.vfov_rad)) return std::numeric_limits<double>::quiet_NaN();
-  const double fov_min = std::min(fov.hfov_rad, fov.vfov_rad);
-  return 2.0 * (config.z_scan - config.expected_canopy_top_max) * std::tan(fov_min / 2.0) -
+  return std::isfinite(fov.x_axis_body_yaw_rad) ? fov.hfov_rad : std::min(fov.hfov_rad, fov.vfov_rad);
+}
+
+double corridorYaw(double heading_rad, const CameraFov& fov) {
+  if (!std::isfinite(fov.x_axis_body_yaw_rad)) return heading_rad;
+  double y = std::remainder(heading_rad + kPi / 2 - fov.x_axis_body_yaw_rad, 2.0 * kPi);   // [-pi, pi]
+  if (y <= -kPi) y += 2.0 * kPi;                                                           // (-pi, pi]
+  return y;
+}
+
+double maxCorridorWidth(const CameraFov& fov, const Config& config) {
+  const double across = acrossTrackFov(fov);
+  if (!std::isfinite(across)) return std::numeric_limits<double>::quiet_NaN();
+  return 2.0 * (config.z_scan - config.expected_canopy_top_max) * std::tan(across / 2.0) -
          2.0 * config.expected_canopy_radius_max - config.w_margin;
 }
 

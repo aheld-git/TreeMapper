@@ -36,6 +36,11 @@ geometry_msgs::PoseStamped toSetpoint(const corridor_nav::Outputs& out, const st
 /// nullopt when the size or the focal lengths are not positive and finite.
 std::optional<corridor_nav::CameraFov> fovFrom(const sensor_msgs::CameraInfo& left);
 
+/// Yaw, in the body frame, of the optical camera's x-axis (image columns increase along it): rotate (1, 0, 0) by the
+/// optical -> body quaternion (normalised) and return atan2(y, x). NaN when the quaternion is not finite or has no
+/// usable length, or when the rotated axis is near vertical (its xy norm < 0.1: no across-track direction).
+double imageXAxisBodyYaw(const geometry_msgs::Quaternion& optical_to_body);
+
 /// fx = K[0] of the left info, baseline = -P_right[3] / P_right[0]. nullopt when either is not positive and finite.
 std::optional<corridor_nav::StereoIntrinsics> stereoFrom(const sensor_msgs::CameraInfo& left,
                                                          const sensor_msgs::CameraInfo& right);
