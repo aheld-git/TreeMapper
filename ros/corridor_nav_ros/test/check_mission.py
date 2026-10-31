@@ -9,8 +9,12 @@ Calls ~start (retried until the node accepts: it needs camera_info and a fresh p
     the last map;
   * the nozzle was never true outside the SPRAYING phase (+-0.15 s for the order of two topics), each tree got a dose
     of nozzle time with the drone over it, and no nozzle time at all away from a tree (the world's own account);
-  * the setpoint stream never went lower than max(height of any tree within 1.3 m xy) + 1.5 m, and neither did the
-    drone itself (end-to-end clearance);
+  * the setpoint stream never went lower than max(PUBLISHED height of any tree within 1.3 m xy) + 1.5 m (the
+    planner's promise on what it was told);
+  * the clearance guard (stereo from the mm-form right camera_info, disparity from the truth) caught the tree the map
+    publishes 1.2 m too low: guard_triggers >= 1, spray_point_guard_raised >= 1, that tree still sprayed once, and
+    the drone's TRUE clearance over it stayed > 0 (over every other tree >= 1.4 m); no "clearance unavailable"
+    warning;
   * the drone landed back at home.
 The world's account (truth trees, service calls, nozzle time, drone) is read from /nav_sim_lite/stats."""
 import json
@@ -180,18 +184,38 @@ class MissionCheck(unittest.TestCase):
         for t in trees:
             self.assertGreaterEqual(t["nozzle_s"], 1.6, "tree %d got only %.2f s of nozzle with the drone over it" % (t["id"], t["nozzle_s"]))
 
-        # --- clearance: setpoints and drone never lower than the canopy + 1.5 m within 1.3 m xy of a tree
+        # --- clearance: setpoints never lower than the PUBLISHED canopy + 1.5 m within 1.3 m xy of a tree
         self.assertGreater(len(setpoints), 100)
         worst = None
         for (x, y, z) in setpoints:
-            tops = [t["height"] for t in trees if math.hypot(x - t["x"], y - t["y"]) <= CLEARANCE_RADIUS]
+            tops = [t["map_height"] for t in trees if math.hypot(x - t["x"], y - t["y"]) <= CLEARANCE_RADIUS]
             if tops and (worst is None or z - max(tops) < worst):
                 worst = z - max(tops)
         self.assertIsNotNone(worst, "no setpoint came near a tree")
-        rospy.loginfo("lowest setpoint over a tree: %.2f m above the canopy", worst)
+        rospy.loginfo("lowest setpoint over a tree: %.2f m above the published canopy", worst)
         self.assertGreaterEqual(worst, CLEARANCE_MIN - 1e-6, "setpoint %.2f m above a canopy (< %.1f)" % (worst, CLEARANCE_MIN))
-        self.assertGreaterEqual(world["min_drone_clearance_m"], CLEARANCE_MIN - 0.1,
-                                "the drone itself got to %.2f m above a canopy" % world["min_drone_clearance_m"])
+
+        # --- the clearance guard end to end: the tree published too low is caught, raised and still sprayed
+        biased = [t for t in trees if t["map_height"] < t["height"] - 1.0]
+        self.assertEqual(len(biased), 1, "nav_sim_lite should publish exactly one tree too low")
+        b = biased[0]
+        rospy.loginfo("guard: triggers %d, spray points raised %d; true clearance over tree %d (published %.1f m low): "
+                      "%.2f m; over the others: %s", counters.get("guard_triggers", 0),
+                      counters.get("spray_point_guard_raised", 0), b["id"], b["height"] - b["map_height"],
+                      b["min_clearance_m"], {t["id"]: t["min_clearance_m"] for t in trees if t is not b})
+        self.assertGreaterEqual(counters.get("guard_triggers", 0), 1, "the clearance guard never climbed")
+        self.assertGreaterEqual(counters.get("spray_point_guard_raised", 0), 1, "no spray point raised by the guard")
+        self.assertEqual(b["marked_calls"], 1)
+        self.assertGreaterEqual(b["nozzle_s"], 1.6)
+        self.assertIsNotNone(b["min_clearance_m"])
+        self.assertGreater(b["min_clearance_m"], 0.0, "the drone hit tree %d (true clearance %.2f m)" % (b["id"], b["min_clearance_m"]))
+        self.assertGreater(world["min_drone_clearance_m"], 0.0, "true clearance %.2f m" % world["min_drone_clearance_m"])
+        for t in trees:
+            if t is not b:
+                self.assertGreaterEqual(t["min_clearance_m"], CLEARANCE_MIN - 0.1,
+                                        "the drone got to %.2f m above tree %d" % (t["min_clearance_m"], t["id"]))
+        self.assertFalse([w for w in status.warnings if w.startswith("clearance unavailable")],
+                         "clearance reported unavailable: %s" % list(status.warnings))
 
         # --- landed at home
         x, y, z = world["drone"]

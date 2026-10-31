@@ -6,15 +6,20 @@
              DYNAMIC TF world -> body at 50 Hz sim, stamped with the sim time (a static TF reads as a stale pose).
   map        TreeMapper's role: 8 scripted trees (2 corridors of 4), latched /treemapper/map at 5 Hz sim, stamped with
              the sim time. A tree appears once the drone has been within 6 m xy of it while /mission_state is SCAN,
-             and stays. Service /treemapper/set_tree_sprayed marks a published tree sprayed in later maps.
-  disparity  /disparity_image_down_float (32FC1, constant range Z = drone z - 4 m: ground at z = 0, canopies 4 m tall;
-             invalid, NaN, while Z < 0.2 m) at 4 Hz sim, with the half camera_infos of the Isaac / farm setup:
-             fx = fy = 400, baseline 0.12 m. The camera is 640 x 400 px like the real half-res one: hfov 77.3 deg,
+             and stays. Service /treemapper/set_tree_sprayed marks a published tree sprayed in later maps. Tree
+             MAP_BIASED_ID is published MAP_BIAS = 1.2 m below its true top (TreeMapper's low height bias): its spray
+             point is only 1.3 m above the real canopy and the clearance guard has to catch it.
+  disparity  /disparity_image_down_float (32FC1, constant, from the truth: Z = drone z - the highest true top of the
+             trees whose outline is within 0.5 m of the drone xy, else drone z - 0 (ground); invalid, NaN, while
+             Z < 0.2 m) at 4 Hz sim, with the half camera_infos of the Isaac / farm setup: fx = fy = 400, baseline
+             0.12 m, the right P[3] in MILLIMETRES (-fx * 120, as sim/specs/camera.json and the field driver have it).
+             The camera is 640 x 400 px like the real half-res one: hfov 77.3 deg,
              vfov 53.1 deg. nav_sim_lite.test passes the identity camera mount, so the node sizes corridors with
              hfov (wide axis across track) and the default config plans exactly 2 corridors in field_lite.yaml (the
              fov_min rule would give a 2 m maximum corridor width and "coverage impossible").
   stats      /nav_sim_lite/stats (std_srvs/Trigger, JSON in `message`): the world's own account for check_mission.py -
-             truth trees, set_tree_sprayed calls, nozzle seconds over a tree / elsewhere, drone pose, lowest clearance.
+             truth trees (true and published height, lowest true clearance over each), set_tree_sprayed calls, nozzle
+             seconds over a tree / elsewhere, drone pose, lowest clearance.
 Real-time factor: if the machine cannot keep up the loop just runs late (sim time stays consistent); the achieved
 rate and the worst lag are in the stats."""
 import json
@@ -41,12 +46,14 @@ INFO_EVERY = 100             # iterations: camera_info also every 2 s, besides t
 SEE_RADIUS = 6.0             # m xy
 V_XY, V_Z = 4.0, 1.5         # m/s
 TREE_RADIUS = 1.5            # m, circular crowns (16-gon outline)
-CANOPY_Z = 4.0               # m, what the fake disparity "sees" below the drone
+DISPARITY_REACH = 0.5        # m xy beyond a crown outline that the fake disparity still sees the crown
 CLEAR_RADIUS = 1.3           # m xy: tree "under" the drone for the clearance statistic
 NOZZLE_RADIUS = 0.5          # m xy: nozzle time within this of a tree centre counts as dosing that tree
 HOME = (0.0, -2.0, 0.0)      # field_lite.yaml home; the drone starts on the ground there
 FX = FY = 400.0
 BASELINE = 0.12
+MAP_BIASED_ID = 3            # published MAP_BIAS below its true top
+MAP_BIAS = -1.2              # m
 WIDTH, HEIGHT = 640, 400
 
 # id, x, y, canopy top (world z). Corridor 0 is the strip y in [0, 6], corridor 1 the strip y in [6, 12].
@@ -63,6 +70,8 @@ def stamp(ns):
 class Tree:
     def __init__(self, tid, x, y, h):
         self.id, self.x, self.y, self.h = tid, x, y, h
+        self.map_h = h + (MAP_BIAS if tid == MAP_BIASED_ID else 0.0)   # what TreeMapper publishes
+        self.min_clear = float("inf")   # drone z - true top while within CLEAR_RADIUS xy
         self.published = False
         self.sprayed = False
         self.marked_calls = 0       # set_tree_sprayed(true) calls that succeeded
@@ -76,7 +85,7 @@ class Tree:
             a = 2.0 * math.pi * k / 16
             e.outline.append(Point(self.x + TREE_RADIUS * math.cos(a), self.y + TREE_RADIUS * math.sin(a), 0.0))
         e.centre = Point(self.x, self.y, 0.0)
-        e.height = self.h
+        e.height = self.map_h
         e.sprayed = self.sprayed
         e.observations = 10
         e.first_published = stamp(self.first_ns)
@@ -148,8 +157,10 @@ class World:
         with self.lock:
             out = {
                 "drone": list(self.drone),
-                "trees": [{"id": t.id, "x": t.x, "y": t.y, "height": t.h, "published": t.published,
-                           "sprayed": t.sprayed, "marked_calls": t.marked_calls, "nozzle_s": t.nozzle_s}
+                "trees": [{"id": t.id, "x": t.x, "y": t.y, "height": t.h, "map_height": t.map_h,
+                           "published": t.published, "sprayed": t.sprayed, "marked_calls": t.marked_calls,
+                           "nozzle_s": t.nozzle_s,
+                           "min_clearance_m": t.min_clear if math.isfinite(t.min_clear) else None}
                           for t in self.trees],
                 "refused_calls": self.refused_calls,
                 "nozzle_edges": self.nozzle_edges,
@@ -185,6 +196,7 @@ class World:
                     self.map_dirty = True
                 if dist <= CLEAR_RADIUS:
                     self.min_clearance = min(self.min_clearance, d[2] - t.h)
+                    t.min_clear = min(t.min_clear, d[2] - t.h)
             if self.nozzle:
                 if not self.was_nozzle:
                     self.nozzle_edges += 1
@@ -218,8 +230,14 @@ class World:
             self.map_dirty = False
         self.pub_map.publish(m)
 
-    def publish_disparity(self, now, z):
-        clear = z - CANOPY_Z
+    def true_range(self, pos):
+        """Range the downward camera sees: drone z - the highest true top whose outline is within DISPARITY_REACH xy."""
+        x, y, z = pos
+        tops = [t.h for t in self.trees if math.hypot(x - t.x, y - t.y) <= TREE_RADIUS + DISPARITY_REACH]
+        return z - max(tops, default=0.0)
+
+    def publish_disparity(self, now, pos):
+        clear = self.true_range(pos)
         d = FX * BASELINE / clear if clear >= 0.2 else float("nan")
         img = Image()
         img.header.stamp = now
@@ -233,7 +251,8 @@ class World:
 
     def publish_info(self, now):
         cx, cy = WIDTH / 2.0, HEIGHT / 2.0
-        for pub, tx in ((self.pub_left, 0.0), (self.pub_right, -FX * BASELINE)):
+        # right P[3] = -fx * B with B in mm (the convention of the Isaac / field camera_info, "neg_mm")
+        for pub, tx in ((self.pub_left, 0.0), (self.pub_right, -FX * BASELINE * 1000.0)):
             m = CameraInfo()
             m.header.stamp = now
             m.header.frame_id = "cam_bottom_left"
@@ -260,7 +279,7 @@ class World:
             if k == 1 or k % INFO_EVERY == 0:
                 self.publish_info(now)
             if k % DISPARITY_EVERY == 0:
-                self.publish_disparity(now, pos[2])
+                self.publish_disparity(now, pos)
             if k % MAP_EVERY == 0 or self.map_dirty:
                 self.publish_map(now)
             wall_now = time.monotonic() - wall0
