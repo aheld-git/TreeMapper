@@ -41,6 +41,12 @@ std::optional<corridor_nav::CameraFov> fovFrom(const sensor_msgs::CameraInfo& le
 /// usable length, or when the rotated axis is near vertical (its xy norm < 0.1: no across-track direction).
 double imageXAxisBodyYaw(const geometry_msgs::Quaternion& optical_to_body);
 
+/// ROS-convention camera frame -> body (x = optical axis, y left, z up) to optical -> body: the quaternion times the
+/// fixed optical -> ROS camera rotation q = (-0.5, 0.5, -0.5, 0.5), the same one treemapper_ros appends
+/// (rosCameraToOptical() in treemapper_ros/src/input_sync.cpp, camera_frame_is_optical: false). Not linkable from
+/// here without the whole node library, hence repeated. A non-finite or zero quaternion stays unusable (NaN follows).
+geometry_msgs::Quaternion opticalMountFromRosCamera(const geometry_msgs::Quaternion& ros_camera_to_body);
+
 /// fx = K[0] of the left info, baseline = -P_right[3] / P_right[0]. nullopt when either is not positive and finite.
 std::optional<corridor_nav::StereoIntrinsics> stereoFrom(const sensor_msgs::CameraInfo& left,
                                                          const sensor_msgs::CameraInfo& right);

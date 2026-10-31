@@ -85,6 +85,17 @@ double imageXAxisBodyYaw(const geometry_msgs::Quaternion& q) {
   return std::atan2(ay, ax);
 }
 
+geometry_msgs::Quaternion opticalMountFromRosCamera(const geometry_msgs::Quaternion& a) {
+  // Hamilton product a * r, r = optical -> ROS camera (treemapper_ros rosCameraToOptical())
+  const double rx = -0.5, ry = 0.5, rz = -0.5, rw = 0.5;
+  geometry_msgs::Quaternion o;
+  o.w = a.w * rw - a.x * rx - a.y * ry - a.z * rz;
+  o.x = a.w * rx + a.x * rw + a.y * rz - a.z * ry;
+  o.y = a.w * ry - a.x * rz + a.y * rw + a.z * rx;
+  o.z = a.w * rz + a.x * ry - a.y * rx + a.z * rw;
+  return o;
+}
+
 std::optional<corridor_nav::StereoIntrinsics> stereoFrom(const sensor_msgs::CameraInfo& left,
                                                          const sensor_msgs::CameraInfo& right) {
   const double fx = left.K[0];

@@ -160,8 +160,8 @@ TEST(Conversions, ImageXAxisBodyYaw) {
   EXPECT_NEAR(imageXAxisBodyYaw(quat(0, 0, std::sin(M_PI / 4), std::cos(M_PI / 4))), M_PI / 2, 1e-12);
   // The Isaac camera mount (treemapper_sim.launch, optical -> body), q = (qx, qy, qz, qw) =
   // (-0.7071065073, 0.7071070551, 1.3156e-7, 5.1934e-7). Rotating (1, 0, 0) by q:
-  //   x' = 1 - 2 (qy^2 + qz^2) = 1 - 2 (0.50000077 + 1.7e-14) = -7.7e-7
-  //   y' = 2 (qx qy + qw qz)   = 2 (-0.49999997... + 6.8e-14)  = -0.9999999999993
+  //   x' = 1 - 2 (qy^2 + qz^2) = 1 - 2 (0.50000039 + 1.7e-14) = -7.7e-7
+  //   y' = 2 (qx qy + qw qz)   = 2 (-0.49999999999971 + 6.8e-14) = -0.9999999999993
   //   z' = 2 (qx qz - qw qy)   = -9.2e-7
   // so the image x-axis points along body -y: atan2(-1.0, -7.7e-7) = -pi/2 - 7.7e-7 = -1.5707971 (hand value
   // -1.5707963 = -pi/2 to 1e-6). Corridor yaw = heading + pi/2 - phi = heading + pi.
@@ -176,6 +176,38 @@ TEST(Conversions, ImageXAxisBodyYaw) {
   EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(quat(0, 0, 0, 0))));
   EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(quat(NAN, 0, 0, 1))));
   EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(quat(0, 0, 0, INFINITY))));
+}
+
+TEST(Conversions, RosCameraMountToOptical) {
+  // The real drone: body <- sensor_down is a ROS camera frame (x = optical axis, y left, z up) pitched Ry(82 deg),
+  // q = (0, sin 41, 0, cos 41) (treemapper_real.launch). Optical -> ROS camera is the fixed rotation
+  // q_r = (-0.5, 0.5, -0.5, 0.5) of treemapper_ros (rosCameraToOptical()), which sends the optical x-axis (image
+  // columns, right) to ROS (0, -1, 0): x' = 1 - 2 (0.25 + 0.25) = 0, y' = 2 (qx qy + qw qz) = 2 (-0.25 - 0.25) = -1,
+  // z' = 2 (qx qz - qw qy) = 2 (0.25 - 0.25) = 0. The pitch is a rotation about y, which leaves (0, -1, 0) alone, so
+  // the image x-axis is body -y: phi = atan2(-1, 0) = -pi/2. Fed as if it were optical, the same quaternion gives
+  // phi = 0 (x-axis rotated about y stays in the xz plane: (cos 82, 0, -sin 82) -> atan2(0, 0.139) = 0): the wrong
+  // axis across track.
+  const double a = 82.0 * M_PI / 180.0;
+  const auto real = quat(0.0, std::sin(a / 2), 0.0, std::cos(a / 2));
+  EXPECT_NEAR(imageXAxisBodyYaw(opticalMountFromRosCamera(real)), -M_PI / 2, 1e-12);
+  EXPECT_NEAR(imageXAxisBodyYaw(real), 0.0, 1e-12);   // what the node would get by mistake
+  // the launch file's literal quaternion
+  EXPECT_NEAR(imageXAxisBodyYaw(opticalMountFromRosCamera(quat(0.0, 0.6560590289905073, 0.0, 0.7547095802227720))),
+              -M_PI / 2, 1e-9);
+  // identity ROS camera frame (x forward, y left, z up): image x-axis = body -y
+  EXPECT_NEAR(imageXAxisBodyYaw(opticalMountFromRosCamera(quat(0, 0, 0, 1))), -M_PI / 2, 1e-12);
+  // yawed 90 deg about body z: the image x-axis (body -y) turns to body +x
+  EXPECT_NEAR(imageXAxisBodyYaw(opticalMountFromRosCamera(quat(0, 0, std::sin(M_PI / 4), std::cos(M_PI / 4)))), 0.0,
+              1e-12);
+  // vertical-axis gate on the composed rotation: rolled 90 deg about body x the image x-axis is vertical -> NaN;
+  // rolled 80 deg its xy norm is sin(10 deg) = 0.17 >= 0.1 -> still usable
+  EXPECT_TRUE(std::isnan(
+      imageXAxisBodyYaw(opticalMountFromRosCamera(quat(std::sin(M_PI / 4), 0, 0, std::cos(M_PI / 4))))));
+  EXPECT_NEAR(imageXAxisBodyYaw(opticalMountFromRosCamera(quat(std::sin(40 * M_PI / 180), 0, 0, std::cos(40 * M_PI / 180)))),
+              -M_PI / 2, 1e-9);
+  // an invalid quaternion stays invalid
+  EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(opticalMountFromRosCamera(quat(0, 0, 0, 0)))));
+  EXPECT_TRUE(std::isnan(imageXAxisBodyYaw(opticalMountFromRosCamera(quat(NAN, 0, 0, 1)))));
 }
 
 TEST(Conversions, StereoFromCameraInfo) {

@@ -13,8 +13,10 @@
 // Camera mount (wide-axis alignment): ~camera_mount = [x, y, z, qx, qy, qz, qw] (optical camera -> body, the format of
 // treemapper_ros' camera_mount) gives the yaw of the image x-axis on the body; without it ~camera_mount_source = tf
 // looks up body_frame <- left camera_info frame_id once (waits up to ~camera_mount_wait s); if neither works the yaw
-// is unknown (NaN, warned once) and the navigator uses the old fov_min rule with yaw = heading. The camera frame must
-// be an optical frame (x right, y down, z forward), as treemapper_ros' default.
+// is unknown (NaN, warned once) and the navigator uses the old fov_min rule with yaw = heading. ~camera_frame_is_optical
+// (default true, as in treemapper_ros) says whether the mount frame is optical (x right, y down, z forward); false =
+// ROS camera frame (x = optical axis, the real drone's sensor_down): the fixed ROS camera -> optical rotation is
+// composed first, for ~camera_mount and for TF alike.
 //
 // Until camera_info (and, without `home` in the field file, a pose) has arrived there is no Navigator: the node
 // publishes IDLE, nozzle closed and a hover setpoint at the current pose if there is one.
@@ -99,6 +101,7 @@ class CorridorNavNode {
     if (!(rate > 0.0 && rate <= 200.0)) throw std::invalid_argument("~rate must be in (0, 200] Hz");
     pnh_.param<std::string>("camera_mount_source", mount_source_, "tf");
     pnh_.param<double>("camera_mount_wait", mount_wait_s_, 5.0);
+    pnh_.param<bool>("camera_frame_is_optical", mount_is_optical_, true);
     if (mount_source_ != "tf" && mount_source_ != "none") {
       throw std::invalid_argument("~camera_mount_source must be 'tf' or 'none'");
     }
@@ -113,7 +116,7 @@ class CorridorNavNode {
       q.y = m[4];
       q.z = m[5];
       q.w = m[6];
-      resolveMountYaw(imageXAxisBodyYaw(q), "~camera_mount");
+      resolveMountYaw(mountYaw(q), "~camera_mount");
     } else if (mount_source_ == "none") {
       resolveMountYaw(std::numeric_limits<double>::quiet_NaN(), "~camera_mount_source none");
     }
@@ -290,6 +293,11 @@ class CorridorNavNode {
     }
   }
 
+  /// Body yaw of the image x-axis for a mount rotation in the configured camera frame convention.
+  double mountYaw(const geometry_msgs::Quaternion& q) const {
+    return imageXAxisBodyYaw(mount_is_optical_ ? q : opticalMountFromRosCamera(q));
+  }
+
   /// Sets the yaw of the image x-axis (NaN = unknown) and says what the navigator will do with it.
   void resolveMountYaw(double yaw, const std::string& source) {
     mount_yaw_ = yaw;
@@ -319,7 +327,7 @@ class CorridorNavNode {
     if (mount_wait_start_.isZero()) mount_wait_start_ = now;
     try {
       const auto tr = tf_buffer_.lookupTransform(body_frame_, cam, ros::Time(0));
-      resolveMountYaw(imageXAxisBodyYaw(tr.transform.rotation), "TF " + body_frame_ + " <- " + cam);
+      resolveMountYaw(mountYaw(tr.transform.rotation), "TF " + body_frame_ + " <- " + cam);
       return true;
     } catch (const tf2::TransformException& e) {
       if ((now - mount_wait_start_).toSec() < mount_wait_s_) {
@@ -577,6 +585,7 @@ class CorridorNavNode {
   std::optional<corridor_nav::CameraFov> fov_;
   std::string mount_source_;
   double mount_wait_s_{5.0};
+  bool mount_is_optical_{true};
   double mount_yaw_{std::numeric_limits<double>::quiet_NaN()};   ///< body yaw of the image x-axis; NaN = unknown
   bool mount_resolved_{false};
   ros::Time mount_wait_start_;

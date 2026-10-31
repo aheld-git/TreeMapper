@@ -20,9 +20,14 @@ right_info_topic: /cam/bottom/right/half/camera_info    # baseline = -P[3] / P[0
 #                                              corridor_nav.launch's camera_mount arg, absent here)
 #   camera_mount_source: tf                    TF body_frame <- the left camera_info's frame_id, looked up once
 #   camera_mount_source: none                  do not look it up
-# The camera frame must be an optical frame. If none gives a mount (waiting camera_mount_wait s for the TF), the
+# camera_frame_is_optical (same meaning as in treemapper_ros): true = the mount frame is optical (x right, y down,
+# z forward); false = ROS camera frame (x = optical axis), the real drone's sensor_down: the fixed ROS camera ->
+# optical rotation is composed first. Isaac: the treemapper_sim.launch camera_mount, optical (true). Real flight:
+# camera_frame_is_optical:=false with the mount from TF (corridor_nav.launch camera_mount:=none) or the mount of
+# treemapper_real.launch. If none gives a mount (waiting camera_mount_wait s for the TF), the
 # yaw is unknown (warned once): corridors are sized with min(hfov, vfov) and flown with yaw = corridor heading.
 camera_mount_source: tf
+camera_frame_is_optical: true
 camera_mount_wait: 5.0                                  # s of ROS time
 
 # --- cadence

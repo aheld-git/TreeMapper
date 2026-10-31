@@ -7,10 +7,15 @@
 <launch>
   <arg name="field_file"/>                                <!-- YAML: polygon [[x, y], ...], optional heading_rad, home [x, y] -->
   <arg name="config_file" default=""/>                    <!-- "" = config/corridor_nav.yaml's pointer (config/core/corridor_nav.cfg) -->
-  <!-- optical camera -> body, [x, y, z, qx, qy, qz, qw] (treemapper_ros' camera_mount format). Default: the Isaac
-       camera of ros/treemapper_ros/launch/treemapper_sim.launch (image x-axis along body -y). "none" = no param: the node
-       looks body <- left camera frame up in TF (config/corridor_nav.yaml), else the mount is unknown (fov_min rule). -->
-  <arg name="camera_mount" default="[0.15000002475785956, 0.07999961110446568, -2.6425180287698025e-07, -0.7071065073147165, 0.7071070550580697, 1.315609245066774e-07, 5.193386764157588e-07]"/>
+  <!-- Camera mount, [x, y, z, qx, qy, qz, qw] (treemapper_ros' camera_mount format, rotation = camera frame -> body).
+       "none" (default) = no param: the node looks body <- left camera frame up in TF (config/corridor_nav.yaml); if
+       that fails the mount is unknown and the fov_min rule is used. Isaac (optical frame, camera_frame_is_optical
+       true) passes the treemapper_sim.launch camera_mount:
+       [0.15000002475785956, 0.07999961110446568, -2.6425180287698025e-07, -0.7071065073147165, 0.7071070550580697, 1.315609245066774e-07, 5.193386764157588e-07]
+       Real flight: the camera frame sensor_down is a ROS camera frame, so camera_frame_is_optical:=false (with TF, or the
+       mount of treemapper_real.launch). A wrong value flies the image x-axis along track while sizing with hfov. -->
+  <arg name="camera_mount" default="none"/>
+  <arg name="camera_frame_is_optical" default="true"/>
   <arg name="use_sim_time" default="true"/>
   <arg name="output" default="screen"/>
 
@@ -18,6 +23,7 @@
   <node pkg="corridor_nav_ros" type="corridor_nav_node" name="corridor_nav" output="$(arg output)" required="false">
     <rosparam command="load" file="$(find corridor_nav_ros)/config/corridor_nav.yaml"/>
     <param name="field_file" value="$(arg field_file)"/>
+    <param name="camera_frame_is_optical" value="$(arg camera_frame_is_optical)"/>
     <rosparam if="$(eval arg('camera_mount') != 'none')" param="camera_mount" subst_value="true">$(arg camera_mount)</rosparam>
     <param if="$(eval arg('config_file') != '')" name="config_file" value="$(arg config_file)"/>
   </node>
