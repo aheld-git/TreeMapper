@@ -34,12 +34,16 @@ for _p in (_SIM, _TOOLS):
 from isaac import frames, layout  # noqa: E402  (pure modules; no Isaac needed)
 
 
+KIT_PASSTHROUGH_PREFIXES = ("--/",)
+
+
 def log(msg):
     print("[orchard_sim] %s" % msg, flush=True)
 
 
 def parse_args():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 allow_abbrev=False)
     ap.add_argument("--spec", required=True, help="scene spec JSON (sim/specs/*.json)")
     ap.add_argument("--out", required=True, help="run directory (truth.json, deposition.json, rtf.json, frames)")
     ap.add_argument("--camera", default=os.path.join(_SIM, "specs", "camera.json"))
@@ -60,9 +64,12 @@ def parse_args():
     ap.add_argument("--max-sim", type=float, default=0.0, help="stop after this many sim s (0 = until SIGTERM)")
     ap.add_argument("--domain-id", type=int, default=int(os.environ.get("ROS_DOMAIN_ID", "77")))
     ap.add_argument("--renderer", default="RaytracedLighting")
-    args, unknown = ap.parse_known_args()   # Kit consumes its own arguments
-    if unknown:
-        log("WARNING: ignoring unrecognised arguments: %s" % unknown)
+    args, unknown = ap.parse_known_args()
+    # Only carb settings (--/section/key=value) may pass through to Kit, which reads sys.argv itself; none is
+    # needed by the checks, the prefix is the explicit allow-list. Anything else is a typo: fail loud.
+    bad = [a for a in unknown if not a.startswith(KIT_PASSTHROUGH_PREFIXES)]
+    if bad:
+        ap.error("unrecognised arguments: %s" % " ".join(bad))
     return args
 
 
@@ -83,6 +90,10 @@ def main():
     if not assets_dir:
         raise SystemExit("no tree assets: pass --assets-dir or set assets_dir in the spec")
     dt = 1.0 / args.physics_hz
+    clutter = spec.get("clutter") or {}
+    if clutter.get("grass") or clutter.get("rocks"):
+        log("WARNING: spec clutter %s is requested but not implemented: the ground is a flat-colour mesh, no grass or rocks"
+            % json.dumps(clutter))
 
     from isaacsim import SimulationApp
     app = SimulationApp({"headless": True, "renderer": args.renderer, "width": rig.width, "height": rig.height})
@@ -148,7 +159,7 @@ def run(app, args, spec, rig, assets_dir, dt):
 
     rclpy.init()
     node = rclpy.create_node("tm_orchard_sim")
-    latched = QoSProfile(history=HistoryPolicy.KEEP_LAST, depth=100, reliability=ReliabilityPolicy.RELIABLE,
+    latched = QoSProfile(history=HistoryPolicy.KEEP_LAST, depth=1, reliability=ReliabilityPolicy.RELIABLE,
                          durability=DurabilityPolicy.TRANSIENT_LOCAL)
     pub_clock = node.create_publisher(Clock, "/clock", 100)
     pub_tf = node.create_publisher(TFMessage, "/tf", 100)
@@ -158,7 +169,7 @@ def run(app, args, spec, rig, assets_dir, dt):
     relay = cameras.CameraInfoRelay(node, rig)
 
     inbox = {"sp": None, "setpoints": 0, "spray_cmds": 0}
-    sim = {"t": 0.0, "step": 0, "err": None, "skew": 0.0}
+    sim = {"t": 0.0, "step": 0, "err": None, "warm": True, "offset": None}
     nozzle_box = {}
 
     def on_setpoint(msg):
@@ -192,16 +203,30 @@ def run(app, args, spec, rig, assets_dir, dt):
     every_1hz = max(int(round(args.physics_hz)), 1)
     every_depo = max(int(round(args.physics_hz / 2.0)), 1)
 
+    timeline = omni.timeline.get_timeline_interface()
+
     def on_physics_step(step_size):
         """Runs once per physics step: ROS inbox, controller, pose, /clock, /tf, nozzle, 1 Hz and 2 Hz topics."""
         if sim["err"] is not None:
             return
         try:
+            tl = timeline.get_current_time()
+            if sim["offset"] is None:
+                return                           # warm-up updates: nothing is published, the clock has not started
+            if sim["warm"]:
+                # first step of the first clocked update; the update's last step is at (timeline + offset)
+                start = tl + sim["offset"] - (n_sub - 1) * dt
+                if start < -1e-9:
+                    raise RuntimeError("sim clock would start negative (%.5f s, timeline %.5f, offset %.5f)"
+                                       % (start, tl, sim["offset"]))
+                sim["t"] = start - dt
+                sim["warm"] = False
             for _ in range(4):
                 rclpy.spin_once(node, timeout_sec=0.0)
             sp, inbox["sp"] = inbox["sp"], None
             sim["t"] += dt                       # time at the end of this step; the camera frame of this update ends here too
             sim["step"] += 1
+
             t = sim["t"]
             state = drone.step(dt, t, sp)
             sec, nsec = frames.split_stamp(t)
@@ -228,27 +253,33 @@ def run(app, args, spec, rig, assets_dir, dt):
     world.add_physics_callback("tm_orchard_step", on_physics_step)
     world.play()
 
-    timeline = omni.timeline.get_timeline_interface()
     wall0 = time.time()
     last_log = wall0
     log("running: physics %.0f Hz, cameras %.1f Hz (render every %d steps), v_max %.1f/%.1f m/s, start %s"
         % (args.physics_hz, args.render_hz, n_sub, args.v_max_xy, args.v_max_z, start))
     max_skew = 0.0
-    calibrated = False
+    n_updates = 0
     while app.is_running() and not stop["flag"]:
         world.step(render=True)
         if sim["err"] is not None:
             raise sim["err"]
-        if not calibrated:
-            # The OmniGraph (image stamps) reads the timeline, which leads the physics-step counter by a constant
-            # (the first update runs extra steps). Shift our clock once so /clock, /tf and the image stamps share a
-            # time base, and every image stamp lies on the 60 Hz grid of the /tf stamps.
-            off = timeline.get_current_time() - sim["t"]
-            sim["t"] += off
-            calibrated = True
-            log("clock aligned to the timeline: +%.4f s" % off)
+        n_updates += 1
+        if sim["offset"] is None:
+            # Warm-up: the first update runs 5 of 6 steps. Measure how the graph time (image stamps) relates to the
+            # timeline on the second one; from the third update on /clock, /tf and the nozzle run on graph time.
+            if n_updates == 2:
+                sim["offset"] = cameras.graph_sim_time() - timeline.get_current_time()
+                log("clock starts on graph time: timeline %.5f s, graph %.5f s, offset %+.5f s"
+                    % (timeline.get_current_time(), cameras.graph_sim_time(), sim["offset"]))
+            continue
         t = sim["t"]
-        max_skew = max(max_skew, abs(timeline.get_current_time() - t))
+        g = cameras.graph_sim_time()
+        skew = g - t
+        max_skew = max(max_skew, abs(skew))
+        if abs(skew) > 0.5 * dt:
+            # the image stamps (graph time) and our /clock, /tf must stay on one time base: stop rather than drift
+            raise RuntimeError("sim clock left the image time base: graph %.5f s, ours %.5f s, skew %.5f s "
+                               "(limit %.5f s)" % (g, t, skew, 0.5 * dt))
         if saver is not None:
             saver.poll(t, drone.state)
         now = time.time()
@@ -256,7 +287,7 @@ def run(app, args, spec, rig, assets_dir, dt):
             wall = now - wall0
             st = drone.state
             log("wall=%6.1fs sim=%7.2fs RTF=%5.2f pos=(%.2f,%.2f,%.2f) yaw=%.0fdeg setpoints_rx=%d spray_rx=%d "
-                "open_t=%.1fs info=%d/%d timeline_skew=%.4fs"
+                "open_t=%.1fs info=%d/%d graph_skew=%.4fs"
                 % (wall, t, t / wall, st.x, st.y, st.z, math.degrees(st.yaw), inbox["setpoints"],
                    inbox["spray_cmds"], nozzle.deposition.open_time, relay.count["left"], relay.count["right"],
                    max_skew))
@@ -276,7 +307,7 @@ def run(app, args, spec, rig, assets_dir, dt):
         json.dump(nozzle.deposition.to_json(), f, indent=1)
     with open(os.path.join(args.out, "rtf.json"), "w") as f:
         json.dump({"sim_s": sim_s, "wall_s": wall, "rtf": sim_s / wall if wall > 0 else 0.0}, f)
-    log("done: steps=%d wall=%.1fs sim=%.2fs RTF=%.3f timeline_skew_max=%.4fs deposition=%s unknown_hits=%d"
+    log("done: steps=%d wall=%.1fs sim=%.2fs RTF=%.3f graph_skew_max=%.4fs deposition=%s unknown_hits=%d"
         % (sim["step"], wall, sim_s, sim_s / max(wall, 1e-9), max_skew, json.dumps(nozzle.deposition.to_json()),
            nozzle.unknown_hits))
     node.destroy_node()

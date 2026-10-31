@@ -1,0 +1,79 @@
+{
+ "seed": 1,
+ "assets_dir": "/assets/trees",
+ "field": {
+  "polygon": [
+   [
+    -5.0,
+    -5.0
+   ],
+   [
+    17.0,
+    -5.0
+   ],
+   [
+    17.0,
+    17.0
+   ],
+   [
+    -5.0,
+    17.0
+   ]
+  ]
+ },
+ "rows": {
+  "count": 3,
+  "trees_per_row": 3,
+  "row_spacing": 6.0,
+  "tree_spacing": 6.0,
+  "heading_rad": 0.0,
+  "origin": [
+   0.0,
+   0.0
+  ],
+  "jitter": 0.5,
+  "missing_fraction": 0.0
+ },
+ "species": {
+  "orange": 0.5,
+  "lemon": 0.5
+ },
+ "scale_range": [
+  0.8,
+  1.2
+ ],
+ "terrain": {
+  "slope_rad": 0.0,
+  "slope_dir_rad": 0.0,
+  "color": [
+   0.55,
+   0.42,
+   0.28
+  ]
+ },
+ "clutter": {
+  "grass": true,
+  "rocks": 0
+ },
+ "drone": {
+  "start": [
+   -3.0,
+   -3.0,
+   0.0
+  ],
+  "home": [
+   -3.0,
+   -3.0
+  ]
+ },
+ "nozzle": {
+  "flow_lps": 0.075,
+  "cone_half_angle_deg": 20,
+  "rays": 64,
+  "offset_body": [
+   0,
+   0,
+   -0.3
+  ]
+ }
+}

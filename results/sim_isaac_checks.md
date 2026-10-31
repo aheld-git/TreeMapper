@@ -5,8 +5,11 @@ headless `SimulationApp({"headless": True, "renderer": "RaytracedLighting", ...}
 `tm_sim_ros:latest` bridge (`tm_sim_net`, `ROS_DOMAIN_ID=77`, `rmw_fastrtps_cpp`), RTX 3070 shared.
 Raw outputs: `/data/work/sim_runs/chk/final3/` (truth, 3 frames + overlays, square traces, topics) and the Noetic-side
 logs in `/data/work/logs/final3/` (`/data/work` = `/media/alex/waspsim/cloud_build_bundle/work`).
-Check spec: `3x3_smoke.json` with one extra key, `terrain.color = [0.55, 0.42, 0.28]` (tan soil, so the foliage is the
-only green in the check images); the trees, seed and layout are those of `3x3_smoke.json`.
+Check spec: `sim/specs/3x3_check.json` = `3x3_smoke.json` with one extra key, `terrain.color = [0.55, 0.42, 0.28]` (tan soil,
+so the foliage is the only green in the check images); the trees, seed and layout are those of `3x3_smoke.json`.
+Fix round 1 re-ran the topics, hover projection, moving-flight and spray checks (`/data/work/sim_runs/chk/fix2/`, logs
+`/data/work/logs/fix2/`) after the clock change described below; the Task 11 table, the camera model, the square and the
+spray numbers of the first run (`final3`) are unchanged by it (spray re-checked: 0.2998 L on tree 5).
 
 ## Task 11: scene (`orchard_sim.py --only-scene`, spec `3x3_smoke.json`)
 
@@ -44,10 +47,36 @@ convention measured, see `frames.CameraRig.usd_camera_params`); without the offs
 | left / right `image_raw` | 9.7 Hz each per sim s (best-effort loss), 640x400 `rgb8`, frame ids `cam_left`, `cam_right` |
 | `camera_info` | 9.7 Hz, 121/121 image stamps have a camera_info with the identical stamp; K, P, size exactly as `camera.json`, D = 5 zeros, `plumb_bob`, R = I |
 | left vs right image stamps | 121 of 121 identical (exact-stamp `TimeSynchronizer` of `stereo_sgbm_node` works) |
-| image stamps vs `/tf` | 117 of 117 image stamps lie within 0.1 ms of a `/tf` stamp (pose and image share the 60 Hz grid) |
+| image stamps vs `/tf` | 118 of 118 image stamps lie within 0.1 ms of a `/tf` stamp (grid only; the moving-flight check below tests the content) |
 | `/tf_static` | body -> cam_left, body -> cam_right, replayed 1 Hz (10 in 10 s) |
 | `/sim/truth` | 9 trees, 1 Hz (latched on the ROS 2 side) |
 | `/sim/deposition` | 2 Hz |
+
+**Moving-flight check (`check_moving.py`, the image time base in motion).** orchard_sim with `--v-max-xy 4`, flown at a
+constant 4 m/s (measured 3.96 m/s) along +x straight across tree 5 at 15 m (`sim/specs/3x3_check.json`). All 119 published
+left images were kept in `tm_sim_ros`; for the 21 frames with the whole crown inside the image the pose is a tf2 lookup
+`world -> cam_left` AT THE IMAGE STAMP (`/tf` + `/tf_static` through the bridge), the truth centre is projected with the left P and
+compared with the measured crown centroid. Along-track = component of the offset along the image direction of the flight.
+
+| | along-track (px) | cross-track (px) |
+|---|---|---|
+| mean | **-2.6** (limit: \|mean\| <= 5, enforced in code, exit 1) | -3.9 |
+| std / min / max | 2.6 / -7.0 / +2.6 | 1.9 / -7.5 / -0.9 |
+| hover value (frame A, same sign convention) | -2.2 | -3.1 |
+| a one-frame (0.1 s) lag would be | +-13.3 | |
+
+Frames: `/data/work/sim_runs/chk/fix2/moving/`; per-frame table in `result.json`.
+
+This check found a real lag in the first version of the clock. The ROS2 camera helper stamps images with the graph's
+simulation time, which is **0.18333 s behind the timeline** (graph 0.21667 s when the timeline reads 0.4 s), while `/clock` and `/tf`
+were on the timeline: the image content was 0.18 s newer than its stamp, which is -24 px along-track at 4 m/s
+(mean -23.5 px, 19 frames; the hover and grid tests could not see it, a whole number of steps is on the 60 Hz grid).
+Fix: the sim clock now runs on the graph time. During the first two app updates nothing is published (the first update runs
+5 of 6 steps); the offset graph - timeline is measured on the second, and from the third update on `/clock`, `/tf`, the
+controller and the nozzle use `t = timeline + offset`, seeded before the first publish so `/clock` starts without a jump and
+never moves back (start would be negative -> exit 1). Every update afterwards `orchard_sim.py` reads the graph time (a probe
+`ROS2PublishClock` on `/tm_sim_time_probe` keeps `IsaacReadSimulationTime` evaluated) and exits non-zero if
+|graph time - our t| > dt/2: logged `graph_skew_max = 0.0000 s` over 210 sim s.
 
 **Square (`sim_check.py square`, moving carrot at 20 Hz, 8 x 8 m at z = 5 m).** Cross-track deviation of `/tf` from the
 square (3-D distance to the nearest edge):
@@ -63,14 +92,14 @@ around corners or accept ~1 m of corner cutting at 3-4 m/s.
 
 **Projection check (`check_projection.py`, left P, body pose o mount vs the crown in the saved left image).** Tree 5
 (centre (6.428, 6.169), top_z 2.341). The crown is the green blob nearest the projection, centroid of its closed mask.
-Frames: `/data/work/sim_runs/chk/final3/frame_hover{1,2,3}.png` (+ `.overlay.png`: red = projected truth centre, blue = crown
+Frames: `/data/work/sim_runs/chk/fix2/frame_hover{1,2,3}.png` (+ `.overlay.png`: red = projected truth centre, blue = crown
 centroid). Saved at hover (`--save-hover 3`).
 
 | frame | pose (x, y, z, yaw) | projected (u, v) | crown centroid (u, v) | offset | limit |
 |---|---|---|---|---|---|
-| A overhead (the check) | (6.43, 6.17, 15.0, 0) | (349.4, 214.7) | (347.1, 215.8) | **2.5 px** (-2.3, +1.1) | <= 10 px |
-| B 2.5 m west, 12 m up | (3.93, 6.17, 12.0, 0) | (350.2, 108.3) | (348.2, 114.1) | 6.1 px | info |
-| C as B, yaw +90 deg | (3.93, 6.17, 12.0, 1.571) | (458.0, 216.2) | (452.1, 214.3) | 6.2 px | info |
+| A overhead (the check) | (6.43, 6.17, 15.0, 0) | (349.4, 214.7) | (346.3, 216.9) | **3.8 px** (-3.1, +2.2) | <= 10 px |
+| B 2.5 m west, 12 m up | (3.93, 6.17, 12.0, 0) | (350.2, 108.3) | (348.2, 114.0) | 6.0 px | info |
+| C as B, yaw +90 deg | (3.93, 6.17, 12.0, 1.571) | (458.0, 216.2) | (452.4, 214.3) | 6.0 px | info |
 
 Yaw: with yaw +90 deg the tree 2.5 m ahead-in-x moves from the top of the image (frame B, v = 114) to the right of it
 (frame C, u = 452), i.e. image-up = body forward and image-right = body right (-y), as the mount requires.
@@ -130,7 +159,9 @@ docker logs -f tm_isaac > /media/alex/waspsim/cloud_build_bundle/work/logs/<name
 # checks (ROS 1 only; /data/work in tm_sim_ros is writable)
 docker exec tm_sim_ros /tm_entrypoint.sh python3 /ws/sim/isaac/sim_check.py topics --duration 10
 docker exec tm_sim_ros /tm_entrypoint.sh python3 /ws/sim/isaac/sim_check.py square --z 5 --half 4 --speed 1.5
+# the checks use --spec /ws/sim/specs/3x3_check.json --v-max-xy 4 --save-hover 3
 docker exec tm_sim_ros /tm_entrypoint.sh python3 /ws/sim/isaac/sim_check.py flight --tree 5      # frames via --save-hover 3
+docker exec tm_sim_ros /tm_entrypoint.sh python3 /ws/sim/isaac/check_moving.py --tree 5 --z 15 --speed 4 --out /data/work/sim_runs/<name>/moving
 docker exec tm_sim_ros /tm_entrypoint.sh python3 /ws/sim/isaac/check_projection.py --run /data/work/sim_runs/<name> --frame frame_hover1 --tree 5
 docker exec tm_sim_ros /tm_entrypoint.sh python3 /ws/sim/isaac/sim_check.py hover --x 6.428 --y 6.169 --z 5.341
 docker exec tm_sim_ros /tm_entrypoint.sh python3 /ws/sim/isaac/sim_check.py spray --seconds 4 --rate 10
@@ -140,7 +171,7 @@ docker stop tm_sim_ros
 ```
 
 Exit behaviour: SIGTERM/SIGINT write `deposition.json` and `rtf.json` (`{"sim_s","wall_s","rtf"}`) and close the app
-(2.9 s). An exception during scene build prints the traceback and exits 1 (tested with `--assets-dir /nonexistent`:
+(2.9 s). Unknown command-line arguments are an error (only `--/...` carb settings pass through to Kit). An exception during scene build prints the traceback and exits 1 (tested with `--assets-dir /nonexistent`:
 `FileNotFoundError`, exit code 1).
 
 ## Concerns and limits
@@ -154,5 +185,7 @@ Exit behaviour: SIGTERM/SIGINT write `deposition.json` and `rtf.json` (`{"sim_s"
   Use `--max-rtf` to hold the sim at what perception can follow.
 - `/tf_static`, `/sim/truth` are replayed at 1 Hz because the bridge does not latch (Task 10); Noetic consumers wait up to 1 s.
 - Images are best-effort through the bridge: 2-4 % of frames are lost (9.7 Hz received of 10).
-- The clock is shifted once at the start by +0.2167 s (the timeline leads the physics step counter after the first app
-  update); `/clock` jumps forward by that amount once, then everything shares one time base.
+- `/clock` starts at ~0.32 s (not 0): the first two app updates are warm-up and publish nothing; the clock is the graph time
+  (see the moving-flight section). `/tm_sim_time_probe` (10 Hz Clock, not bridged) exists only to read that time.
+- camera_info comes from a local subscription to the image topic (`CameraInfoRelay`): 119/119 images had an identical-stamp
+  camera_info and RTF was unaffected, so it was not moved into the main loop.

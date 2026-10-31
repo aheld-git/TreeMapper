@@ -8,7 +8,7 @@ Modes
   square      take off to --z, fly a square with a moving carrot (setpoints at 20 Hz), report the cross-track
               deviation of /tf world->body from the square
   flight      projection-check flight over one tree: A overhead, B offset, C offset + yaw 90 deg
-              (the sim saves frames at the sim seconds given to orchard_sim --save-frame)
+              (start orchard_sim with --save-hover 3: it saves the left image at each of the three hovers)
   hover       fly to --x --y --z (--yaw-deg) and hold --hold sim seconds
   spray       publish /corridor_nav/spray (Bool) at --rate Hz for --seconds sim seconds
 

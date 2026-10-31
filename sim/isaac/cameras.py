@@ -72,6 +72,10 @@ def build_ros_graph(cam_paths: Dict[str, str], rig: frames.CameraRig, domain_id:
             keys.CREATE_NODES: [
                 ("tick", "omni.graph.action.OnPlaybackTick"),
                 ("ctx", "isaacsim.ros2.bridge.ROS2Context"),
+                # The image stamps come from this graph's simulation time. A probe publisher keeps the node
+                # evaluated so orchard_sim can read the very time base the images are stamped with.
+                ("simtime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
+                ("probe", "isaacsim.ros2.bridge.ROS2PublishClock"),
                 ("rp_left", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
                 ("rp_right", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
                 ("img_left", "isaacsim.ros2.bridge.ROS2CameraHelper"),
@@ -80,6 +84,7 @@ def build_ros_graph(cam_paths: Dict[str, str], rig: frames.CameraRig, domain_id:
             keys.SET_VALUES: [
                 ("ctx.inputs:useDomainIDEnvVar", False),
                 ("ctx.inputs:domain_id", int(domain_id)),
+                ("probe.inputs:topicName", "/tm_sim_time_probe"),
                 ("rp_left.inputs:cameraPrim", [Sdf.Path(cam_paths["left"])]),
                 ("rp_right.inputs:cameraPrim", [Sdf.Path(cam_paths["right"])]),
                 ("rp_left.inputs:width", rig.width), ("rp_left.inputs:height", rig.height),
@@ -90,6 +95,9 @@ def build_ros_graph(cam_paths: Dict[str, str], rig: frames.CameraRig, domain_id:
                 ("img_left.inputs:frameId", LEFT_FRAME), ("img_right.inputs:frameId", RIGHT_FRAME),
             ],
             keys.CONNECT: [
+                ("tick.outputs:tick", "probe.inputs:execIn"),
+                ("ctx.outputs:context", "probe.inputs:context"),
+                ("simtime.outputs:simulationTime", "probe.inputs:timeStamp"),
                 ("tick.outputs:tick", "rp_left.inputs:execIn"),
                 ("tick.outputs:tick", "rp_right.inputs:execIn"),
                 ("ctx.outputs:context", "img_left.inputs:context"),
@@ -102,6 +110,12 @@ def build_ros_graph(cam_paths: Dict[str, str], rig: frames.CameraRig, domain_id:
         },
     )
     return {"graph": path, "rp_left": path + "/rp_left"}
+
+
+def graph_sim_time() -> float:
+    """Simulation time of the OmniGraph in the current app update (the time base of the image stamps)."""
+    import omni.graph.core as og
+    return float(og.Controller.attribute("/ActionGraph/simtime.outputs:simulationTime").get())
 
 
 # ----------------------------------------------------------------------------- ROS messages

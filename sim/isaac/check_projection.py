@@ -7,7 +7,7 @@ Reads ``<run>/truth.json``, ``<frame>.json`` (pose the sim saved with the image)
 The crown is found as the green blob (foliage; the check scene has a tan ground) nearest to the
 projected centre; its centroid is compared with the projection of the tree's truth centre
 (xy = hull centroid, z = 62.5 % of the tree height, the middle of the canopy volume).
-Exit 1 if the offset exceeds ``--max-px`` (only enforced for frames named in ``--strict``, default none).
+With ``--enforce`` exit 1 if the offset exceeds ``--max-px`` or the crown touches the image border.
 Runs under Python 3.8 (tm_sim_ros) or Isaac's 3.11; needs numpy and opencv.
 """
 import argparse
