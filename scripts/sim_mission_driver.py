@@ -95,6 +95,26 @@ def free_gb(path):
     return shutil.disk_usage(path).free / 1e9
 
 
+def call_bounded(proxy, budget):
+    """proxy() in a worker thread; (response, None) or (None, why) after ``budget`` wall s or on an exception, so a
+    hung service can never hold the driver (rospy service calls have no timeout of their own)."""
+    box = {}
+
+    def work():
+        try:
+            box["r"] = proxy()
+        except Exception as e:   # rospy.ServiceException and transport errors
+            box["e"] = e
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(budget)
+    if th.is_alive():
+        return None, "no answer within %.0f s wall" % budget
+    if "e" in box:
+        return None, str(box["e"])
+    return box["r"], None
+
+
 def cmd_run(a):
     from corridor_nav_msgs.msg import NavStatus
     from sensor_msgs.msg import CameraInfo, Image
@@ -155,7 +175,13 @@ def cmd_run(a):
     # 2. start
     t0 = time.time()
     while True:
-        r = start()
+        r, why = call_bounded(start, a.service_budget)
+        if r is None:
+            log("~start: %s" % why)
+            if time.time() - t0 > a.startup_budget:
+                return finish(EXIT_STARTUP, "~start failed: %s" % why)
+            time.sleep(1.0)
+            continue
         log("~start: success %s, %s" % (r.success, r.message))
         if r.success:
             break
@@ -169,10 +195,8 @@ def cmd_run(a):
     # 3. wait for DONE
     def abort_and_wait(code, reason):
         log("%s: calling ~abort" % reason)
-        try:
-            log("~abort: %s" % abort().message)
-        except rospy.ServiceException as e:
-            log("~abort failed: %s" % e)
+        r, why = call_bounded(abort, a.service_budget)
+        log("~abort: %s" % (r.message if r is not None else "failed: " + why))
         s0, wall0 = w.clock, time.time()
         while time.time() - wall0 < a.abort_wait / a.min_rtf:
             if w.status is not None and w.status.state == "DONE":
@@ -228,6 +252,7 @@ def main(argv=None):
     r.add_argument("--startup-budget", type=float, default=180.0, help="wall s per input / for ~start")
     r.add_argument("--stall", type=float, default=60.0, help="wall s without /clock or NavStatus -> fail")
     r.add_argument("--min-free-gb", type=float, default=8.0)
+    r.add_argument("--service-budget", type=float, default=10.0, help="wall s per ~start / ~abort call")
     a = ap.parse_args(argv)
     return cmd_wait_clock(a) if a.cmd == "wait-clock" else cmd_run(a)
 
