@@ -106,6 +106,16 @@ void Navigator::guardApply(GuardAction a, Outputs& out) const {
   }
 }
 
+void Navigator::raiseSprayFloor() {
+  spray_floor_ = std::max({spray_floor_, spray_pt_.z, pos_.z});
+  if (spray_pt_.z < spray_floor_) {
+    spray_pt_.z = spray_floor_;
+    count(counters_, "spray_point_guard_raised");
+    if (log_) log_("tree " + std::to_string(target_) + ": spray point raised to z " + std::to_string(spray_floor_) +
+                   " (clearance guard)");
+  }
+}
+
 void Navigator::sendMark(TreeId id, double t, Outputs& out) {
   mark_.id = id;
   mark_.sent_t = t;
@@ -192,7 +202,9 @@ TreeId Navigator::reresolve(const Point2& centre) const {
 void Navigator::planToTarget(double t, const char* replan_why) {
   const TreeEntry* tr = tree(target_);
   if (!tr) return;   // callers resolve target_ first (resolveTarget / advance); never dereference a missing tree
-  const TreeEntry& to = *tr;
+  // a guard floor on this target lifts its spray point: plan as if the canopy were that much higher
+  TreeEntry to = *tr;
+  if (to.height + cfg_.spray_clearance < spray_floor_) to.height = spray_floor_ - cfg_.spray_clearance;
   target_centre_ = to.centre;
   setPath(glideTo(pos_, from_id_, to, &counters_));
   spray_pt_ = path_.pts.back();

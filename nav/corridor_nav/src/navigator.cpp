@@ -251,6 +251,7 @@ void Navigator::stepGlide(const Inputs& in, Outputs& out) {
     return;
   }
   if (guard_released_) {
+    raiseSprayFloor();   // the descent stops where the guard let go, not at the published spray point
     planToTarget(in.t, "clearance guard released");
   } else if (needsReplan(planned_heights_, map_, cfg_)) {
     planToTarget(in.t, "published height changed");
@@ -264,8 +265,12 @@ void Navigator::stepGlide(const Inputs& in, Outputs& out) {
 }
 
 void Navigator::stepDose(const Inputs& in, Outputs& out) {
-  out.setpoint = spray_pt_;
   const GuardAction g = guardUpdate(in);
+  if (guard_released_) {   // hold the dose at the altitude where the guard let go
+    raiseSprayFloor();
+    hold_ = spray_pt_;
+  }
+  out.setpoint = spray_pt_;
   if (mark_.active) {   // dosed: waiting for set_tree_sprayed, nozzle off, phase HOPPING with the dosed id
     pollMark(in, out);
     if (state_ == NavState::kDose && mark_.done) finishTarget(in.t);
@@ -429,6 +434,7 @@ void Navigator::failAttempt(double t, const std::string& why) {
 }
 
 void Navigator::advance(double t) {
+  spray_floor_ = -INFINITY;   // the target was finished, skipped or dropped: its guard floor goes with it
   for (int pass = 0; pass < 2; ++pass) {
     while (next_target_ < targets_.size()) {
       const Target tg = targets_[next_target_++];

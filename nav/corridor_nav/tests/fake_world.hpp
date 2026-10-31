@@ -23,6 +23,7 @@ struct TruthTree {
   double x{0.0}, y{0.0};
   double r{1.5};                ///< crown radius, m
   double height{4.0};           ///< canopy top, world z
+  double height_bias{0.0};      ///< m added to the published height (the clearance stays on the truth height)
   bool sprayed{false};          ///< pre-marked trees are published with sprayed = true
   bool settle_only{false};      ///< seen only while the navigator hovers in SCAN_SETTLE
   int dwell_needed{3};          ///< ticks in SCAN within see_radius before it is published
@@ -97,7 +98,7 @@ struct FakeWorld {
       e.outline.push_back({tt.x + tt.r * std::cos(a), tt.y + tt.r * std::sin(a)});
     }
     e.centre = {tt.x, tt.y};
-    e.height = tt.height;
+    e.height = tt.height + tt.height_bias;
     e.observations = 10;
     e.sprayed = tt.sprayed;
     return e;

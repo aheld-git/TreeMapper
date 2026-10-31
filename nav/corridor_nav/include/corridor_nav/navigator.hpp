@@ -146,6 +146,9 @@ class Navigator {
   /// Decision + episode bookkeeping, once per GLIDE / DOSE tick; finish() applies it to the final setpoint.
   GuardAction guardUpdate(const Inputs& in);
   void guardApply(GuardAction a, Outputs& out) const;   ///< climb / no-descent on the setpoint
+  /// On a guard release in GLIDE / DOSE: spray_floor_ = max(spray_floor_, spray_pt_.z, pos_.z) and spray_pt_ raised
+  /// to it (counted spray_point_guard_raised). The floor holds for the target until it is finished, skipped or dropped.
+  void raiseSprayFloor();
   void pollMark(const Inputs& in, Outputs& out);
   void sendMark(treemapper::TreeId id, double t, Outputs& out);
   void abandonMark();
@@ -233,6 +236,7 @@ class Navigator {
   treemapper::Point2 target_centre_;
   double target_area_{0.0};
   Point3 spray_pt_;
+  double spray_floor_{-INFINITY};   ///< spray altitude floor of the current target (guard releases); -inf = none
   std::map<treemapper::TreeId, double> planned_heights_;   ///< for the re-plan trigger (needsReplan)
   std::set<treemapper::TreeId> attempted_;                 ///< sprayed, mark given up, or skipped twice
   std::map<treemapper::TreeId, int> skips_;                ///< times each tree was skipped

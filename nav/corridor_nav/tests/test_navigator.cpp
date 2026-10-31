@@ -463,6 +463,37 @@ TEST(Navigator, GuardClimbsAndBlocksDescent) {
   for (const TruthTree& t : w.trees) EXPECT_TRUE(t.sprayed);
 }
 
+TEST(Navigator, GuardReleaseRaisesTheSprayPointOfALowBiasedTree) {
+  // TreeMapper publishes tree 2 1.2 m below its true top: the spray point (published + spray_clearance) is only
+  // 1.3 m above the real canopy, so the guard (computed from the truth) climbs. On release the spray point is raised
+  // to where the guard let go, for every later approach to that tree, and the tree is sprayed instead of being
+  // skipped after three climbs.
+  const Config cfg;
+  std::vector<TruthTree> trees = grid({6, 12, 18});
+  trees[1].height_bias = -1.2;
+  const TreeId low = FakeWorld::idOf(1);
+  FakeWorld w = world(cfg, trees);
+  Navigator nav(cfg, field30x24(), fov90());
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+
+  EXPECT_GE(counter(nav, "guard_triggers"), 1u);
+  EXPECT_GE(counter(nav, "spray_point_guard_raised"), 1u);
+  EXPECT_EQ(counter(nav, "trees_skipped"), 0u);
+  EXPECT_EQ(nav.status().skipped, 0u);
+  EXPECT_TRUE(w.trees[1].sprayed);
+  EXPECT_EQ(countRequests(w, low), 1u);
+  for (std::size_t k = 0; k < w.trees.size(); ++k) EXPECT_EQ(w.trees[k].spray_calls, 1) << "tree " << k + 1;
+  EXPECT_GT(w.min_clearance, 0.0);   // true clearance over the canopy, whole mission
+  // the nozzle sprayed tree 2 from at least min_clearance above its true top
+  bool dosed = false;
+  for (const Sample& s : w.samples) {
+    if (s.target != low || !s.nozzle) continue;
+    dosed = true;
+    EXPECT_GE(s.pos.z - w.trees[1].height, cfg.min_clearance - 1e-9) << "t=" << s.t;
+  }
+  EXPECT_TRUE(dosed);
+}
+
 TEST(Navigator, DoseRetryThenSkip) {
   const Config cfg;
   std::vector<TruthTree> trees = grid({6, 12, 18});
