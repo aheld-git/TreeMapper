@@ -195,6 +195,43 @@ other system's stream as `map_existing.jsonl`, then `python3 -m treemapper_tools
   `python3 -m treemapper_tools.real_score --systems simple,cand_obj,cand_grid,existing ...` (`docs/REAL_FLIGHT.md`).
 - Our own node's recorded `~map`: `ros/treemapper_ros/scripts/treemapper_bag_to_jsonl.py`.
 
+## Isaac-only closed loop
+
+Isaac Sim renders an orchard and the stereo pair, the YOLOX detector and SGBM run on the renders, TreeMapper builds the
+map, the corridor navigator (`nav/corridor_nav`, `ros/corridor_nav_ros`) flies the drone and opens the nozzle, and Isaac
+measures where the spray lands (design: `docs/superpowers/specs/2026-10-30-corridor-spray-nav-design.md`; results:
+`results/corridor_nav_isaac.md`). Host commands, from the repository root:
+
+```bash
+# prerequisites: the Isaac image treehoppingnavigation-treehoppingsim:latest (Isaac Sim 5.1), the base image
+# treehoppingnavigation-bridge:latest (Noetic + Humble + ros1_bridge), an NVIDIA GPU, the tree assets
+# ($TM_TREE_ASSETS), the work drive mounted as /data/work in the containers ($TM_WORK_HOST), the detector model
+# /data/work/models/yolox_s_isaac/yolox_s_isaac_epoch190_416_static.onnx; >= 10 GB free on the work drive
+# (a 5x5 run writes ~25 MB, an 8x12 run ~150 MB), and room on / for the 32 GB tm_sim_ros image
+docker build -t tm_sim_ros:latest sim/bridge                                  # once (~95 s with warm layers)
+scripts/sim_mission.sh sim/specs/3x3_smoke.json                               # one corridor run, scored (~6 min wall)
+scripts/sim_mission.sh sim/specs/5x5_tropical.json --strategy field_first --runs 3 \
+  --out /data/work/sim_runs/my_5x5_field_first                               # 3 runs + compare.md
+```
+
+Each run directory holds `scorecard.md` / `mission_score.json` (`tools/treemapper_tools/mission_score.py`: efficiency,
+spray, safety rows, guards, cost, TreeMapper map score), `mission.bag`, `truth.json`, `deposition.json`, logs; options
+and file list in the header of `scripts/sim_mission.sh` (it builds the Noetic packages in `/data/work/catkin_sim` unless
+`--no-build`, refuses while a `tm_isaac` / `tm_sim_ros` container runs, exits 2 when a run fails a safety row).
+Re-score a run, or compare runs of one batch: `python3 -m treemapper_tools.mission_score --run <run_1> [--compare <run_2>
+...] --out <md>` (reads the bag again: ~30 s for 5x5, ~6 min for 8x12 per run). Compare strategies across scored
+batches without re-scoring, with the miss analysis:
+
+```bash
+docker run --rm -v "$PWD":/ws:ro -v /media/alex/waspsim/cloud_build_bundle/work:/data/work --entrypoint bash \
+  tm_sim_ros:latest -c 'cd /ws/tools && python3 -m treemapper_tools.sim_compare_report \
+  /data/work/sim_runs/cmp16c_5x5_tropical_corridor /data/work/sim_runs/cmp16c_5x5_tropical_field_first \
+  --out /data/work/sim_runs/my_report.md --json /data/work/sim_runs/my_report.json'
+```
+
+Timing at RTF 1.0 (wall): Isaac startup ~150 s per run; a 5x5 mission 360 .. 450 s, an 8x12 mission 900 .. 1020 s; scoring ~30 s (5x5) and ~6 min (8x12) per run.
+Nothing of this loop has run on the Orin or on a real flight; the real-drone flight backend is not built.
+
 ## Tunable parameters
 
 **Every mapper tunable lives in one file per profile** (`config/cand_obj.cfg` for sim / synthetic, which equals the

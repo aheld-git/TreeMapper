@@ -80,6 +80,46 @@ mean IoU 0.867 (0.629), centre RMSE 0.19 m (1.36), 0 safety violations (5), 0 ce
 7. Heights are world z and inherit any pose-z drift of the flight controller (unknown on the real flight).
 8. The Isaac truth heights are a constant fallback, so heights are validated on synthetic data only.
 
+## Corridor spray navigation and the Isaac-only closed loop (2026-10-30 .. 31)
+
+Design `docs/superpowers/specs/2026-10-30-corridor-spray-nav-design.md`, plan
+`docs/superpowers/plans/2026-10-31-corridor-spray-nav.md`, per-task log `.superpowers/sdd/2026-10-31-corridor-spray-nav/`.
+
+**Done**: the navigator core `nav/corridor_nav` (corridor planner with the wide image axis across track, tree assignment,
+2-opt ordering, terrain-following glide planner, state machine with dose validity, stereo clearance guard, holds,
+implausible-height skip) and its ROS 1 node `ros/corridor_nav_ros` (gtests, `nav_sim_lite` rostest); the Isaac Sim
+5.1 orchard (`sim/isaac`: scene from a spec, truth, drone controller, stereo cameras, nozzle deposition) bridged to
+Noetic (`sim/bridge`, image `tm_sim_ros`); the perception front end on the renders (`ros/sim_perception`: SGBM, YOLOX
+with detector parity 123/123 against the Orin's boxes); the one-command mission `scripts/sim_mission.sh` and the
+scorer `tools/treemapper_tools/mission_score.py`; the strategy report `tools/treemapper_tools/sim_compare_report.py`.
+Results in `results/corridor_nav_isaac.md` (detector parity, smoke, comparison, miss analysis); how to run in README
+"Isaac-only closed loop".
+
+**State** (12 runs, `5x5_tropical` and `rows_8x12`, corridor and field_first, 3 each): field_first is faster on both orchards (mission time
+-18 % on 5x5, -10.5 % on 8x12, well above the run-to-run spread); spray outcome shows no measurable difference;
+all 12 runs complete and pass every safety row. 35 misses in 666 tree visits, all from the map (published centre or
+height, one merged entry, one tree never published), none from navigation. Not verified on the Orin or on a real flight.
+
+**Open items**:
+1. **TreeMapper (follow-up, not changed here)**: (a) an entry's published height keeps climbing at `max_height_rate`
+   after the drone has passed it; corridor mode locks right after the scan and freezes it (+1.5 .. +4.1 m; field_first only when no later
+   scan line sees the tree), which makes
+   the footprint wider than the crown or trips the navigator's 9 m implausible-height skip; (b) on 5x5_tropical, a
+   tree first confirmed at the far edge of the image keeps a centre biased toward that track by 1-2.5 m. Together
+   these (centre 24, height 9) explain 33 of the 35 misses in the comparison.
+2. **Navigator**: a target skipped as implausibly high is never retried when its height later comes down (Task 16B
+   minor; it cost 3 trees in 12 runs). Deferred until real flight (must be fixed before one): the clearance guard
+   does not run during HOLD; the real camera's disparity offset (4.30 px) is not applied to the clearance; `~start`
+   answers success even when the core may refuse.
+3. **Deferred minors** (listed per task in `progress.md` of the task log, none safety-relevant in the sim runs):
+   config clamp and validation coverage (Task 1, 2), 2-opt test coverage and budget accounting (3), glide sampling gap
+   and carrot corner cutting (4), dose / guard boundary tests (5, 16A), HOLD bookkeeping (7), node robustness on
+   shutdown, exceptions and camera_info mismatch (8), rostest timing slack (9), Isaac check scripts' watchdogs and
+   asset bookkeeping (10, 11, 12), detector node error handling (14), scorer edge cases in dose windows and
+   `nozzle_outside_dose` latency (15), harness timeouts and `--force-clean` messages (16B).
+4. **Unverified**: nothing of this runs on the Orin; no real flight; the real-drone flight backend (MAVROS /
+   ArduPilot) is not built; wind and drift are not simulated; one seed per spec.
+
 The sections below are the milestone history, kept as written (earlier "next milestone" notes are superseded by this
 section).
 
