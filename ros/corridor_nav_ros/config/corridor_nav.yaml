@@ -1,0 +1,18 @@
+# corridor_nav_node parameters (loaded into the node's private namespace by launch/corridor_nav.launch).
+# The navigator's tunables are NOT here: single source of truth = the repository's config/corridor_nav.cfg
+# (config/core is a symlink to the repository's config/). A relative path is resolved against this package.
+config_file: config/core/corridor_nav.cfg
+
+# --- frames: pose = TF world_frame <- body_frame at the latest time; the setpoint is published in world_frame
+world_frame: world
+body_frame: body
+
+# --- inputs
+map_topic: /treemapper/map                              # treemapper_msgs/TreeMap
+set_sprayed_service: /treemapper/set_tree_sprayed       # treemapper_msgs/SetTreeSprayed
+disparity_topic: /disparity_image_down_float            # sensor_msgs/Image 32FC1, nadir clearance
+left_info_topic: /cam/bottom/left/half/camera_info      # field of view and fx
+right_info_topic: /cam/bottom/right/half/camera_info    # baseline = -P[3] / P[0]
+
+# --- cadence
+rate: 20.0                                              # Hz, control tick (setpoint and spray are published each tick)

@@ -63,10 +63,13 @@ ROS package (catkin, scratch workspace outside the repo; details in `ros/treemap
 
 ```bash
 docker exec tm_dev bash -lc 'source /opt/ros/noetic/setup.bash && mkdir -p /data/work/catkin_ws/src && cd /data/work/catkin_ws/src \
-  && ln -sfn /ws/ros/treemapper_msgs && ln -sfn /ws/ros/treemapper_ros && cd .. && catkin init \
+  && ln -sfn /ws/ros/treemapper_msgs && ln -sfn /ws/ros/treemapper_ros \
+  && ln -sfn /ws/ros/corridor_nav_msgs && ln -sfn /ws/ros/corridor_nav_ros && cd .. && catkin init \
   && catkin config --extend /opt/ros/noetic --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   && catkin build -j2 -p1 && catkin build treemapper_ros -j2 -p1 --make-args tests \
   && ./devel/lib/treemapper_ros/test_treemapper_ros'                      # 28 gtest cases
+# the corridor navigator node (nav/corridor_nav + ros/corridor_nav_ros): `catkin build corridor_nav_ros -j2 -p1`, then
+# `catkin build corridor_nav_ros -j2 -p1 --make-args tests && catkin run_tests corridor_nav_ros` (11 gtest cases)
 # end-to-end smoke on 60 s of the Isaac bag (needs /data/isaac and the extraction):
 #   source devel/setup.bash && rostest treemapper_ros replay_smoke.test
 ```

@@ -23,6 +23,11 @@ target_link_libraries(corridor_nav_core PUBLIC treemapper_core)
 target_compile_options(corridor_nav_core PRIVATE -Wall -Wextra -Wpedantic)
 set_target_properties(corridor_nav_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# ros/corridor_nav_ros includes this directory with CORRIDOR_NAV_BUILD_TESTS=OFF: catkin brings its own gtest targets.
+option(CORRIDOR_NAV_BUILD_TESTS "Build the test_nav suite" ON)
+if(NOT CORRIDOR_NAV_BUILD_TESTS)
+  return()
+endif()
 enable_testing()
 find_package(GTest QUIET)
 if(NOT GTest_FOUND AND EXISTS /usr/src/googletest/CMakeLists.txt)

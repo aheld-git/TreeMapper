@@ -1,0 +1,19 @@
+<!-- corridor_nav_node: the corridor spray navigator. Start the mission with
+       rosservice call /corridor_nav/start
+     Frames world / body and the half camera_info topics are the Isaac / farm-bag names (config/corridor_nav.yaml).
+     required="false": a navigator failure must never take the rest of the drone's roslaunch (TreeMapper, detector)
+     down with it. NO respawn: a restarted navigator would forget which trees it sprayed and where it was in the
+     mission; the vehicle side closes the nozzle when the spray messages stop (0.5 s). -->
+<launch>
+  <arg name="field_file"/>                                <!-- YAML: polygon [[x, y], ...], optional heading_rad, home [x, y] -->
+  <arg name="config_file" default=""/>                    <!-- "" = config/corridor_nav.yaml's pointer (config/core/corridor_nav.cfg) -->
+  <arg name="use_sim_time" default="true"/>
+  <arg name="output" default="screen"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+  <node pkg="corridor_nav_ros" type="corridor_nav_node" name="corridor_nav" output="$(arg output)" required="false">
+    <rosparam command="load" file="$(find corridor_nav_ros)/config/corridor_nav.yaml"/>
+    <param name="field_file" value="$(arg field_file)"/>
+    <param if="$(eval arg('config_file') != '')" name="config_file" value="$(arg config_file)"/>
+  </node>
+</launch>
