@@ -3,6 +3,7 @@
 // no clock, no ROS. The building blocks (corridors, assignment, ordering, glide, spray, guard) are pure functions.
 #pragma once
 
+#include <cmath>
 #include <cstddef>
 #include <functional>
 #include <map>
