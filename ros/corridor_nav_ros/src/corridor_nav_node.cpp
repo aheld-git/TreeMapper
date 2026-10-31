@@ -387,6 +387,7 @@ class CorridorNavNode {
   corridor_nav::Clearance clearance(const treemapper::DronePose& pose) {
     if (!disparity_ || !stereo_ || !left_info_) {
       clearance_ = corridor_nav::Clearance();
+      size_mismatch_.clear();   // describes the latest evaluation only: this one is not a size mismatch
       return clearance_;
     }
     if (disparity_seq_ != clearance_disparity_seq_ || calibration_seq_ != clearance_calibration_seq_) {
