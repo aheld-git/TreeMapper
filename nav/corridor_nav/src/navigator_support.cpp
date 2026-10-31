@@ -74,8 +74,31 @@ std::vector<Point3> transitPoints(const Point3& from, const Point3& to, double z
   return {from, {from.x, from.y, std::max(from.z, z_scan_abs)}, {to.x, to.y, z_scan_abs}};
 }
 
+bool leavesField(const treemapper::Polygon2& field, const Point3& a, const Point3& b, double tol) {
+  const int n = std::max(1, static_cast<int>(std::ceil(distXY(a, b) / kHeightSampleStep)));
+  for (int j = 0; j <= n; ++j) {
+    const double f = static_cast<double>(j) / n;
+    if (!(distanceToPolygon(field, {a.x + f * (b.x - a.x), a.y + f * (b.y - a.y)}) <= tol)) return true;
+  }
+  return false;
+}
+
+Path3 glideLeg(const Point3& from, TreeId from_id, const TreeEntry& to, const std::vector<TreeEntry>& map,
+               const Config& cfg, const treemapper::Polygon2& field, double z_scan_abs, Counters* counters) {
+  Path3 path = planGlide(from, from_id, to, map, cfg, counters);
+  const Point3 end = path.pts.back();
+  if (!leavesField(field, from, end, cfg.xy_tol)) return path;
+  if (counters) ++(*counters)["glide_outside_field_climbs"];
+  double z_up = z_scan_abs;
+  for (const Point3& p : path.pts) z_up = std::max(z_up, p.z);
+  Path3 out = makePath({from, {from.x, from.y, z_up}, {end.x, end.y, z_up}, end});
+  out.climbed = true;
+  return out;
+}
+
 std::vector<Stop> orderStops(const std::vector<TreeId>& ids, const std::vector<TreeEntry>& map, const Point3& start,
-                             const Point3& end, double z_scan_abs, const Config& cfg) {
+                             const Point3& end, double z_scan_abs, const Config& cfg,
+                             const treemapper::Polygon2& field) {
   std::vector<Stop> stops;
   Box box;
   box.add(start.x, start.y);
@@ -105,7 +128,7 @@ std::vector<Stop> orderStops(const std::vector<TreeId>& ids, const std::vector<T
     const TreeEntry* to = stopTree(b);
     if (!to) return pathTime(makePath(transitPoints(a, b, z_scan_abs)), cfg);   // b = the end: climb out, then level
     const TreeEntry* from = stopTree(a);
-    return pathTime(planGlide(a, from ? from->id : kNoTree, *to, local, cfg, nullptr), cfg);
+    return pathTime(glideLeg(a, from ? from->id : kNoTree, *to, local, cfg, field, z_scan_abs, nullptr), cfg);
   };
   // Deterministic budget: each 2-opt pass is charged n^2 pair evaluations, not wall time, so the same inputs always
   // give the same order.

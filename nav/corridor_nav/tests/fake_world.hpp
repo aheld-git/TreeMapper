@@ -1,10 +1,14 @@
 // Test double for the Navigator: a point drone that flies straight at the setpoint at max_speed_xy / max_speed_z,
 // a field of truth trees, a map that publishes a tree once the drone has scanned near it, and set_tree_sprayed.
 // Records what the navigator commanded on every tick so tests can check sequences and invariants.
+// Fault injection: per-tree switches (renamed / hidden ids, late publication, a dose disturbance, set_tree_sprayed
+// failures), invalid map entries, and `before_step`, which may edit the inputs (or the world) before each step.
 #pragma once
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <string>
@@ -22,6 +26,14 @@ struct TruthTree {
   bool sprayed{false};          ///< pre-marked trees are published with sprayed = true
   bool settle_only{false};      ///< seen only while the navigator hovers in SCAN_SETTLE
   int dwell_needed{3};          ///< ticks in SCAN within see_radius before it is published
+  // fault injection
+  treemapper::TreeId published_id{0};   ///< id in the map; 0 = index + 1
+  bool hidden{false};           ///< left out of the map (physically still there)
+  int publish_in_corridor{-1};  ///< >= 0: published only while the navigator scans that corridor, at any distance
+  double dose_push{0.0};        ///< m: while the navigator doses this tree, the drone is held this far east of it
+  int mark_fail{0};             ///< the next N set_tree_sprayed calls answer ok = false
+  treemapper::TreeId rename_on_fail{0};  ///< on the first failed call the map republishes the tree under this id
+  int mark_silent{0};           ///< the next N set_tree_sprayed calls get no answer at all
   // filled by the world
   int dwell{0};
   bool published{false};
@@ -56,13 +68,29 @@ struct FakeWorld {
   std::vector<Sample> samples;
   std::vector<treemapper::TreeId> requests;
   double min_clearance{std::numeric_limits<double>::infinity()};
+  std::vector<treemapper::TreeEntry> extra;   ///< published as-is on every tick (e.g. invalid entries)
+  /// Fault injection: called with the inputs of each tick before the navigator sees them.
+  std::function<void(FakeWorld&, const Navigator&, Inputs&)> before_step;
 
   static treemapper::TreeId idOf(std::size_t i) { return static_cast<treemapper::TreeId>(i + 1); }
+
+  treemapper::TreeId mapId(std::size_t i) const { return trees[i].published_id ? trees[i].published_id : idOf(i); }
+
+  /// Index of the truth tree that carries (or carried) map id `id`, or trees.size().
+  std::size_t indexOf(treemapper::TreeId id) const {
+    for (std::size_t i = 0; i < trees.size(); ++i) {
+      if (mapId(i) == id) return i;
+    }
+    for (std::size_t i = 0; i < trees.size(); ++i) {
+      if (idOf(i) == id) return i;
+    }
+    return trees.size();
+  }
 
   treemapper::TreeEntry entry(std::size_t i) const {
     const TruthTree& tt = trees[i];
     treemapper::TreeEntry e;
-    e.id = idOf(i);
+    e.id = mapId(i);
     for (int k = 0; k < 16; ++k) {
       const double a = 2.0 * 3.14159265358979323846 * k / 16;
       e.outline.push_back({tt.x + tt.r * std::cos(a), tt.y + tt.r * std::sin(a)});
@@ -77,15 +105,32 @@ struct FakeWorld {
   std::vector<treemapper::TreeEntry> map() const {
     std::vector<treemapper::TreeEntry> out;
     for (std::size_t i = 0; i < trees.size(); ++i) {
-      if (trees[i].published) out.push_back(entry(i));
+      if (trees[i].published && !trees[i].hidden) out.push_back(entry(i));
     }
+    out.insert(out.end(), extra.begin(), extra.end());
     return out;
   }
 
-  bool set_tree_sprayed(treemapper::TreeId id) {
-    TruthTree& tt = trees.at(static_cast<std::size_t>(id - 1));
-    tt.sprayed = true;
+  /// The answer of set_tree_sprayed(id): ok, failed (unknown id or injected failure), or none (injected silence).
+  std::optional<bool> set_tree_sprayed(treemapper::TreeId id) {
+    std::size_t i = 0;
+    while (i < trees.size() && !(mapId(i) == id && trees[i].published && !trees[i].hidden)) ++i;
+    if (i == trees.size()) return false;   // unknown id
+    TruthTree& tt = trees[i];
     ++tt.spray_calls;
+    if (tt.mark_silent > 0) {
+      --tt.mark_silent;
+      return std::nullopt;
+    }
+    if (tt.mark_fail > 0) {
+      --tt.mark_fail;
+      if (tt.rename_on_fail) {
+        tt.published_id = tt.rename_on_fail;
+        tt.rename_on_fail = 0;
+      }
+      return false;
+    }
+    tt.sprayed = true;
     return true;
   }
 
@@ -115,6 +160,7 @@ struct FakeWorld {
     in.start_requested = t >= start_at && nav.state() == NavState::kIdle;
     in.spray_result = pending;
     pending.reset();
+    if (before_step) before_step(*this, nav, in);
 
     const Outputs out = nav.step(in);
     const Status st = nav.status();
@@ -125,9 +171,9 @@ struct FakeWorld {
     s.phase = out.phase;
     s.target = out.target;
     s.nozzle = out.nozzle;
-    if (out.target != treemapper::kNoTree) {
-      const TruthTree& tt = trees.at(static_cast<std::size_t>(out.target - 1));
-      s.xy_err = std::hypot(drone.x - tt.x, drone.y - tt.y);
+    const std::size_t ti = indexOf(out.target);
+    if (out.target != treemapper::kNoTree && ti < trees.size()) {
+      s.xy_err = std::hypot(drone.x - trees[ti].x, drone.y - trees[ti].y);
     }
     s.cleanup = st.cleanup;
     s.corridor = st.corridor;
@@ -138,7 +184,9 @@ struct FakeWorld {
 
     if (out.request_sprayed) {
       requests.push_back(*out.request_sprayed);
-      pending = SprayResult{*out.request_sprayed, set_tree_sprayed(*out.request_sprayed)};
+      if (const std::optional<bool> ok = set_tree_sprayed(*out.request_sprayed)) {
+        pending = SprayResult{*out.request_sprayed, *ok};
+      }
     }
 
     // kinematic point drone
@@ -151,11 +199,21 @@ struct FakeWorld {
     }
     drone.z += std::clamp(out.setpoint.z - drone.z, -cfg.max_speed_z * dt, cfg.max_speed_z * dt);
     yaw = out.yaw;
+    // dose disturbance: hold the drone off the tree it is spraying
+    if (out.phase == "SPRAYING" && ti < trees.size() && trees[ti].dose_push != 0.0) {
+      drone.x = trees[ti].x + trees[ti].dose_push;
+      drone.y = trees[ti].y;
+    }
 
     // the map learns trees seen while scanning
     if (out.phase == "SCAN") {
       for (TruthTree& tt : trees) {
-        if (tt.published || std::hypot(drone.x - tt.x, drone.y - tt.y) > see_radius) continue;
+        if (tt.published) continue;
+        if (tt.publish_in_corridor >= 0) {
+          if (st.corridor != tt.publish_in_corridor) continue;
+        } else if (std::hypot(drone.x - tt.x, drone.y - tt.y) > see_radius) {
+          continue;
+        }
         if (tt.settle_only && nav.state() != NavState::kScanSettle) continue;
         if (++tt.dwell >= tt.dwell_needed) {
           tt.published = true;

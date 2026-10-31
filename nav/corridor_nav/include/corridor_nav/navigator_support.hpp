@@ -32,11 +32,23 @@ const treemapper::TreeEntry* findTree(const std::vector<treemapper::TreeEntry>& 
 /// Climb vertically to `z_scan_abs` (if below it), then fly level to above `to`.
 std::vector<Point3> transitPoints(const Point3& from, const Point3& to, double z_scan_abs);
 
+/// True when the xy segment a -> b (sampled every 0.25 m) comes farther than `tol` outside `field`.
+bool leavesField(const treemapper::Polygon2& field, const Point3& a, const Point3& b, double tol);
+
+/// planGlide, except that a glide whose xy segment leaves the field (a non-convex field, cleanup and field_first
+/// glides between corridors) goes up-over at z_up = max(z_scan_abs, the glide's points): [from, (from.xy, z_up),
+/// (to.xy, z_up), spray point], counted `glide_outside_field_climbs` (outside the field nothing was scanned).
+/// "Outside" allows xy_tol, the position tolerance. `counters` may be null.
+Path3 glideLeg(const Point3& from, treemapper::TreeId from_id, const treemapper::TreeEntry& to,
+               const std::vector<treemapper::TreeEntry>& map, const Config& cfg, const treemapper::Polygon2& field,
+               double z_scan_abs, Counters* counters);
+
 /// The unsprayed trees of `ids` that are in `map`, as spray-point stops in flying order from `start` to `end`
-/// (orderTargets with cost = glide time, and the transit time for the leg to `end`). The order budget runs on a
+/// (orderTargets with cost = glideLeg time, and the transit time for the leg to `end`). The order budget runs on a
 /// deterministic proxy clock (n^2 pair evaluations per 2-opt pass), so the same inputs always give the same order.
 std::vector<Stop> orderStops(const std::vector<treemapper::TreeId>& ids, const std::vector<treemapper::TreeEntry>& map,
-                             const Point3& start, const Point3& end, double z_scan_abs, const Config& cfg);
+                             const Point3& start, const Point3& end, double z_scan_abs, const Config& cfg,
+                             const treemapper::Polygon2& field);
 
 /// Published heights of `target` and of every tree whose outline comes within drone_radius + lateral_margin of the
 /// path's xy, for the re-plan trigger (needsReplan).

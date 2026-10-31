@@ -92,13 +92,25 @@ class Navigator {
   struct Target {
     treemapper::TreeId id{treemapper::kNoTree};
     int corridor{-1};
+    treemapper::Point2 centre;   ///< where the tree was when it was planned, for re-resolving a vanished id
+  };
+  /// set_tree_sprayed of the tree just dosed: one re-resolve on ok = false, `service_retries` retries on silence.
+  struct Mark {
+    bool active{false}, done{false}, reresolved{false};
+    treemapper::TreeId id{treemapper::kNoTree};         ///< the id asked for now
+    treemapper::TreeId first_id{treemapper::kNoTree};   ///< the id the tree was dosed under
+    treemapper::Point2 centre;
+    double sent_t{0.0};
+    int tries{0};
   };
 
   // --- per-tick plumbing
   void ingest(const Inputs& in);
-  Outputs finish(NavState before, Outputs out);   ///< the single exit of step(): nozzle gate, phase, target, yaw
+  /// The single exit of step(): nozzle gate, dose tracking of the published nozzle, phase, target, yaw.
+  Outputs finish(NavState before, double t, Outputs out);
   void enter(NavState s, double t);
   std::string phase() const;
+  bool onTarget() const;   ///< GLIDE / DOSE, or a HOLD entered from one of them
 
   // --- one handler per state; each fills the setpoint and may change state
   void stepIdle(const Inputs& in, Outputs& out);
@@ -111,6 +123,8 @@ class Navigator {
   void stepDose(const Inputs& in, Outputs& out);
   void stepReturn(const Inputs& in, Outputs& out);
   void stepLand(const Inputs& in, Outputs& out);
+  void stepHold(const Inputs& in, Outputs& out);
+  void stepAbort(const Inputs& in, Outputs& out);
 
   // --- transitions with their entry actions
   void startTransit(double t);
@@ -121,8 +135,24 @@ class Navigator {
   void startDose(double t);
   void startReturn(double t);
   void startLand(double t);
-  void finishTarget(double t);   ///< the current target is done (sprayed or given up): advance
+  void startHold(const std::string& reason, double t);
+  void startAbort(const std::string& why, double t);
+  void finishTarget(double t);   ///< the current target is done (sprayed or its mark given up): advance
+  void failAttempt(double t, const std::string& why);   ///< invalid dose / guard: one retry, then skip
   void advance(double t);        ///< next target, else next corridor, else cleanup, else RETURN
+
+  // --- holds, guard, mark, re-planning
+  void updateHold(const Inputs& in);   ///< enters HOLD on a missing input; leaves it (or times out)
+  GuardAction guardUpdate(const Inputs& in);         ///< decision + episode bookkeeping (GLIDE / DOSE)
+  void guardApply(GuardAction a, Outputs& out) const;   ///< climb / no-descent on the setpoint
+  void pollMark(const Inputs& in, Outputs& out);
+  void sendMark(treemapper::TreeId id, double t, Outputs& out);
+  void abandonMark();
+  bool keepTarget(double t);   ///< re-resolves a vanished target; false if it was dropped (advance() ran)
+  treemapper::TreeId reresolve(const treemapper::Point2& centre) const;   ///< kNoTree if none or already done
+  void planToTarget(double t, const char* replan_why);   ///< glide from here; counts a re-plan if `replan_why`
+  Path3 glideTo(const Point3& from, treemapper::TreeId from_id, const treemapper::TreeEntry& to,
+                Counters* counters) const;
 
   // --- helpers
   Point3 scanStart(const ScanLeg& leg) const;
@@ -139,7 +169,6 @@ class Navigator {
                                  int corridor) const;
   /// Climb vertically to scan altitude (if below it), then fly level to above `to`.
   std::vector<Point3> transitPoints(const Point3& from, const Point3& to) const;
-  std::map<treemapper::TreeId, double> heightsNear(const Path3& path, treemapper::TreeId target) const;
 
   Config cfg_, scan_cfg_;
   Field field_;
@@ -151,21 +180,36 @@ class Navigator {
   Counters counters_;
   std::vector<std::string> warnings_;
   std::string last_phase_{"IDLE"};
+  treemapper::TreeId last_target_{treemapper::kNoTree};
 
   // vehicle
   Point3 pos_;
   bool have_pose_{false};
+  bool pose_ok_{false};    ///< this tick's pose is valid and no older than pose_max_age_s
   double pose_t_{0.0};
   double speed_{0.0};
   double yaw_{0.0};
   double clearance_m_{NAN};
+  bool airborne_{false};   ///< took off: an abort returns home
   Point3 home_;            ///< field home xy at the take-off z
   double z_scan_abs_{0.0}; ///< home z + z_scan
   Point3 hold_;            ///< hover point of the hovering states
 
   // map
   std::vector<treemapper::TreeEntry> map_;
+  double map_t_{-INFINITY};   ///< stamp of the latest map
   std::set<treemapper::TreeId> dropped_invalid_;
+
+  // HOLD
+  NavState held_state_{NavState::kIdle};
+  double held_state_t_{0.0}, hold_t_{0.0};
+  Point3 hold_pos_;        ///< where the hold began
+  bool service_hold_{false};
+
+  // clearance guard
+  bool climbing_{false}, blind_{false}, guard_released_{false}, guard_failed_{false};
+  double guard_ok_t_{0.0};   ///< last tick the guard was clear
+  int attempt_climbs_{0};    ///< climb episodes in this glide + dose attempt
 
   // mission
   std::vector<Corridor> corridors_;
@@ -182,14 +226,18 @@ class Navigator {
   bool cleanup_mode_{false};
   treemapper::TreeId target_{treemapper::kNoTree};
   treemapper::TreeId from_id_{treemapper::kNoTree};
+  treemapper::Point2 target_centre_;
   double target_area_{0.0};
   Point3 spray_pt_;
   std::map<treemapper::TreeId, double> planned_heights_;   ///< for the re-plan trigger (needsReplan)
-  std::set<treemapper::TreeId> attempted_;                 ///< sprayed or skipped by this mission
-  unsigned sprayed_{0}, skipped_{0};
+  std::set<treemapper::TreeId> attempted_;                 ///< sprayed, mark given up, or skipped twice
+  std::map<treemapper::TreeId, int> skips_;                ///< times each tree was skipped
+  bool retried_{false};                                    ///< the current target had its one retry
+  unsigned sprayed_{0}, skipped_{0};                       ///< skipped_: trees skipped twice (left unsprayed)
 
   DoseTracker dose_;
-  bool awaiting_mark_{false};
+  bool dose_running_{false};   ///< the tracker integrates the published nozzle
+  Mark mark_;
 
   // path being flown
   Path3 path_;

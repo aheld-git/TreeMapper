@@ -21,7 +21,7 @@ using support::makePath;
 using support::usable;
 using support::yawOf;
 
-void count(Counters& counters, const char* name) { ++counters[name]; }
+void count(Counters& counters, const std::string& name) { ++counters[name]; }
 
 }  // namespace
 
@@ -60,6 +60,13 @@ Outputs Navigator::step(const Inputs& in) {
   ingest(in);
   Outputs out;
   out.setpoint = hold_;
+  const bool abortable = airborne_ && state_ != NavState::kAbort && state_ != NavState::kReturn &&
+                         state_ != NavState::kLand && state_ != NavState::kDone;
+  if (in.abort_requested && abortable) {
+    startAbort("abort requested", in.t);
+  } else {
+    updateHold(in);
+  }
   switch (state_) {
     case NavState::kIdle: stepIdle(in, out); break;
     case NavState::kTakeoff: stepTakeoff(in, out); break;
@@ -71,11 +78,11 @@ Outputs Navigator::step(const Inputs& in) {
     case NavState::kDose: stepDose(in, out); break;
     case NavState::kReturn: stepReturn(in, out); break;
     case NavState::kLand: stepLand(in, out); break;
-    case NavState::kHold:    // entered by the hold logic (map stale, no pose, service); hover at hold_
-    case NavState::kAbort:   // planning failed on the ground: stay where we are
+    case NavState::kHold: stepHold(in, out); break;
+    case NavState::kAbort: stepAbort(in, out); break;
     case NavState::kDone: break;
   }
-  return finish(before, std::move(out));
+  return finish(before, in.t, std::move(out));
 }
 
 void Navigator::ingest(const Inputs& in) {
@@ -88,8 +95,11 @@ void Navigator::ingest(const Inputs& in) {
       have_pose_ = true;
     }
   }
+  const double pose_age = in.t - in.pose.t;
+  pose_ok_ = in.pose.valid && std::isfinite(pose_age) && std::fabs(pose_age) <= cfg_.pose_max_age_s;
   clearance_m_ = in.clearance.valid ? in.clearance.metres : NAN;
   if (!in.map) return;
+  if (std::isfinite(in.map->stamp)) map_t_ = std::max(map_t_, in.map->stamp);
   map_.clear();
   map_.reserve(in.map->trees.size());
   for (const TreeEntry& t : in.map->trees) {
@@ -105,17 +115,22 @@ void Navigator::ingest(const Inputs& in) {
   }
 }
 
-Outputs Navigator::finish(NavState before, Outputs out) {
+Outputs Navigator::finish(NavState before, double t, Outputs out) {
+  const bool hold = state_ == NavState::kHold;
+  if (hold) out.setpoint = hold_pos_;   // also when a handler entered HOLD on this tick
   // The nozzle opens only in a DOSE that neither starts nor ends on this tick, and never while waiting for the mark.
-  out.nozzle = out.nozzle && before == NavState::kDose && state_ == NavState::kDose && !awaiting_mark_;
+  out.nozzle = out.nozzle && before == NavState::kDose && state_ == NavState::kDose && !mark_.active;
+  // The dose tracker integrates the nozzle actually published, after every gate (guard, HOLD, transitions).
+  if (dose_running_) dose_.update(t, out.nozzle);
   const bool on_target = state_ == NavState::kGlide || state_ == NavState::kDose;
-  out.target = on_target ? target_ : kNoTree;
+  out.target = hold ? last_target_ : on_target ? target_ : kNoTree;   // HOLD: unchanged
   const bool corridor_work = state_ == NavState::kTransit || state_ == NavState::kScanOut ||
                              state_ == NavState::kScanSettle || state_ == NavState::kLock || on_target;
   if (corridor_work && corridor_ >= 0) yaw_ = corridors_[static_cast<std::size_t>(corridor_)].heading_rad;
   out.yaw = yaw_;
   out.phase = phase();
   last_phase_ = out.phase;
+  last_target_ = out.target;
   return out;
 }
 
@@ -134,7 +149,7 @@ std::string Navigator::phase() const {
     case NavState::kScanSettle: return "SCAN";
     case NavState::kLock: return "PLANNING";
     case NavState::kGlide: return "HOPPING";
-    case NavState::kDose: return awaiting_mark_ ? "HOPPING" : "SPRAYING";
+    case NavState::kDose: return mark_.active ? "HOPPING" : "SPRAYING";
     case NavState::kReturn:
     case NavState::kLand: return "RETURN";
     case NavState::kHold: return last_phase_;   // unchanged
@@ -144,6 +159,11 @@ std::string Navigator::phase() const {
   return "ERROR";
 }
 
+bool Navigator::onTarget() const {
+  const NavState s = state_ == NavState::kHold ? held_state_ : state_;
+  return s == NavState::kGlide || s == NavState::kDose;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // state handlers
 
@@ -151,16 +171,14 @@ void Navigator::stepIdle(const Inputs& in, Outputs& out) {
   hold_ = pos_;
   out.setpoint = pos_;
   if (in.pose.valid) yaw_ = yawOf(in.pose);
-  if (!in.start_requested || !in.pose.valid) return;
+  if (!in.start_requested || !pose_ok_) return;
 
   home_ = {field_.home.x, field_.home.y, pos_.z};
   z_scan_abs_ = pos_.z + cfg_.z_scan;
   const CorridorPlan plan = planCorridors(field_, fov_, cfg_, &counters_);
   if (!plan.ok || plan.corridors.empty()) {
     const std::string why = plan.ok ? "no corridor long enough" : plan.error;
-    warnings_.push_back("planning failed: " + why);
-    if (log_) log_("corridor planning failed: " + why);
-    enter(NavState::kAbort, in.t);
+    startAbort("corridor planning failed: " + why, in.t);
     return;
   }
   corridors_ = plan.corridors;
@@ -173,6 +191,7 @@ void Navigator::stepIdle(const Inputs& in, Outputs& out) {
     log_("planned " + std::to_string(corridors_.size()) + " corridors, width " + std::to_string(plan.width) + " m");
   }
   setPath(makePath({pos_, {pos_.x, pos_.y, z_scan_abs_}}));
+  airborne_ = true;
   enter(NavState::kTakeoff, in.t);
 }
 
@@ -217,38 +236,53 @@ void Navigator::stepLock(const Inputs& in, Outputs& out) {
 }
 
 void Navigator::stepGlide(const Inputs& in, Outputs& out) {
+  if (!keepTarget(in.t)) {   // dropped: advance() set the next path
+    out.setpoint = follow(cfg_);
+    return;
+  }
+  const GuardAction g = guardUpdate(in);
+  if (guard_released_) {
+    planToTarget(in.t, "clearance guard released");
+  } else if (needsReplan(planned_heights_, map_, cfg_)) {
+    planToTarget(in.t, "published height changed");
+  }
   out.setpoint = follow(cfg_);
-  if (atPathEnd(true)) startDose(in.t);
+  guardApply(g, out);
+  if (guard_failed_) {
+    failAttempt(in.t, "clearance guard");
+  } else if (g != GuardAction::kClimb && atPathEnd(true)) {
+    startDose(in.t);
+  }
 }
 
 void Navigator::stepDose(const Inputs& in, Outputs& out) {
   out.setpoint = spray_pt_;
-  if (awaiting_mark_) {
-    if (!in.spray_result || in.spray_result->id != target_) return;
-    if (in.spray_result->ok) {
-      ++sprayed_;
-    } else {
-      count(counters_, "spray_mark_failed");
-    }
-    finishTarget(in.t);
+  const GuardAction g = guardUpdate(in);
+  guardApply(g, out);
+  if (mark_.active) {   // dosed: waiting for set_tree_sprayed, nozzle off, phase HOPPING with the dosed id
+    pollMark(in, out);
+    if (state_ == NavState::kDose && mark_.done) finishTarget(in.t);
     return;
   }
-  const bool gate = distXY(pos_, spray_pt_) <= cfg_.xy_tol;
+  if (guard_failed_) {
+    failAttempt(in.t, "clearance guard");
+    return;
+  }
   if (dose_.done(in.t)) {
     dose_.update(in.t, false);   // credits the last interval before validity is read
+    dose_running_ = false;
     if (dose_.valid()) {
-      out.request_sprayed = target_;
-      awaiting_mark_ = true;
-      return;
+      mark_ = Mark{};
+      mark_.active = true;
+      mark_.first_id = target_;
+      mark_.centre = target_centre_;
+      sendMark(target_, in.t, out);
+    } else {
+      failAttempt(in.t, "dose invalid");
     }
-    ++skipped_;
-    count(counters_, "trees_skipped");
-    if (log_) log_("tree " + std::to_string(target_) + ": dose invalid, skipped");
-    finishTarget(in.t);
     return;
   }
-  dose_.update(in.t, gate);
-  out.nozzle = gate;
+  out.nozzle = g != GuardAction::kClimb && distXY(pos_, spray_pt_) <= cfg_.xy_tol;
 }
 
 void Navigator::stepReturn(const Inputs& in, Outputs& out) {
@@ -271,6 +305,7 @@ void Navigator::startTransit(double t) {
   const ScanLeg& leg = scan_[scan_idx_];
   corridor_ = leg.corridor;
   from_id_ = kNoTree;
+  climbing_ = blind_ = false;
   setPath(makePath(transitPoints(pos_, scanStart(leg))));
   enter(NavState::kTransit, t);
 }
@@ -318,23 +353,25 @@ void Navigator::startLock(double t) {
 }
 
 void Navigator::startGlide(double t) {
-  const TreeEntry& to = *tree(target_);
-  setPath(planGlide(pos_, from_id_, to, map_, cfg_, &counters_));
-  spray_pt_ = path_.pts.back();
-  target_area_ = std::fabs(treemapper::polygonArea(to.outline));
-  planned_heights_ = heightsNear(path_, target_);
+  attempt_climbs_ = 0;
+  guard_ok_t_ = t;
+  planToTarget(t, nullptr);
   enter(NavState::kGlide, t);
 }
 
 void Navigator::startDose(double t) {
   dose_.start(t, doseTime(target_area_, cfg_));
   dose_.update(t, false);
-  awaiting_mark_ = false;
+  dose_running_ = true;
+  mark_ = Mark{};
   hold_ = spray_pt_;
   enter(NavState::kDose, t);
 }
 
 void Navigator::startReturn(double t) {
+  abandonMark();
+  dose_running_ = false;
+  climbing_ = blind_ = false;
   corridor_ = -1;
   cleanup_mode_ = false;
   target_ = kNoTree;
@@ -349,8 +386,33 @@ void Navigator::startLand(double t) {
 
 void Navigator::finishTarget(double t) {
   attempted_.insert(target_);
+  attempted_.insert(mark_.first_id);   // the id it was dosed under, if the mark re-resolved it
+  attempted_.erase(kNoTree);
+  mark_ = Mark{};
   from_id_ = target_;   // the drone is at its spray point
-  awaiting_mark_ = false;
+  advance(t);
+}
+
+void Navigator::failAttempt(double t, const std::string& why) {
+  dose_running_ = false;
+  if (!retried_) {
+    retried_ = true;
+    count(counters_, "dose_retries");
+    if (log_) log_("tree " + std::to_string(target_) + ": " + why + ", retrying");
+    startGlide(t);
+    return;
+  }
+  count(counters_, "trees_skipped");
+  if (++skips_[target_] >= 2) {
+    attempted_.insert(target_);   // skipped twice: stays unsprayed, reported
+    ++skipped_;
+    warnings_.push_back("tree " + std::to_string(target_) + " skipped twice, left unsprayed");
+  } else if (std::find(assignment_.cleanup.begin(), assignment_.cleanup.end(), target_) ==
+             assignment_.cleanup.end()) {
+    assignment_.cleanup.push_back(target_);   // one more try from the cleanup list
+  }
+  if (log_) log_("tree " + std::to_string(target_) + ": " + why + ", skipped");
+  from_id_ = target_;
   advance(t);
 }
 
@@ -358,10 +420,17 @@ void Navigator::advance(double t) {
   for (int pass = 0; pass < 2; ++pass) {
     while (next_target_ < targets_.size()) {
       const Target tg = targets_[next_target_++];
-      const TreeEntry* tr = tree(tg.id);
-      if (!tr || tr->sprayed || attempted_.count(tg.id)) continue;   // never spray twice
-      target_ = tg.id;
+      TreeId id = tg.id;
+      if (!tree(id)) {   // merged or split away since it was planned
+        id = reresolve(tg.centre);
+        count(counters_, id == kNoTree ? "ids_dropped_vanished" : "ids_reresolved");
+        if (log_) log_("tree " + std::to_string(tg.id) + " vanished -> " + std::to_string(id));
+        if (id == kNoTree) continue;
+      }
+      if (tree(id)->sprayed || attempted_.count(id)) continue;   // never spray twice
+      target_ = id;
       corridor_ = cleanup_mode_ ? -1 : tg.corridor;
+      retried_ = false;
       startGlide(t);
       return;
     }
@@ -449,12 +518,10 @@ std::set<TreeId> Navigator::treesInCorridor(int k) const {
 std::vector<Navigator::Target> Navigator::orderStops(const std::vector<TreeId>& ids, const Point3& start,
                                                      const Point3& end, int corridor) const {
   std::vector<Target> out;
-  for (const Stop& s : support::orderStops(ids, map_, start, end, z_scan_abs_, cfg_)) out.push_back({s.id, corridor});
+  for (const Stop& s : support::orderStops(ids, map_, start, end, z_scan_abs_, cfg_, field_.polygon)) {
+    out.push_back({s.id, corridor, tree(s.id)->centre});
+  }
   return out;
-}
-
-std::map<TreeId, double> Navigator::heightsNear(const Path3& path, TreeId target) const {
-  return support::heightsNear(path, target, map_, cfg_);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -463,11 +530,11 @@ std::map<TreeId, double> Navigator::heightsNear(const Path3& path, TreeId target
 Status Navigator::status() const {
   Status s;
   s.state = state_;
-  const bool on_target = state_ == NavState::kGlide || state_ == NavState::kDose;
+  const bool on_target = onTarget();
   s.cleanup = cleanup_mode_ && on_target;
   s.corridor = corridor_;
   s.corridors_total = static_cast<int>(corridors_.size());
-  s.target = on_target ? target_ : kNoTree;
+  s.target = state_ == NavState::kHold ? last_target_ : on_target ? target_ : kNoTree;
   s.sprayed = sprayed_;
   s.skipped = skipped_;
   std::set<TreeId> pending;
@@ -486,13 +553,13 @@ std::vector<Path3> Navigator::plannedPaths() const {
   std::vector<Path3> out;
   const bool flying = state_ != NavState::kIdle && state_ != NavState::kAbort && state_ != NavState::kDone;
   if (flying && path_.pts.size() >= 2) out.push_back(path_);
-  const bool on_target = state_ == NavState::kGlide || state_ == NavState::kDose;
+  const bool on_target = onTarget();
   Point3 from = on_target ? spray_pt_ : pos_;
   TreeId from_id = on_target ? target_ : from_id_;
   for (std::size_t i = next_target_; i < targets_.size(); ++i) {
     const TreeEntry* t = tree(targets_[i].id);
     if (!t || t->sprayed || attempted_.count(t->id)) continue;
-    Path3 p = planGlide(from, from_id, *t, map_, cfg_, nullptr);
+    Path3 p = glideTo(from, from_id, *t, nullptr);
     from = p.pts.back();
     from_id = t->id;
     out.push_back(std::move(p));
