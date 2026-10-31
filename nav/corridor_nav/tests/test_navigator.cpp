@@ -814,3 +814,216 @@ TEST(Navigator, PlanningFailureAborts) {
   EXPECT_NEAR(w.samples.back().setpoint.z, 0.0, 1e-9);   // stays on the ground
   EXPECT_FALSE(nav.status().warnings.empty());
 }
+
+// ------------------------------------------------------------------------------------------------------------------
+// Task 7 review round 1 (ported from the reviewer's Rev7 probes) and the coverage gaps it listed
+
+TEST(Navigator, TargetVanishingDuringDoseIsResolvedBeforeTheRetry) {
+  // the dose on tree 2 is invalid (drone held 0.5 m off) and the tree leaves the map during it: the retry must not
+  // glide to a tree that is gone (was a null dereference)
+  const Config cfg;
+  const TreeId bad = FakeWorld::idOf(1);
+  for (const bool merged : {false, true}) {
+    std::vector<TruthTree> trees = grid({6, 12, 18});
+    trees[1].dose_push = 0.5;
+    FakeWorld w = world(cfg, trees);
+    Navigator nav(cfg, field30x24(), fov90());
+    w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+      if (n.state() != NavState::kDose || n.status().target != bad) return;
+      if (merged) {
+        fw.trees[1].published_id = 50;
+      } else {
+        fw.trees[1].hidden = true;
+      }
+      in.map = MapSnapshot{in.t, fw.map()};
+    };
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim)) << "merged " << merged;
+    EXPECT_EQ(countRequests(w, bad), 0u);
+    EXPECT_EQ(countRequests(w, 50), 0u);
+    if (merged) {   // the retry and the cleanup pass go to 50, which stays off-target: skipped twice
+      EXPECT_EQ(counter(nav, "ids_reresolved"), 1u);
+      EXPECT_EQ(counter(nav, "dose_retries"), 2u);
+      EXPECT_EQ(counter(nav, "trees_skipped"), 2u);
+    } else {        // gone: dropped, no retry, no skip
+      EXPECT_EQ(counter(nav, "ids_dropped_vanished"), 1u);
+      EXPECT_EQ(counter(nav, "dose_retries"), 0u);
+      EXPECT_EQ(counter(nav, "trees_skipped"), 0u);
+    }
+    for (std::size_t k = 0; k < w.trees.size(); ++k) {
+      if (k != 1) {
+        EXPECT_EQ(w.trees[k].spray_calls, 1) << "tree " << k + 1;
+      }
+    }
+  }
+}
+
+TEST(Navigator, MarkAnsweredDuringHoldFinishesOnce) {
+  const Config cfg;
+  {  // the pose is lost right after the first set_tree_sprayed; the answer arrives in HOLD(no_pose)
+    FakeWorld w = world(cfg, grid({6, 12, 18}));
+    Navigator nav(cfg, field30x24(), fov90());
+    double lost_t = -1.0;
+    TreeId first = treemapper::kNoTree;
+    w.before_step = [&](FakeWorld& fw, const Navigator&, Inputs& in) {
+      if (lost_t < 0.0 && fw.requests.size() == 1) {
+        lost_t = in.t;
+        first = fw.requests[0];
+      }
+      if (lost_t >= 0.0 && in.t < lost_t + 3.0) in.pose.valid = false;
+    };
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+    EXPECT_EQ(countRequests(w, first), 1u);   // not sent again on resume
+    EXPECT_EQ(counter(nav, "spray_mark_retries"), 0u);
+    EXPECT_EQ(counter(nav, "hold_no_pose"), 1u);
+    EXPECT_EQ(nav.status().sprayed, 12u);
+  }
+  {  // HOLD(service) with retries used up; the pose is lost as it starts, the answer arrives in the hold
+    std::vector<TruthTree> trees = grid({6, 12, 18});
+    trees[1].mark_silent = 1 + cfg.service_retries;
+    FakeWorld w = world(cfg, trees);
+    Navigator nav(cfg, field30x24(), fov90());
+    double lost_t = -1.0;
+    w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+      if (lost_t < 0.0 && n.state() == NavState::kHold) lost_t = in.t;
+      if (lost_t >= 0.0 && in.t < lost_t + 3.0) in.pose.valid = false;
+      (void)fw;
+    };
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+    ASSERT_GE(lost_t, 0.0);
+    EXPECT_EQ(counter(nav, "hold_timeouts"), 0u);
+    EXPECT_EQ(counter(nav, "hold_service"), 1u);
+    EXPECT_EQ(countRequests(w, FakeWorld::idOf(1)), static_cast<std::size_t>(cfg.service_retries) + 2u);
+    EXPECT_EQ(counter(nav, "spray_mark_failed"), 0u);
+    EXPECT_EQ(nav.status().sprayed, 12u);
+  }
+}
+
+TEST(Navigator, MapFreshnessFollowsTheLatestMap) {
+  const Config cfg;
+  {  // maps keep arriving, but their stamp stops advancing mid-GLIDE: stale after map_stale_s
+    FakeWorld w = world(cfg, grid({6, 12, 18}));
+    Navigator nav(cfg, field30x24(), fov90());
+    double frozen = -1.0;
+    w.before_step = [&](FakeWorld&, const Navigator& n, Inputs& in) {
+      if (frozen < 0.0 && n.state() == NavState::kGlide && n.status().sprayed >= 1) frozen = in.t;
+      if (frozen >= 0.0) in.map->stamp = frozen;
+    };
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+    const std::size_t h = findSample(w, [](const Sample& s) { return s.state == NavState::kHold; });
+    ASSERT_LT(h, w.samples.size());
+    EXPECT_GT(w.samples[h].t - frozen, cfg.map_stale_s - 1e-9);
+    EXPECT_LE(w.samples[h].t - frozen, cfg.map_stale_s + kDt + 1e-9);
+    EXPECT_EQ(counter(nav, "hold_map_stale"), 1u);
+    EXPECT_EQ(counter(nav, "hold_timeouts"), 1u);
+  }
+  {  // one far-future stamp, then no map: that map is not fresh (it used to latch "fresh" for good)
+    FakeWorld w = world(cfg, grid({6, 12, 18}));
+    Navigator nav(cfg, field30x24(), fov90());
+    double bad_t = -1.0;
+    w.before_step = [&](FakeWorld&, const Navigator& n, Inputs& in) {
+      if (bad_t < 0.0 && n.state() == NavState::kGlide && n.status().sprayed >= 1) {
+        bad_t = in.t;
+        in.map->stamp = in.t + 1000.0;
+        return;
+      }
+      if (bad_t >= 0.0) in.map.reset();
+    };
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+    const std::size_t h = findSample(w, [](const Sample& s) { return s.state == NavState::kHold; });
+    ASSERT_LT(h, w.samples.size());
+    EXPECT_NEAR(w.samples[h].t, bad_t, 1e-9);
+    EXPECT_EQ(counter(nav, "hold_map_stale"), 1u);
+  }
+  {  // one NaN or future stamp among fresh maps: a one-tick hold, then the mission goes on
+    FakeWorld w = world(cfg, grid({6, 12, 18}));
+    Navigator nav(cfg, field30x24(), fov90());
+    int glitches = 0;
+    w.before_step = [&](FakeWorld&, const Navigator& n, Inputs& in) {
+      if (glitches == 0 && n.state() == NavState::kGlide && n.status().sprayed >= 1) {
+        in.map->stamp = NAN;
+        ++glitches;
+      } else if (glitches == 1 && n.state() == NavState::kGlide && n.status().sprayed >= 5) {
+        in.map->stamp = in.t + 1000.0;
+        ++glitches;
+      }
+    };
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+    EXPECT_EQ(glitches, 2);
+    EXPECT_EQ(counter(nav, "hold_map_stale"), 2u);
+    EXPECT_EQ(counter(nav, "hold_timeouts"), 0u);
+    for (const TruthTree& t : w.trees) EXPECT_TRUE(t.sprayed);
+  }
+}
+
+TEST(Navigator, NoMapYetHoldsAtScanOut) {
+  // TreeMapper never publishes: take-off and transit need no map, the scan does
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  w.before_step = [](FakeWorld&, const Navigator&, Inputs& in) { in.map.reset(); };
+  Navigator nav(cfg, field30x24(), fov90());
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  const std::size_t h = findSample(w, [](const Sample& s) { return s.state == NavState::kHold; });
+  ASSERT_LT(h, w.samples.size());
+  ASSERT_GT(h, 0u);
+  EXPECT_EQ(w.samples[h - 1].state, NavState::kScanOut);   // held on the first tick in SCAN_OUT
+  EXPECT_EQ(w.samples[h].phase, "SCAN");                   // unchanged
+  for (std::size_t k = 0; k < h; ++k) EXPECT_NE(w.samples[k].state, NavState::kHold);
+  EXPECT_EQ(counter(nav, "hold_map_stale"), 1u);
+  EXPECT_EQ(counter(nav, "hold_timeouts"), 1u);
+  EXPECT_TRUE(w.requests.empty());
+  EXPECT_NEAR(w.drone.z, 0.0, cfg.z_tol);   // went home and landed
+}
+
+TEST(Navigator, PoseWithBadStampIsRejected) {
+  // one far-future and one NaN pose stamp mid-mission: neither replaces the stored pose (a future one used to freeze
+  // the position for good), the stored pose is still fresh, so no hold
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  Navigator nav(cfg, field30x24(), fov90());
+  int glitches = 0;
+  w.before_step = [&](FakeWorld&, const Navigator& n, Inputs& in) {
+    if (glitches == 0 && n.state() == NavState::kGlide && n.status().sprayed >= 1) {
+      in.pose.t = in.t + 100.0;
+      ++glitches;
+    } else if (glitches == 1 && n.state() == NavState::kGlide && n.status().sprayed >= 5) {
+      in.pose.t = NAN;
+      ++glitches;
+    }
+  };
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  EXPECT_EQ(glitches, 2);
+  EXPECT_EQ(counter(nav, "hold_no_pose"), 0u);
+  for (const TruthTree& t : w.trees) EXPECT_EQ(t.spray_calls, 1);
+}
+
+TEST(Navigator, GuardAppliesOnTheTickATargetIsDropped) {
+  // the guard is climbing on the glide to tree 8 when tree 8 vanishes: the next glide's first setpoint must still
+  // obey the guard
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  Navigator nav(cfg, field30x24(), fov90());
+  const TreeId victim = FakeWorld::idOf(7);
+  int climb_ticks = 0;
+  bool hidden = false;
+  w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+    if (hidden) return;
+    if (n.state() == NavState::kGlide && n.status().target == victim && n.status().sprayed >= 4) {
+      in.clearance.metres = 1.0;
+      if (++climb_ticks == 8) {
+        fw.trees[7].hidden = true;
+        in.map = MapSnapshot{in.t, fw.map()};
+        hidden = true;
+      }
+    }
+  };
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  ASSERT_TRUE(hidden);
+  EXPECT_EQ(counter(nav, "ids_dropped_vanished"), 1u);
+  const std::size_t d = findSample(w, [&](const Sample& s) { return s.t > 0.0 && s.target != victim; },
+                                   findSample(w, [&](const Sample& s) { return s.target == victim; }));
+  ASSERT_LT(d, w.samples.size());
+  // still climbing straight up (here already at scan altitude, where the climb is capped): no descent, no xy move
+  EXPECT_DOUBLE_EQ(w.samples[d].setpoint.x, w.samples[d].pos.x);
+  EXPECT_DOUBLE_EQ(w.samples[d].setpoint.y, w.samples[d].pos.y);
+  EXPECT_GE(w.samples[d].setpoint.z, w.samples[d].pos.z);
+}

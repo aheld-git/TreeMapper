@@ -143,12 +143,14 @@ class Navigator {
 
   // --- holds, guard, mark, re-planning
   void updateHold(const Inputs& in);   ///< enters HOLD on a missing input; leaves it (or times out)
-  GuardAction guardUpdate(const Inputs& in);         ///< decision + episode bookkeeping (GLIDE / DOSE)
+  /// Decision + episode bookkeeping, once per GLIDE / DOSE tick; finish() applies it to the final setpoint.
+  GuardAction guardUpdate(const Inputs& in);
   void guardApply(GuardAction a, Outputs& out) const;   ///< climb / no-descent on the setpoint
   void pollMark(const Inputs& in, Outputs& out);
   void sendMark(treemapper::TreeId id, double t, Outputs& out);
   void abandonMark();
-  bool keepTarget(double t);   ///< re-resolves a vanished target; false if it was dropped (advance() ran)
+  bool resolveTarget();        ///< re-resolves a vanished target_; false (counted dropped) if nothing stands for it
+  bool keepTarget(double t);   ///< resolveTarget(), and advance() if it was dropped
   treemapper::TreeId reresolve(const treemapper::Point2& centre) const;   ///< kNoTree if none or already done
   void planToTarget(double t, const char* replan_why);   ///< glide from here; counts a re-plan if `replan_why`
   Path3 glideTo(const Point3& from, treemapper::TreeId from_id, const treemapper::TreeEntry& to,
@@ -185,7 +187,7 @@ class Navigator {
   // vehicle
   Point3 pos_;
   bool have_pose_{false};
-  bool pose_ok_{false};    ///< this tick's pose is valid and no older than pose_max_age_s
+  bool pose_ok_{false};    ///< pose valid this tick and the stored pose's stamp within +-pose_max_age_s of now
   double pose_t_{0.0};
   double speed_{0.0};
   double yaw_{0.0};
@@ -197,7 +199,7 @@ class Navigator {
 
   // map
   std::vector<treemapper::TreeEntry> map_;
-  double map_t_{-INFINITY};   ///< stamp of the latest map
+  double map_t_{-INFINITY};   ///< stamp of the latest map received
   std::set<treemapper::TreeId> dropped_invalid_;
 
   // HOLD
@@ -208,6 +210,8 @@ class Navigator {
 
   // clearance guard
   bool climbing_{false}, blind_{false}, guard_released_{false}, guard_failed_{false};
+  bool guard_ran_{false};                       ///< guardUpdate ran on this tick
+  GuardAction guard_action_{GuardAction::kNone};   ///< its decision
   double guard_ok_t_{0.0};   ///< last tick the guard was clear
   int attempt_climbs_{0};    ///< climb episodes in this glide + dose attempt
 

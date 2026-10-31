@@ -60,6 +60,7 @@ Outputs Navigator::step(const Inputs& in) {
   ingest(in);
   Outputs out;
   out.setpoint = hold_;
+  guard_ran_ = false;
   const bool abortable = airborne_ && state_ != NavState::kAbort && state_ != NavState::kReturn &&
                          state_ != NavState::kLand && state_ != NavState::kDone;
   if (in.abort_requested && abortable) {
@@ -86,20 +87,23 @@ Outputs Navigator::step(const Inputs& in) {
 }
 
 void Navigator::ingest(const Inputs& in) {
-  if (in.pose.valid) {
+  // fresh = |now - stamp| <= pose_max_age_s and finite (as the guard): a NaN or far-future stamp is rejected and
+  // never replaces the stored pose; pose_ok_ judges the pose actually stored
+  const auto fresh = [&](double stamp) {
+    const double age = in.t - stamp;
+    return std::isfinite(age) && std::fabs(age) <= cfg_.pose_max_age_s;
+  };
+  if (in.pose.valid && fresh(in.pose.t) && (!have_pose_ || in.pose.t > pose_t_)) {
     const Point3 p{in.pose.x, in.pose.y, in.pose.z};
-    if (!have_pose_ || in.pose.t > pose_t_) {
-      if (have_pose_) speed_ = dist3(p, pos_) / (in.pose.t - pose_t_);
-      pos_ = p;
-      pose_t_ = in.pose.t;
-      have_pose_ = true;
-    }
+    if (have_pose_) speed_ = dist3(p, pos_) / (in.pose.t - pose_t_);
+    pos_ = p;
+    pose_t_ = in.pose.t;
+    have_pose_ = true;
   }
-  const double pose_age = in.t - in.pose.t;
-  pose_ok_ = in.pose.valid && std::isfinite(pose_age) && std::fabs(pose_age) <= cfg_.pose_max_age_s;
+  pose_ok_ = in.pose.valid && have_pose_ && fresh(pose_t_);
   clearance_m_ = in.clearance.valid ? in.clearance.metres : NAN;
   if (!in.map) return;
-  if (std::isfinite(in.map->stamp)) map_t_ = std::max(map_t_, in.map->stamp);
+  map_t_ = in.map->stamp;   // the latest map received decides freshness, whatever its stamp
   map_.clear();
   map_.reserve(in.map->trees.size());
   for (const TreeEntry& t : in.map->trees) {
@@ -118,6 +122,9 @@ void Navigator::ingest(const Inputs& in) {
 Outputs Navigator::finish(NavState before, double t, Outputs out) {
   const bool hold = state_ == NavState::kHold;
   if (hold) out.setpoint = hold_pos_;   // also when a handler entered HOLD on this tick
+  // The guard decided on a GLIDE / DOSE tick applies to the final setpoint, whatever path the handler returned by
+  // (a dropped target, a finished or failed attempt, a re-plan); HOLD keeps the position where it began.
+  if (guard_ran_ && !hold) guardApply(guard_action_, out);
   // The nozzle opens only in a DOSE that neither starts nor ends on this tick, and never while waiting for the mark.
   out.nozzle = out.nozzle && before == NavState::kDose && state_ == NavState::kDose && !mark_.active;
   // The dose tracker integrates the nozzle actually published, after every gate (guard, HOLD, transitions).
@@ -236,18 +243,17 @@ void Navigator::stepLock(const Inputs& in, Outputs& out) {
 }
 
 void Navigator::stepGlide(const Inputs& in, Outputs& out) {
+  const GuardAction g = guardUpdate(in);
   if (!keepTarget(in.t)) {   // dropped: advance() set the next path
     out.setpoint = follow(cfg_);
     return;
   }
-  const GuardAction g = guardUpdate(in);
   if (guard_released_) {
     planToTarget(in.t, "clearance guard released");
   } else if (needsReplan(planned_heights_, map_, cfg_)) {
     planToTarget(in.t, "published height changed");
   }
   out.setpoint = follow(cfg_);
-  guardApply(g, out);
   if (guard_failed_) {
     failAttempt(in.t, "clearance guard");
   } else if (g != GuardAction::kClimb && atPathEnd(true)) {
@@ -258,7 +264,6 @@ void Navigator::stepGlide(const Inputs& in, Outputs& out) {
 void Navigator::stepDose(const Inputs& in, Outputs& out) {
   out.setpoint = spray_pt_;
   const GuardAction g = guardUpdate(in);
-  guardApply(g, out);
   if (mark_.active) {   // dosed: waiting for set_tree_sprayed, nozzle off, phase HOPPING with the dosed id
     pollMark(in, out);
     if (state_ == NavState::kDose && mark_.done) finishTarget(in.t);
@@ -395,6 +400,11 @@ void Navigator::finishTarget(double t) {
 
 void Navigator::failAttempt(double t, const std::string& why) {
   dose_running_ = false;
+  if (!resolveTarget()) {   // the tree left the map during the attempt (e.g. merged mid-dose): nothing to retry
+    from_id_ = target_;
+    advance(t);
+    return;
+  }
   if (!retried_) {
     retried_ = true;
     count(counters_, "dose_retries");
@@ -427,7 +437,8 @@ void Navigator::advance(double t) {
         if (log_) log_("tree " + std::to_string(tg.id) + " vanished -> " + std::to_string(id));
         if (id == kNoTree) continue;
       }
-      if (tree(id)->sprayed || attempted_.count(id)) continue;   // never spray twice
+      const TreeEntry* tr = tree(id);
+      if (!tr || tr->sprayed || attempted_.count(id)) continue;   // never spray twice
       target_ = id;
       corridor_ = cleanup_mode_ ? -1 : tg.corridor;
       retried_ = false;
@@ -519,7 +530,7 @@ std::vector<Navigator::Target> Navigator::orderStops(const std::vector<TreeId>& 
                                                      const Point3& end, int corridor) const {
   std::vector<Target> out;
   for (const Stop& s : support::orderStops(ids, map_, start, end, z_scan_abs_, cfg_, field_.polygon)) {
-    out.push_back({s.id, corridor, tree(s.id)->centre});
+    if (const TreeEntry* tr = tree(s.id)) out.push_back({s.id, corridor, tr->centre});
   }
   return out;
 }

@@ -37,7 +37,10 @@ bool needsMap(NavState s) {
 }  // namespace
 
 void Navigator::updateHold(const Inputs& in) {
-  const auto map_stale = [&](NavState s) { return needsMap(s) && !(in.t - map_t_ <= cfg_.map_stale_s); };
+  // fresh = the latest map's age is finite and within +-map_stale_s (as the guard: a NaN or far-future stamp is stale)
+  const double map_age = in.t - map_t_;
+  const bool map_fresh = std::isfinite(map_age) && std::fabs(map_age) <= cfg_.map_stale_s;
+  const auto map_stale = [&](NavState s) { return needsMap(s) && !map_fresh; };
   if (state_ != NavState::kHold) {
     if (!flying(state_)) return;
     if (!pose_ok_) {
@@ -68,6 +71,8 @@ void Navigator::updateHold(const Inputs& in) {
 
 GuardAction Navigator::guardUpdate(const Inputs& in) {
   const GuardAction a = guardDecision(in.clearance, in.t, climbing_, cfg_);
+  guard_ran_ = true;
+  guard_action_ = a;
   const bool was_climbing = climbing_;
   climbing_ = a == GuardAction::kClimb;
   guard_released_ = was_climbing && !climbing_;
@@ -108,6 +113,7 @@ void Navigator::sendMark(TreeId id, double t, Outputs& out) {
 }
 
 void Navigator::pollMark(const Inputs& in, Outputs& out) {
+  if (mark_.done) return;   // answered (possibly during a HOLD): finished once by stepDose, never sent again
   if (in.spray_result && in.spray_result->id == mark_.id) {
     service_hold_ = false;
     if (in.spray_result->ok) {
@@ -155,7 +161,7 @@ void Navigator::abandonMark() {
   service_hold_ = false;
 }
 
-bool Navigator::keepTarget(double t) {
+bool Navigator::resolveTarget() {
   if (const TreeEntry* tr = tree(target_)) {
     target_centre_ = tr->centre;
     return true;
@@ -163,12 +169,18 @@ bool Navigator::keepTarget(double t) {
   const TreeId id = reresolve(target_centre_);
   count(counters_, id == kNoTree ? "ids_dropped_vanished" : "ids_reresolved");
   if (log_) log_("target " + std::to_string(target_) + " vanished -> " + std::to_string(id));
-  if (id == kNoTree) {
+  if (id == kNoTree) return false;
+  target_ = id;
+  return true;
+}
+
+bool Navigator::keepTarget(double t) {
+  const TreeId before = target_;
+  if (!resolveTarget()) {
     advance(t);
     return false;
   }
-  target_ = id;
-  planToTarget(t, "target re-resolved");
+  if (target_ != before) planToTarget(t, "target re-resolved");
   return true;
 }
 
@@ -178,7 +190,9 @@ TreeId Navigator::reresolve(const Point2& centre) const {
 }
 
 void Navigator::planToTarget(double t, const char* replan_why) {
-  const TreeEntry& to = *tree(target_);
+  const TreeEntry* tr = tree(target_);
+  if (!tr) return;   // callers resolve target_ first (resolveTarget / advance); never dereference a missing tree
+  const TreeEntry& to = *tr;
   target_centre_ = to.centre;
   setPath(glideTo(pos_, from_id_, to, &counters_));
   spray_pt_ = path_.pts.back();
