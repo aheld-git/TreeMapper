@@ -37,7 +37,43 @@ def test_per_event_deposit_differences_cumulative():
     d = ms.per_event_deposit([(1.2, 1.9), (3.5, 3.8)], series)
     assert d[0] == pytest.approx({1: 0.1, ms.GROUND: 0.02})   # cumulative at 2.4 (the 2.0 sample) minus at 1.2
     assert d[1] == pytest.approx({2: 0.03})                    # cumulative at 4.3 (the 4.0 sample) minus at 3.5
-    assert ms.per_event_deposit([(2.6, 3.0)], series) == [{}]  # no sample change inside the window
+    assert ms.per_event_deposit([(2.6, 3.0)], series) == [{2: 0.03}]   # first sample at/after 3.0 is the 4.0 one
+
+
+def test_deposit_landing_after_half_a_second_is_counted():
+    # the only sample at or after the event end is 0.8 s later (a slow 2 Hz publisher): the old t1 + 0.5 s cut missed it
+    series = [(0.0, {1: 0.0}), (10.0, {1: 0.0}), (10.9, {1: 0.09, ms.GROUND: 0.01}), (11.4, {1: 0.09, ms.GROUND: 0.01})]
+    assert ms.per_event_deposit([(10.0, 10.1)], series)[0] == pytest.approx({1: 0.09, ms.GROUND: 0.01})
+
+
+def test_close_events_do_not_share_a_deposit_so_no_false_double():
+    # events 0.3 s apart; tree 2's cumulative already shows 0.08 L in a sample taken 0.1 s into event B. A claims
+    # its deposit on tree 1 only; tree 2 belongs to B alone (the old window end t1 + 0.5 s ran into B and gave A 80 %).
+    series = [(10.0, {}), (10.45, {1: 0.1}), (10.8, {1: 0.1, 2: 0.08}), (11.5, {1: 0.1, 2: 0.1})]
+    events = [(10.0, 10.4), (10.7, 11.1)]
+    deps = ms.per_event_deposit(events, series)
+    assert deps[0] == pytest.approx({1: 0.1}) and deps[1] == pytest.approx({2: 0.1})
+    r = ms.spray_metrics(deps, [1, 2], [0.1, 0.1], targets=[1, 2])
+    assert r["double_sprayed_ids"] == [] and r["sprayed_ids"] == [1, 2]
+    # the first sample after A's end comes after B's start: A's window is clipped to the latest sample before B's start
+    deps2 = ms.per_event_deposit(events, [(10.0, {}), (10.8, {1: 0.1, 2: 0.08}), (11.5, {1: 0.1, 2: 0.1})])
+    assert deps2[0] == {} and deps2[1] == pytest.approx({1: 0.1, 2: 0.1})
+
+
+def test_no_sample_after_the_last_event_uses_final_else_error():
+    series = [(0.0, {1: 0.0}), (5.0, {1: 0.05})]
+    errs = []
+    d = ms.per_event_deposit([(4.0, 4.5), (9.0, 9.5)], series, final={1: 0.2}, errors=errs)
+    assert d[0] == pytest.approx({1: 0.05}) and d[1] == pytest.approx({1: 0.15}) and errs == []
+    errs = []
+    d = ms.per_event_deposit([(4.0, 4.5), (9.0, 9.5)], series[:1], final=None, errors=errs)
+    assert len(errs) == 2 and d == [{}, {}]
+    errs = []   # a non-last event with no sample at or after its end is an error even when `final` exists
+    ms.per_event_deposit([(1.0, 6.0), (7.0, 7.5)], series, final={1: 0.2}, errors=errs)
+    assert len(errs) == 1 and "event 0" in errs[0]
+    errs = []
+    ms.per_event_deposit([(1.0, 6.0), (7.0, 7.5)], series, final=None, errors=errs)
+    assert len(errs) == 2
 
 
 def test_double_spray_detected():
@@ -177,7 +213,7 @@ def _msg_classes():
     return classes
 
 
-def _build_run(root):
+def _build_run(root, flow=0.1, deposition=True, tf=True, spray=True, last_state="DONE"):
     rospy = pytest.importorskip("rospy")
     rosbag = pytest.importorskip("rosbag")
     from geometry_msgs.msg import Point, TransformStamped
@@ -186,12 +222,12 @@ def _build_run(root):
     C = _msg_classes()
     T = lambda s: rospy.Time.from_sec(s)
 
-    flow = 0.1
     trees = [truth_tree(0, 0.0, 0.0, top=6.0), truth_tree(1, 8.0, 0.0, top=6.0)]
     os.makedirs(root)
     from treemapper_tools import contract
     json.dump({"frame": "world", "trees": trees}, open(os.path.join(root, "truth.json"), "w"))
-    json.dump({"spec": {"nozzle": {"flow_lps": flow}, "drone": {"home": [0, 0]}}, "strategy": "corridor",
+    nozzle = {} if flow is None else {"flow_lps": flow}
+    json.dump({"spec": {"nozzle": nozzle, "drone": {"home": [0, 0]}}, "strategy": "corridor",
                "git_commit": "abc1234", "seed": 7}, open(os.path.join(root, "run.json"), "w"))
     json.dump({"sim_s": 40.0, "wall_s": 80.0, "rtf": 0.5}, open(os.path.join(root, "rtf.json"), "w"))
     # final cumulative deposition: event 1 (2 s, 0.2 L): 0.18 on tree 0; event 2 (2 s, 0.2 L): 0.05 on tree 1
@@ -213,7 +249,7 @@ def _build_run(root):
         tm.trees = [entry(5, 0.1, 0.1), entry(6, 8.2, -0.1)]
         bag.write("/treemapper/map", tm, T(5.0))
         # TF: 10 Hz, z = 8 flying over both trees, one dip to 7.2 over tree 0 at t = 11
-        for k in range(0, 400):
+        for k in range(0, 400 if tf else 0):
             t = k * 0.1
             x = -1.0 if t < 10 else (0.0 if t < 15 else 8.0)
             m = TFMessage()
@@ -239,8 +275,10 @@ def _build_run(root):
         bag.write("/spray_target", Int32(6), T(19.9))
         for k in range(0, 800):                     # 20 Hz; open 10..12 and 20..22
             t = k * 0.05
-            bag.write("/corridor_nav/spray", Bool((10.0 <= t < 12.0) or (20.0 <= t < 22.0)), T(t))
-        for k in range(0, 80):                      # 2 Hz cumulative deposition
+            bag.write("/corridor_nav/spray", Bool(spray and ((10.0 <= t < 12.0) or (20.0 <= t < 22.0))), T(t))
+        if deposition == "garbage":
+            bag.write("/sim/deposition", String("{not json"), T(0.0))
+        for k in range(0, 80 if deposition else 0):  # 2 Hz cumulative deposition
             t = k * 0.5
             f1 = min(max((t - 10.0) / 2.0, 0.0), 1.0)
             f2 = min(max((t - 20.0) / 2.0, 0.0), 1.0)
@@ -248,7 +286,7 @@ def _build_run(root):
                  "open_time": 2 * f1 + 2 * f2}
             bag.write("/sim/deposition", String(json.dumps(d)), T(t))
         for t, s in [(0.0, "IDLE"), (1.0, "TAKEOFF"), (3.0, "SCAN_OUT"), (9.0, "GLIDE"), (10.0, "DOSE"),
-                     (12.5, "GLIDE"), (20.0, "DOSE"), (22.5, "RETURN"), (30.0, "DONE")]:
+                     (12.5, "GLIDE"), (20.0, "DOSE"), (22.5, "RETURN"), (30.0, last_state)]:
             st = C["corridor_nav_msgs/NavStatus"]()
             st.header.stamp = T(t)
             st.state = s
@@ -273,6 +311,8 @@ def test_end_to_end_synthetic_run(tmp_path, capsys):
     card = json.load(open(os.path.join(root, "mission_score.json")))
     for f in ("map.jsonl", "mission.json", "ground_truth.json"):
         assert os.path.exists(os.path.join(root, f)), f
+    assert card["errors"] == [] and card["end_state"] == "DONE" and card["completed"] is True
+    assert card["all_pass"] is True
     assert card["efficiency"]["dose_events"] == 2
     assert card["efficiency"]["litres_emitted"] == pytest.approx(0.4)
     assert card["efficiency"]["mission_time_s"] == pytest.approx(29.0)     # 1.0 .. DONE at 30.0
@@ -296,3 +336,77 @@ def test_end_to_end_synthetic_run(tmp_path, capsys):
     assert ms.main(["--run", root, "--compare", root2]) == 0
     printed = capsys.readouterr().out
     assert "Mission comparison" in printed and "corridor (2 runs)" in printed
+
+
+# ----------------------------------------------------------------------------- failure modes (end to end)
+
+def _run_cli(root, capsys):
+    rc = ms.main(["--run", root])
+    cap = capsys.readouterr()
+    return rc, json.load(open(os.path.join(root, "mission_score.json"))), cap
+
+
+def test_missing_deposition_series_is_an_error_and_exits_nonzero(tmp_path, capsys):
+    rc, card, cap = _run_cli(_build_run(str(tmp_path / "r"), deposition=False), capsys)
+    assert rc == 2
+    assert any("no /sim/deposition samples" in e for e in card["errors"])
+    assert card["all_pass"] is False and card["safety"]["all_pass"] is False
+    assert "## ERRORS" in cap.out and "no /sim/deposition samples" in cap.out
+    assert "mission_score: FAIL" in cap.err
+
+
+def test_unparseable_deposition_sample_is_counted(tmp_path, capsys):
+    rc, card, _ = _run_cli(_build_run(str(tmp_path / "r"), deposition="garbage"), capsys)
+    assert rc == 2 and any("1 unparseable /sim/deposition" in e for e in card["errors"])
+
+
+def test_flow_zero_or_missing_is_an_error(tmp_path, capsys):
+    for i, flow in enumerate((0.0, None)):
+        rc, card, _ = _run_cli(_build_run(str(tmp_path / ("r%d" % i)), flow=flow), capsys)
+        assert rc == 2 and any("flow_lps" in e for e in card["errors"]) and card["all_pass"] is False
+
+
+def test_no_tf_is_an_error_and_clearance_does_not_pass(tmp_path, capsys):
+    rc, card, _ = _run_cli(_build_run(str(tmp_path / "r"), tf=False), capsys)
+    assert rc == 2 and any("no TF pose samples" in e for e in card["errors"])
+    assert card["safety"]["clearance_pass"] is False and card["safety"]["clearance_min_m"] is None
+    assert card["all_pass"] is False
+
+
+def test_zero_dose_events_is_an_error(tmp_path, capsys):
+    rc, card, _ = _run_cli(_build_run(str(tmp_path / "r"), spray=False), capsys)
+    assert rc == 2 and any("no dose events" in e for e in card["errors"]) and card["all_pass"] is False
+
+
+def test_deposition_json_missing_or_inconsistent_is_an_error(tmp_path, capsys):
+    root = _build_run(str(tmp_path / "a"))
+    os.remove(os.path.join(root, "deposition.json"))
+    rc, card, _ = _run_cli(root, capsys)
+    assert rc == 2 and any("deposition.json is missing" in e for e in card["errors"])
+    root = _build_run(str(tmp_path / "b"))
+    json.dump({"trees": {"0": 0.18, "1": 0.25}, "ground": 0.17, "emitted": 0.6, "open_time": 4.0},
+              open(os.path.join(root, "deposition.json"), "w"))
+    rc, card, _ = _run_cli(root, capsys)
+    assert rc == 2 and any("deposition inconsistent" in e and "tree 1" in e for e in card["errors"])
+
+
+def test_abort_end_state_fails_and_is_excluded_from_time_metrics(tmp_path, capsys):
+    rc, card, cap = _run_cli(_build_run(str(tmp_path / "abort"), last_state="ABORT"), capsys)
+    assert card["end_state"] == "ABORT" and card["completed"] is False
+    assert card["errors"] == [] and card["all_pass"] is False and rc == 2
+    assert "NOT completed" in cap.out and "end state ABORT" in cap.err
+    ok = _build_run(str(tmp_path / "ok"))
+    assert ms.main(["--run", ok, "--compare", os.path.join(str(tmp_path), "abort")]) == 2
+    out = capsys.readouterr().out
+    assert "Completed (ended in DONE): 1 of 2" in out and "`abort`" in out
+
+
+def test_compare_excludes_incomplete_runs_from_time_metrics():
+    def card(name, completed, t, n):
+        flat = {k: None for k in ms.COMPARE_METRICS}
+        flat.update(mission_time_s=t, n_sprayed=n)
+        return {"run": {"strategy": "corridor", "dir": "/x/" + name}, "completed": completed, "flat": flat}
+    r = ms.compare_runs([card("a", True, 100.0, 10), card("b", False, 5.0, 3), card("c", True, 120.0, 9)])["corridor"]
+    assert r["_runs"] == {"n": 3, "completed": 2, "incomplete": ["b"]}
+    assert r["mission_time_s"]["mean"] == pytest.approx(110.0) and r["mission_time_s"]["worst"] == 120.0
+    assert r["n_sprayed"]["worst"] == 3 and r["n_sprayed"]["n"] == 3     # non-time metrics keep every run

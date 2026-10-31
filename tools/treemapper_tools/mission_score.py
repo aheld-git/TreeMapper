@@ -14,7 +14,12 @@ to ``--out`` or stdout. With ``--compare`` the runs are grouped by strategy and 
 Definitions (controller rulings, Task 15):
 * dose event = one nozzle-open interval of ``/corridor_nav/spray`` (rising edge .. falling edge).
 * intended dose of an event = ``flow_lps`` x its open duration, i.e. what was emitted in the event.
-* an event's deposit = difference of the cumulative ``/sim/deposition`` between its start and 0.5 s after its end.
+* an event's deposit = the cumulative ``/sim/deposition`` at the first sample at or after its end, minus the latest
+  sample at or before its start. The window end is clipped at the next event's start (no shared deposit); with no
+  sample after the end of the last event the final ``deposition.json`` is used (any other event: error).
+* missing or inconsistent inputs are listed in the card's ``errors`` (no deposition samples, flow <= 0, no TF poses,
+  no dose events, deposition.json missing or disagreeing with the events by > 5 % of the litres emitted); any error,
+  a failed safety row, or a mission that did not end in DONE makes ``all_pass`` false and the CLI exit with 2.
 * a truth tree is *sprayed* if some event delivered >= 50 % of its emission to it; *double-sprayed* if two separate
   events each delivered >= 20 % to it; *missed* if never sprayed.
 * an event's target = the TreeMapper id on ``/spray_target`` when it started; it is mapped to a truth tree with the
@@ -29,6 +34,7 @@ import bisect
 import json
 import math
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -40,7 +46,7 @@ GROUND = -1                    # key of the ground in a per-event deposit / cumu
 SPRAYING = "SPRAYING"
 SPRAYED_FRAC = 0.5
 DOUBLE_FRAC = 0.2
-EVENT_TAIL_S = 0.5             # deposition is published at 2 Hz: look half a second past the event end
+CONSISTENCY_TOL = 0.05         # event deposits must match deposition.json within this fraction of the emitted litres
 MATCH_NEAR_M = 2.0
 
 # NavStatus.state -> time-split group (spec 8.2: scan / settle / transit / glide / dose / hold)
@@ -131,22 +137,56 @@ def _cum_at(series: Sequence[Tuple[float, Dict[int, float]]], times: Sequence[fl
 
 
 def per_event_deposit(events: Sequence[Tuple[float, float]], deposition_series: Sequence[Tuple[float, Dict[int, float]]],
-                      tail_s: float = EVENT_TAIL_S) -> List[Dict[int, float]]:
-    """Litres per tree id (``GROUND`` = -1 for the ground, when the series carries it) deposited in each event:
-    cumulative at ``t1 + tail_s`` minus cumulative at ``t0`` (latest sample at or before each time)."""
+                      final: Optional[Dict[int, float]] = None, errors: Optional[List[str]] = None) -> List[Dict[int, float]]:
+    """Litres per tree id (``GROUND`` = -1 for the ground) deposited in each event: the cumulative deposition at the
+    first series sample at or after the event end, minus the latest sample at or before its start. If that sample
+    comes after the next event's start the window end is clipped to the latest sample at or before that start, so
+    two close events cannot claim the same deposit. With no sample after the end: the last event uses ``final``
+    (the final cumulative deposition.json); any other event (or no ``final``) appends a message to ``errors``."""
     series = sorted(deposition_series, key=lambda r: r[0])
     times = [r[0] for r in series]
+    if not series:
+        return [{} for _ in events]
     out = []
-    for t0, t1 in events:
+    for k, (t0, t1) in enumerate(events):
+        nxt = events[k + 1][0] if k + 1 < len(events) else math.inf
         a = _cum_at(series, times, t0)
-        b = _cum_at(series, times, t1 + tail_s)
+        i = bisect.bisect_left(times, t1)
+        if i < len(times):
+            b = series[i][1] if times[i] <= nxt else _cum_at(series, times, nxt)
+        elif k + 1 == len(events) and final is not None:
+            b = final
+        else:
+            b = a
+            if errors is not None:
+                errors.append("no /sim/deposition sample at or after the end of dose event %d (t = %.2f s)" % (k, t1))
         d = {}
-        for k in set(a) | set(b):
-            v = b.get(k, 0.0) - a.get(k, 0.0)
+        for key in set(a) | set(b):
+            v = b.get(key, 0.0) - a.get(key, 0.0)
             if v > 1e-12:
-                d[k] = v
+                d[key] = v
         out.append(d)
     return out
+
+
+def deposit_consistency(deposits: Sequence[Dict[int, float]], final: Dict[int, float], emitted: float,
+                        tol: float = CONSISTENCY_TOL) -> List[str]:
+    """Messages for every key (tree or ground) whose summed per-event deposit differs from the final deposition by
+    more than ``tol`` x emitted, and for the total."""
+    tot: Dict[int, float] = {}
+    for d in deposits:
+        for k, v in d.items():
+            tot[k] = tot.get(k, 0.0) + v
+    lim = tol * emitted
+    msgs = []
+    for k in sorted(set(tot) | set(final)):
+        if abs(tot.get(k, 0.0) - final.get(k, 0.0)) > lim:
+            msgs.append("%s: events sum to %.4f L, deposition.json has %.4f L" % (
+                "ground" if k == GROUND else "tree %d" % k, tot.get(k, 0.0), final.get(k, 0.0)))
+    s_ev, s_fin = sum(tot.values()), sum(final.values())
+    if abs(s_ev - s_fin) > lim:
+        msgs.append("total: events sum to %.4f L, deposition.json has %.4f L" % (s_ev, s_fin))
+    return msgs
 
 
 def _truth_ids(truth) -> List[int]:
@@ -331,6 +371,7 @@ class BagData:
     maps: List[Tuple[float, str, List[dict]]] = field(default_factory=list)
     map_timing: Dict[float, Dict[str, float]] = field(default_factory=dict)
     deposition: List[Tuple[float, Dict[int, float]]] = field(default_factory=list)
+    deposition_unparsed: int = 0
 
 
 def _entry(e) -> dict:
@@ -390,9 +431,12 @@ def read_bag(path: str) -> BagData:
                     b.timing.setdefault("treemapper." + k, []).append(float(v))
             elif topic == "/sim/deposition":
                 try:
-                    b.deposition.append((bt.to_sec(), parse_deposition(json.loads(msg.data))))
-                except (ValueError, TypeError, AttributeError):
-                    pass
+                    doc = json.loads(msg.data)
+                    if not isinstance(doc, dict):
+                        raise ValueError("not an object")
+                    b.deposition.append((bt.to_sec(), parse_deposition(doc)))
+                except (ValueError, TypeError, AttributeError, KeyError):
+                    b.deposition_unparsed += 1
             elif topic in stage_of:
                 key, stage = stage_of[topic]
                 for s, v in zip(msg.stages, msg.ms):
@@ -492,11 +536,18 @@ def event_targets(events, targets, snaps, truth) -> List[Optional[int]]:
 def score_run(run_dir: str) -> dict:
     run = _load_json(os.path.join(run_dir, "run.json"), {})
     spec = run.get("spec", {})
-    flow = float(spec.get("nozzle", {}).get("flow_lps", 0.0))
+    errors: List[str] = []
+    try:
+        flow = float((spec.get("nozzle") or {}).get("flow_lps"))
+    except (TypeError, ValueError):
+        flow = float("nan")
+    if not (math.isfinite(flow) and flow > 0):
+        errors.append("run.json: spec.nozzle.flow_lps is missing or not > 0 (no intended dose can be computed)")
+        flow = 0.0
     radius = float(spec.get("drone", {}).get("radius", 0.8))
     truth = _load_truth(run_dir)
     gt_path = _ensure_ground_truth(run_dir, truth)
-    depo = _load_json(os.path.join(run_dir, "deposition.json"), {})
+    depo = _load_json(os.path.join(run_dir, "deposition.json"))
     rtf = _load_json(os.path.join(run_dir, "rtf.json"), {})
     b = read_bag(os.path.join(run_dir, "mission.bag"))
 
@@ -508,7 +559,23 @@ def score_run(run_dir: str) -> dict:
     t_end = max([r[0] for r in (b.poses[-1:] + b.phases[-1:] + b.status_states[-1:] + b.spray[-1:])], default=0.0)
     split = time_split(b.phases, b.status_states, t_end)
     events = dose_events(b.spray)
-    deposits = per_event_deposit(events, b.deposition)
+    final = parse_deposition(depo) if isinstance(depo, dict) and depo else None
+    if not b.deposition:
+        errors.append("no /sim/deposition samples in the bag")
+    if b.deposition_unparsed:
+        errors.append("%d unparseable /sim/deposition samples" % b.deposition_unparsed)
+    if final is None:
+        errors.append("deposition.json is missing or empty")
+    if not b.poses:
+        errors.append("no TF pose samples (no world -> body transform in /tf): clearance cannot be judged")
+    if not events:
+        errors.append("no dose events (/corridor_nav/spray was never true)")
+    dep_errors: List[str] = []
+    deposits = per_event_deposit(events, b.deposition, final, dep_errors if b.deposition else None)
+    errors += dep_errors
+    if events and b.deposition and final is not None:
+        emitted_final = float(depo["emitted"]) if "emitted" in depo else sum(final.values())
+        errors += ["deposition inconsistent: " + m for m in deposit_consistency(deposits, final, emitted_final)]
     intended = [flow * (t1 - t0) for t0, t1 in events]
     targets = event_targets(events, b.targets, snaps, truth)
     sp = spray_metrics(deposits, truth, intended, targets)
@@ -521,17 +588,32 @@ def score_run(run_dir: str) -> dict:
     cost["rtf"] = rtf.get("rtf")
     cost["sim_s"], cost["wall_s"] = rtf.get("sim_s"), rtf.get("wall_s")
 
-    emitted = depo.get("emitted") if depo else None
+    emitted = depo.get("emitted") if isinstance(depo, dict) else None
     if emitted is None:
         emitted = sum(intended)
     mt = split["mission_time_s"]
     n_sp = sp["n_sprayed"]
+    end_state = next((st for _, st in b.status_states if st in END_STATES), "none")
+    completed = end_state == "DONE"
     safety = {"clearance_min_m": cmin if math.isfinite(cmin) else None, "clearance_min_t": cmin_t,
-              "clearance_pass": cmin > 0, "n_pose_samples": len(b.poses),
+              "clearance_pass": bool(b.poses) and cmin > 0, "n_pose_samples": len(b.poses),
               "nozzle_outside_dose": outside, "nozzle_pass": outside == 0,
               "sprayed_tree_targeted_again": sp["resprayed_events"], "retarget_pass": sp["resprayed_events"] == 0}
-    safety["all_pass"] = safety["clearance_pass"] and safety["nozzle_pass"] and safety["retarget_pass"]
+    safety["completed"] = completed
+    safety["all_pass"] = (not errors and completed and safety["clearance_pass"] and safety["nozzle_pass"]
+                          and safety["retarget_pass"])
+    fail = list(errors)
+    if not completed:
+        fail.append("mission did not complete: end state %s (DONE required)" % end_state)
+    if not safety["clearance_pass"] and b.poses:
+        fail.append("clearance: minimum %.3f m is not > 0" % cmin)
+    if not safety["nozzle_pass"]:
+        fail.append("nozzle open outside DOSE in %d samples" % outside)
+    if not safety["retarget_pass"]:
+        fail.append("sprayed tree targeted again in %d events" % sp["resprayed_events"])
     card: Dict[str, Any] = {
+        "errors": errors, "end_state": end_state, "completed": completed, "all_pass": safety["all_pass"],
+        "fail_reasons": fail,
         "run": {"dir": os.path.abspath(run_dir), "strategy": run.get("strategy"), "seed": run.get("seed"),
                 "git_commit": run.get("git_commit"), "flow_lps": flow, "drone_radius": radius,
                 "n_truth_trees": len(truth)},
@@ -595,16 +677,24 @@ def flatten(card: dict) -> Dict[str, Optional[float]]:
             "sgbm_mean_ms": c["sgbm"]["mean_ms"], "detector_mean_ms": c["detector"]["mean_ms"], "rtf": c.get("rtf")}
 
 
+# metrics of the mission as a whole: an aborted or unfinished run would flatter them, so they skip incomplete runs
+MISSION_METRICS = ("mission_time_s", "path_length_m", "seconds_per_sprayed_tree")
+
+
 def compare_runs(cards: Sequence[dict]) -> Dict[str, Dict[str, dict]]:
-    """{strategy: {metric: {n, mean, worst, spread, values}}}; worst is in the bad direction."""
+    """{strategy: {metric: {n, mean, worst, spread, values}, "_runs": {n, completed, incomplete}}}; worst is in
+    the bad direction. Runs that did not end in DONE are left out of ``MISSION_METRICS`` and listed in ``_runs``."""
     groups: Dict[str, List[dict]] = {}
     for c in cards:
         groups.setdefault(str(c["run"].get("strategy")), []).append(c)
     out: Dict[str, Dict[str, dict]] = {}
     for strat, cs in sorted(groups.items()):
-        out[strat] = {}
+        out[strat] = {"_runs": {"n": len(cs), "completed": sum(1 for c in cs if c.get("completed", True)),
+                                "incomplete": [os.path.basename(str(c["run"].get("dir", "?")).rstrip("/"))
+                                               for c in cs if not c.get("completed", True)]}}
         for key, (_, bad) in COMPARE_METRICS.items():
-            vals = [c["flat"][key] for c in cs if c["flat"].get(key) is not None]
+            use = [c for c in cs if c.get("completed", True) or key not in MISSION_METRICS]
+            vals = [c["flat"][key] for c in use if c["flat"].get(key) is not None]
             if not vals:
                 out[strat][key] = {"n": 0, "mean": None, "worst": None, "spread": None, "values": []}
                 continue
@@ -633,7 +723,12 @@ def _pf(v) -> str:
 def card_markdown(card: dict) -> str:
     r, e, s, sf, g, c = (card[k] for k in ("run", "efficiency", "spray", "safety", "guards", "cost"))
     sp = e["time_split"]
-    L = ["# Mission scorecard: %s" % os.path.basename(r["dir"].rstrip("/")), "",
+    L = ["# Mission scorecard: %s" % os.path.basename(r["dir"].rstrip("/")), ""]
+    if card.get("errors"):
+        L += ["## ERRORS: this scorecard is not valid", ""] + ["- " + m for m in card["errors"]] + [""]
+    L += [
+         "Mission end state `%s`, %s; overall %s." % (card.get("end_state"), "completed" if card.get("completed")
+                                                     else "NOT completed", _pf(card.get("all_pass"))), "",
          "Strategy `%s`, seed %s, commit `%s`, %d truth trees, flow %s L/s, drone radius %s m." % (
              r["strategy"], r["seed"], r["git_commit"], r["n_truth_trees"], _f(r["flow_lps"]), _f(r["drone_radius"])), "",
          "## Efficiency", "", "| Metric | Value |", "|---|---|",
@@ -653,6 +748,7 @@ def card_markdown(card: dict) -> str:
          "| Events with no matched truth target | %d of %d |" % (s["unmatched_events"], s["n_events"]),
          "| Skipped trees (navigator) | %s |" % _f(s.get("nav_trees_skipped")), "",
          "## Safety (must pass)", "", "| Check | Value | Result |", "|---|---|---|",
+         "| Mission ended in DONE | %s | %s |" % (card.get("end_state"), _pf(card.get("completed"))),
          "| Minimum clearance over truth canopy (m) at t = %s | %s | %s |" % (
              _f(sf["clearance_min_t"], 2), _f(sf["clearance_min_m"]), _pf(sf["clearance_pass"])),
          "| Nozzle open outside DOSE (samples) | %d | %s |" % (sf["nozzle_outside_dose"], _pf(sf["nozzle_pass"])),
@@ -682,8 +778,12 @@ def compare_markdown(cmp: Dict[str, Dict[str, dict]], cards: Sequence[dict]) -> 
          "Per strategy: mean over runs, worst case (max for times and failures, min for clearance, sprayed, "
          "on-target and RTF) and spread (max - min).", ""]
     for strat, metrics in cmp.items():
-        n = max((m["n"] for m in metrics.values()), default=0)
-        L += ["## %s (%d runs)" % (strat, n), "", "| Metric | Mean | Worst | Spread |", "|---|---|---|---|"]
+        ru = metrics["_runs"]
+        L += ["## %s (%d runs)" % (strat, ru["n"]), "",
+              "Completed (ended in DONE): %d of %d.%s" % (ru["completed"], ru["n"], (
+                  " Incomplete, excluded from mission time, path length and seconds per tree: %s." %
+                  ", ".join("`%s`" % x for x in ru["incomplete"])) if ru["incomplete"] else ""), "",
+              "| Metric | Mean | Worst | Spread |", "|---|---|---|---|"]
         for key, (label, _) in COMPARE_METRICS.items():
             m = metrics[key]
             L.append("| %s | %s | %s | %s |" % (label, _f(m["mean"]), _f(m["worst"]), _f(m["spread"])))
@@ -711,7 +811,11 @@ def main(argv=None):
             f.write(md)
     else:
         print(md)
-    return 0   # a failing safety row is reported in the scorecard; the exit code means "scored"
+    bad = [c for c in cards if not c["all_pass"] or c["errors"]]
+    for c in bad:
+        print("mission_score: FAIL %s: %s" % (c["run"]["dir"], "; ".join(c["fail_reasons"]) or "all_pass is false"),
+              file=sys.stderr)
+    return 2 if bad else 0
 
 
 if __name__ == "__main__":
