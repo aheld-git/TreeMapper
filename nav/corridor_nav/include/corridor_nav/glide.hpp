@@ -21,7 +21,7 @@ struct Path3 {
 /// Infinity for an empty polygon.
 double distanceToPolygon(const treemapper::Polygon2& poly, const treemapper::Point2& p);
 
-/// Spray point of `target`: (centre, height + spray_clearance), raised to height_k + transit_clearance for every other
+/// Spray point of `target`: (centre, height + spray_clearance), raised to height_k + max(transit_clearance, spray_clearance - descent_slack) for every other
 /// tree k of `map` whose outline is within drone_radius + lateral_margin of the target centre (a tree the mapper
 /// split in two). Counted `spray_point_raised`. `counters` may be null.
 Point3 sprayPoint(const treemapper::TreeEntry& target, const std::vector<treemapper::TreeEntry>& map,

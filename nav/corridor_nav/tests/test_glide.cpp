@@ -85,8 +85,9 @@ TEST(Glide, ClimbsOverTallerMiddleTree) {
   EXPECT_DOUBLE_EQ(p.pts[1].z, 9.0);
 }
 
-TEST(Glide, NeverBelowAnyObstacleRequirement) {
-  const Config cfg;
+namespace {
+
+void checkNeverBelowRequirement(const Config& cfg) {
   std::mt19937 rng(42);
   auto uni = [&](double lo, double hi) { return std::uniform_real_distribution<double>(lo, hi)(rng); };
   int climbs = 0;
@@ -126,6 +127,35 @@ TEST(Glide, NeverBelowAnyObstacleRequirement) {
     }
   }
   EXPECT_GT(climbs, 10);  // the random maps exercise the detour as well as the straight case
+}
+
+}  // namespace
+
+TEST(Glide, NeverBelowAnyObstacleRequirement) { checkNeverBelowRequirement(Config{}); }
+
+TEST(Glide, NeverBelowAnyObstacleRequirementNonDefaultConfig) {
+  Config cfg;
+  cfg.spray_clearance = 3.0;
+  cfg.descent_slack = 0.3;
+  cfg.transit_clearance = 1.5;
+  cfg.drone_radius = 1.0;
+  cfg.lateral_margin = 0.8;
+  checkNeverBelowRequirement(cfg);
+}
+
+// Neighbours whose spray clearance exceeds the transit clearance: the end point must satisfy the from tree's requirement.
+TEST(Glide, SprayPointClearsFromTreeRequirementForLargeSprayClearance) {
+  Config cfg;
+  cfg.spray_clearance = 3.0;
+  const std::vector<TreeEntry> map = {tree(1, 0, 0, 1.0, 7.0), tree(2, 2, 0, 1.0, 4.0)};
+  const Point3 a = sprayPoint(map[0], map, cfg, nullptr);
+  const Path3 p = planGlide(a, 1, map[1], map, cfg, nullptr);
+  ASSERT_GE(p.pts.size(), 2u);
+  const Point3& end = p.pts.back();
+  EXPECT_GE(end.z + 1e-9, requirement(map, cfg, 1, 2, end.x, end.y));
+  EXPECT_GE(end.z, 7.0 + (cfg.spray_clearance - cfg.descent_slack));  // 9.5, above A's requirement at B's xy
+  EXPECT_FALSE(p.climbed);
+  EXPECT_EQ(p.pts.size(), 2u);
 }
 
 TEST(Glide, SprayPointRaisedOverOverlappingNeighbour) {

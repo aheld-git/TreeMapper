@@ -96,7 +96,8 @@ Point3 sprayPoint(const treemapper::TreeEntry& target, const std::vector<treemap
   bool raised = false;
   for (const treemapper::TreeEntry& k : map) {
     if (k.id == target.id) continue;
-    const double need = k.height + config.transit_clearance;
+    // the neighbour is also the `from` tree of a glide into this one, whose requirement is the larger of the two
+    const double need = k.height + std::max(config.transit_clearance, config.spray_clearance - config.descent_slack);
     if (need > p.z && distanceToPolygon(k.outline, target.centre) <= reach) {
       p.z = need;
       raised = true;
