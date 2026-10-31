@@ -32,9 +32,10 @@ Definitions (controller rulings, Task 15 and the interim whole-branch review, I1
 * a truth tree is *sprayed* if it received >= 50 % of some episode's intended dose; *double-sprayed* if two separate
   episodes each delivered >= 20 % of their intended dose to it (a spray metric, not a safety row); *missed* if never
   sprayed.
-* *targeted again* (safety row) = an episode whose TreeMapper id was already ``sprayed`` in the latest map before the
-  episode, or had an earlier episode after which a map showed it ``sprayed`` (the flag flipping is the evidence of a
-  completed set_tree_sprayed mark). A retry on an id that was never marked is not targeted again.
+* *targeted again* (safety row) = an episode whose TreeMapper id was ``sprayed`` in any map before the episode (the
+  flag flipping is the evidence of a completed set_tree_sprayed mark), or had an earlier episode that ended before it
+  with a valid dose (nozzle open >= ``DOSE_VALID_FRAC`` of its SPRAYING time) - so a second dose inside one map
+  period is caught. A retry after an invalid dose is not targeted again.
 * an episode's truth target = its TreeMapper id mapped with the latest map snapshot before the episode (truth outline
   containing the TreeMapper centre, else nearest truth centre within 2 m, else unmatched). on-target = litres on the
   matched truth tree / litres emitted; an unmatched episode counts 0 on-target and is counted separately.
@@ -61,6 +62,7 @@ DOUBLE_FRAC = 0.2
 CONSISTENCY_TOL = 0.05         # event deposits must match deposition.json within this fraction of the emitted litres
 EPISODE_SLACK_S = 0.15         # s: /corridor_nav/spray and /mission_state are separate topics, a control tick apart
 MATCH_NEAR_M = 2.0
+DOSE_VALID_FRAC = 0.8          # nozzle-open share of an episode's SPRAYING time that makes a dose valid (Config dose_valid_frac)
 
 # NavStatus.state -> time-split group (spec 8.2: scan / settle / transit / glide / dose / hold)
 STATE_GROUP = {"SCAN_OUT": "scan", "SCAN_SETTLE": "settle", "TAKEOFF": "transit", "TRANSIT": "transit",
@@ -163,6 +165,11 @@ class Episode:
         return float(sum(b - a for a, b in self.intervals))
 
     @property
+    def dose_complete(self) -> bool:
+        """A valid dose: the nozzle was open for at least DOSE_VALID_FRAC of the SPRAYING interval."""
+        return self.end > self.start and self.open_s >= DOSE_VALID_FRAC * (self.end - self.start) - 1e-9
+
+    @property
     def window(self) -> Tuple[float, float]:
         """Deposit window: the episode widened to its nozzle intervals."""
         return (min([self.start] + [a for a, _ in self.intervals]), max([self.end] + [b for _, b in self.intervals]))
@@ -209,9 +216,11 @@ def _marked(snap, tm_id: int) -> bool:
 
 
 def targeted_again(episodes: Sequence[Episode], snaps: Sequence[contract.Snapshot]) -> List[int]:
-    """Indices of the episodes that aimed at a TreeMapper id already sprayed: ``sprayed`` in the latest snapshot
-    before the episode start, or in any snapshot between the end of an earlier episode on the same id and this
-    start (a completed set_tree_sprayed mark). Episodes without an id are not judged."""
+    """Indices of the episodes that aimed at a TreeMapper id already sprayed: ``sprayed`` in any snapshot before the
+    episode start (a completed set_tree_sprayed mark), or an earlier episode on the same id that ended before this
+    start with a valid dose (nozzle open for at least ``DOSE_VALID_FRAC`` of its SPRAYING time) - independent of the
+    snapshots, which come once per map period. A short, invalid first dose is the navigator's retry, not a second
+    dose. Episodes without an id are not judged; orphan units are no dose episode."""
     ss = sorted(snaps, key=lambda s: s.t)
     st = [s.t for s in ss]
     out = []
@@ -219,16 +228,11 @@ def targeted_again(episodes: Sequence[Episode], snaps: Sequence[contract.Snapsho
         if e.tm_id is None:
             continue
         before = bisect.bisect_left(st, e.start)          # snapshots strictly before the start
-        if before > 0 and _marked(ss[before - 1], e.tm_id):
+        if any(_marked(ss[j], e.tm_id) for j in range(before)):
             out.append(k)
             continue
-        for p in episodes[:k]:
-            if p.tm_id != e.tm_id or p.end > e.start:
-                continue
-            lo = bisect.bisect_right(st, p.end)
-            if any(_marked(ss[j], e.tm_id) for j in range(lo, before)):
-                out.append(k)
-                break
+        if any(p.tm_id == e.tm_id and not p.orphan and p.end <= e.start and p.dose_complete for p in episodes[:k]):
+            out.append(k)
     return out
 
 

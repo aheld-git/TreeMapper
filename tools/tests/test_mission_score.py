@@ -158,6 +158,25 @@ def test_retry_on_an_unsprayed_id_is_not_targeted_again_but_a_sprayed_id_is():
     assert ms.targeted_again(eps, [snap(15.0, sprayed_ids=(6,)), snap(17.0, sprayed_ids=(5,))]) == []
 
 
+def test_second_dose_on_a_completed_id_within_one_map_period_is_targeted_again():
+    # id 5 gets a full dose (3.8 of 4 s open), then another episode, with no map snapshot in between (one map period)
+    phases = [(10.0, "SPRAYING"), (14.0, "HOPPING"), (16.0, "SPRAYING"), (20.0, "HOPPING")]
+    spray = [(10.1, True), (13.9, False), (16.1, True), (19.9, False)]
+    eps = ms.dose_episodes(phases, [(0.0, 5)], spray, t_end=30.0)
+    assert len(eps) == 2
+    assert ms.targeted_again(eps, [snap(5.0), snap(30.0)]) == [1]
+    assert ms.targeted_again(eps, []) == [1]
+    # a different id in the second episode is not a second dose
+    eps2 = ms.dose_episodes(phases, [(0.0, 5), (15.0, 6)], spray, t_end=30.0)
+    assert ms.targeted_again(eps2, [snap(5.0), snap(30.0)]) == []
+    # the first dose was invalid (1.0 of 4 s open): the navigator retries it, which is not a second dose
+    short = [(10.1, True), (11.1, False), (16.1, True), (19.9, False)]
+    eps3 = ms.dose_episodes(phases, [(0.0, 5)], short, t_end=30.0)
+    assert ms.targeted_again(eps3, [snap(5.0), snap(30.0)]) == []
+    # sprayed in a snapshot earlier than the later episode's start, whichever snapshot of those it is
+    assert ms.targeted_again(eps3, [snap(5.0, sprayed_ids=(5,)), snap(12.0), snap(15.0)]) == [0, 1]
+
+
 def test_short_burst_in_a_long_episode_is_not_sprayed():
     # 0.2 s of nozzle in a 4 s SPRAYING episode: all of it on tree 1, but 5 % of the intended dose
     eps = ms.dose_episodes([(10.0, "SPRAYING"), (14.0, "HOPPING")], [(0.0, 5)], [(10.0, True), (10.2, False)],
