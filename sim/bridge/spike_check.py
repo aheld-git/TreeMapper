@@ -14,6 +14,7 @@ and a spray on/off check against /sim/deposition. Exit 0 iff every check passes.
 import argparse
 import json
 import math
+import os
 import sys
 import threading
 import time
@@ -34,7 +35,18 @@ ap.add_argument("--min-image-hz", type=float, default=9.0)
 ap.add_argument("--max-onset", type=float, default=1.0,
                 help="max sim s from setpoint publish to first TF motion (the transport criterion)")
 ap.add_argument("--stall", type=float, default=5.0, help="exit non-zero if /clock does not advance for this many wall s")
+ap.add_argument("--stall-startup", type=float, default=30.0,
+                help="the same limit while waiting for the first images and /tf_static (Isaac can pause the clock "
+                     "while it loads and warms up)")
 args = ap.parse_args()
+
+# A failed run must not leave the previous run's passing report behind: every exit before the verdict (die(), the
+# sim-time check, a crash) finds no --out file.
+if args.out:
+    try:
+        os.remove(args.out)
+    except FileNotFoundError:
+        pass
 
 
 class Stat:
@@ -152,16 +164,17 @@ def die(code, msg):
     sys.exit(code)
 
 
-def check_stall():
+def check_stall(limit):
     """Sim time freezes when /clock stops, so sim-time loops cannot detect it themselves."""
     adv = clock_log["wall_advance"]
-    if adv is not None and time.time() - adv > args.stall:
+    if adv is not None and time.time() - adv > limit:
         die(4, "/clock stalled: no advance for %.1f s wall (last sim t=%.3f)" % (time.time() - adv, clock_log["last"]))
 
 
-def wall_sleep(s):
+def wall_sleep(s, stall=None):
+    """Sleep s wall seconds, then die if /clock has not advanced for `stall` (default --stall) wall seconds."""
     time.sleep(s)
-    check_stall()
+    check_stall(args.stall if stall is None else stall)
 
 
 rospy.init_node("tm_spike_check", anonymous=True)
@@ -193,14 +206,14 @@ if clock_log["last"] is None:
     die(3, "no /clock within %.0f s wall" % args.wait)
 print("clock up at sim t=%.3f; waiting for both images ..." % clock_log["last"], flush=True)
 while (stats["left"].n < 3 or stats["right"].n < 3) and time.time() - w0 < args.wait:
-    wall_sleep(0.2)
+    wall_sleep(0.2, args.stall_startup)
 if stats["left"].n < 3 or stats["right"].n < 3:
     die(5, "images not flowing within %.0f s wall (left=%d right=%d)" % (args.wait, stats["left"].n, stats["right"].n))
 
 # Static transforms reach a late joiner only through Isaac's 1 Hz /tf_static replay (the bridge
 # does not latch); wait for the first one and report how long a fresh Noetic node waited.
 while not tf_static_frames and time.time() - w0 < args.wait:
-    wall_sleep(0.1)
+    wall_sleep(0.1, args.stall_startup)
 if not tf_static_frames:
     die(6, "no /tf_static within %.0f s wall (is Isaac replaying it?)" % args.wait)
 static_first_wait_s = time.time() - node_start_wall

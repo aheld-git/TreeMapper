@@ -76,7 +76,7 @@ Lag is two to four 60 Hz ticks, i.e. Isaac's own render-to-publish latency; the 
   Transport latency is 0-5 sim ticks (< 0.09 s). The ROS 1 side's notion of "now" is the last `/clock` it received, so all of these are accurate to about one tick (hence the 0.00 echo).
 - **Spray**: `/corridor_nav/spray` true for ~5 sim s then false raised `/sim/deposition` `volume_l` by 0.366 L (0.075 L/s, as modelled).
 
-Check verdict (`sim_bridge_spike_check_final.json`): both images >= 9 Hz, camera_info present, `/clock` monotonic, tf2 lookups, `setpoint_onset<1.0s`, truth/deposition received, spray deposition: all true. `spike_check.py` also exits non-zero (with a message) if `/clock` stalls for 5 s wall, or if the images or `/tf_static` do not arrive, or a measurement loop overruns its wall deadline.
+Check verdict (`sim_bridge_spike_check_final.json`): both images >= 9 Hz, camera_info present, `/clock` monotonic, tf2 lookups, `setpoint_onset<1.0s`, truth/deposition received, spray deposition: all true. `spike_check.py` also exits non-zero (with a message) if `/clock` stalls for 5 s wall (30 s while waiting for the first images and `/tf_static`), or if the images or `/tf_static` do not arrive, or a measurement loop overruns its wall deadline.
 
 ## Bridge type coverage (Humble <-> Humble, no relay)
 
