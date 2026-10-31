@@ -73,6 +73,8 @@ double minAreaRectHeading(const Polygon2& field) {
 }
 
 double maxCorridorWidth(const CameraFov& fov, const Config& config) {
+  // std::min would silently drop a NaN second argument: a non-finite fov must stay non-finite (fail closed)
+  if (!std::isfinite(fov.hfov_rad) || !std::isfinite(fov.vfov_rad)) return std::numeric_limits<double>::quiet_NaN();
   const double fov_min = std::min(fov.hfov_rad, fov.vfov_rad);
   return 2.0 * (config.z_scan - config.expected_canopy_top_max) * std::tan(fov_min / 2.0) -
          2.0 * config.expected_canopy_radius_max - config.w_margin;
@@ -85,7 +87,7 @@ CorridorPlan planCorridors(const Field& field, const CameraFov& fov, const Confi
     plan.error = "field invalid";
     return plan;
   }
-  if (plan.w_max < config.corridor_width_min) {
+  if (!(plan.w_max >= config.corridor_width_min)) {  // also catches a non-finite w_max (NaN fov)
     plan.error = "coverage impossible";
     return plan;
   }
@@ -124,10 +126,10 @@ CorridorPlan planCorridors(const Field& field, const CameraFov& fov, const Confi
       c.index = static_cast<int>(plan.corridors.size());
       c.strip = {frame.toWorld(u0, vc - strip_w / 2), frame.toWorld(u1, vc - strip_w / 2),
                  frame.toWorld(u1, vc + strip_w / 2), frame.toWorld(u0, vc + strip_w / 2)};
-      const bool forward = c.index % 2 == 0;
-      c.entry = frame.toWorld(forward ? u0 : u1, vc);
-      c.exit = frame.toWorld(forward ? u1 : u0, vc);
-      c.heading_rad = forward ? heading : heading + kPi;
+      // every corridor is scanned out along the heading and sprayed back to its entry, so the entries line up
+      c.entry = frame.toWorld(u0, vc);
+      c.exit = frame.toWorld(u1, vc);
+      c.heading_rad = heading;
       plan.corridors.push_back(std::move(c));
     }
   }

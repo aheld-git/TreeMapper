@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 
 #include "corridor_nav/corridors.hpp"
 #include "treemapper/geometry.hpp"
@@ -50,7 +51,7 @@ TEST(CorridorPlan, HeadingIsLongAxis) {
   EXPECT_NEAR(minAreaRectHeading(rect(10, 40)), kPi / 2, 1e-9);
 }
 
-TEST(CorridorPlan, TilesFieldAndAlternates) {
+TEST(CorridorPlan, TilesFieldAndAllEnterOnTheSameSide) {
   Field f;
   f.polygon = rect(60, 20);
   f.heading_rad = 0.0;
@@ -68,10 +69,10 @@ TEST(CorridorPlan, TilesFieldAndAlternates) {
     EXPECT_NEAR(treemapper::polygonArea(cor.strip), 60.0 * 5.0, 1e-9);  // CCW, 60 x 5
     covered += treemapper::convexIntersectionArea(cor.strip, f.polygon);
     EXPECT_NEAR(dist(cor.entry, cor.exit), 60.0, 1e-9);
-    // even k scans along +x, odd k back along -x
-    EXPECT_NEAR(std::cos(cor.heading_rad), k % 2 == 0 ? 1.0 : -1.0, 1e-9);
-    EXPECT_NEAR(cor.exit.x - cor.entry.x, k % 2 == 0 ? 60.0 : -60.0, 1e-9);
-    if (k > 0) EXPECT_NEAR(dist(cor.entry, plan.corridors[k - 1].exit), 5.0, 1e-9);
+    // every corridor is scanned along +x (the field heading); entries line up on the same side
+    EXPECT_DOUBLE_EQ(cor.heading_rad, 0.0);
+    EXPECT_NEAR(cor.exit.x - cor.entry.x, 60.0, 1e-9);
+    if (k > 0) EXPECT_NEAR(dist(cor.entry, plan.corridors[k - 1].entry), 5.0, 1e-9);
   }
   EXPECT_NEAR(covered, 1200.0, 1e-6);
   EXPECT_TRUE(n.empty());
@@ -124,6 +125,21 @@ TEST(CorridorPlan, RefusesWhenCoverageImpossible) {
   EXPECT_FALSE(plan.ok);
   EXPECT_EQ(plan.error, "coverage impossible");
   EXPECT_TRUE(plan.corridors.empty());
+}
+
+TEST(CorridorPlan, RefusesANonFiniteFov) {
+  Field f;
+  f.polygon = rect(60, 20);
+  f.heading_rad = 0.0;
+  Config c;
+  c.corridor_width = 5.0;
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  for (const CameraFov& bad : {CameraFov{nan, nan}, CameraFov{90.0 * kDeg, nan}}) {
+    const CorridorPlan plan = planCorridors(f, bad, c, nullptr);
+    EXPECT_FALSE(plan.ok);
+    EXPECT_EQ(plan.error, "coverage impossible");
+    EXPECT_TRUE(plan.corridors.empty());
+  }
 }
 
 TEST(CorridorPlan, RefusesAnInvalidField) {

@@ -27,7 +27,7 @@ struct CorridorPlan {
 };
 
 /// Boustrophedon corridors over `field`. Heading = field.heading_rad, else minAreaRectHeading(polygon).
-/// Corridor k is scanned along the heading for even k and against it for odd k. `counters` may be null.
+/// Every corridor enters at its low-u end and exits at its high-u end (heading_rad = the heading); `counters` may be null.
 /// Counts: corridor_width_clamped, corridors_dropped_short.
 CorridorPlan planCorridors(const Field& field, const CameraFov& fov, const Config& config, Counters* counters);
 
