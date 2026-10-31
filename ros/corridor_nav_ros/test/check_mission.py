@@ -9,6 +9,7 @@ Calls ~start (retried until the node accepts: it needs camera_info and a fresh p
     the last map;
   * the nozzle was never true outside the SPRAYING phase (+-0.15 s for the order of two topics), each tree got a dose
     of nozzle time with the drone over it, and no nozzle time at all away from a tree (the world's own account);
+  * while the nozzle was open the drone's TRUE clearance over the canopy under it was >= the cfg min_clearance - 0.2 m;
   * the setpoint stream never went lower than max(PUBLISHED height of any tree within 1.3 m xy) + 1.5 m (the
     planner's promise on what it was told);
   * the clearance guard (stereo from the mm-form right camera_info, disparity from the truth) caught the tree the map
@@ -19,11 +20,13 @@ Calls ~start (retried until the node accepts: it needs camera_info and a fresh p
 The world's account (truth trees, service calls, nozzle time, drone) is read from /nav_sim_lite/stats."""
 import json
 import math
+import os
 import sys
 import threading
 import time
 import unittest
 
+import rospkg
 import rospy
 import rostest
 from corridor_nav_msgs.msg import NavStatus
@@ -34,8 +37,22 @@ from treemapper_msgs.msg import TreeMap
 
 CLEARANCE_RADIUS = 1.3   # m xy: a setpoint this close to a tree centre is "over" the tree
 CLEARANCE_MIN = 1.5      # m above the canopy top
+NOZZLE_CLEARANCE_TOL = 0.2   # m: the true clearance with the nozzle open may sit this far below the cfg min_clearance
 PHASE_SLACK_S = 0.15     # s: spray and /mission_state are separate topics, one control tick apart at most
 HOME = (0.0, -2.0)       # field_lite.yaml
+
+
+def cfg_value(key):
+    """`key` of the cfg file corridor_nav_node runs with (its ~config_file, else the node's default path)."""
+    path = rospy.get_param("/corridor_nav/config_file", "config/core/corridor_nav.cfg")
+    if not path.startswith("/"):
+        path = os.path.join(rospkg.RosPack().get_path("corridor_nav_ros"), path)
+    with open(path) as f:
+        for line in f:
+            k, sep, v = line.split("#", 1)[0].partition("=")
+            if sep and k.strip() == key:
+                return float(v)
+    raise KeyError("%s not in %s" % (key, path))
 
 
 class MissionCheck(unittest.TestCase):
@@ -183,6 +200,18 @@ class MissionCheck(unittest.TestCase):
         self.assertLessEqual(world["nozzle_elsewhere_s"], 0.1, "nozzle open %.2f s away from any tree" % world["nozzle_elsewhere_s"])
         for t in trees:
             self.assertGreaterEqual(t["nozzle_s"], 1.6, "tree %d got only %.2f s of nozzle with the drone over it" % (t["id"], t["nozzle_s"]))
+
+        # --- nozzle altitude: with the nozzle open the TRUE clearance over the canopy under the drone stays at the cfg
+        # min_clearance (less a tolerance), not just above 0 - the guard's floor holds while spraying too
+        min_clearance = cfg_value("min_clearance")
+        for t in trees:
+            c = t["nozzle_min_clearance_m"]
+            self.assertIsNotNone(c, "tree %d: no nozzle clearance recorded" % t["id"])
+            rospy.loginfo("tree %d: lowest true clearance with the nozzle open %.2f m (floor %.2f - %.1f)",
+                          t["id"], c, min_clearance, NOZZLE_CLEARANCE_TOL)
+            self.assertGreaterEqual(c, min_clearance - NOZZLE_CLEARANCE_TOL,
+                                    "tree %d sprayed from %.2f m above its canopy (min_clearance %.2f - %.1f)" % (
+                                        t["id"], c, min_clearance, NOZZLE_CLEARANCE_TOL))
 
         # --- clearance: setpoints never lower than the PUBLISHED canopy + 1.5 m within 1.3 m xy of a tree
         self.assertGreater(len(setpoints), 100)

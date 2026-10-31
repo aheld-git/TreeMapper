@@ -18,8 +18,8 @@
              hfov (wide axis across track) and the default config plans exactly 2 corridors in field_lite.yaml (the
              fov_min rule would give a 2 m maximum corridor width and "coverage impossible").
   stats      /nav_sim_lite/stats (std_srvs/Trigger, JSON in `message`): the world's own account for check_mission.py -
-             truth trees (true and published height, lowest true clearance over each), set_tree_sprayed calls, nozzle
-             seconds over a tree / elsewhere, drone pose, lowest clearance.
+             truth trees (true and published height, lowest true clearance over each and with the nozzle open),
+             set_tree_sprayed calls, nozzle seconds over a tree / elsewhere, drone pose, lowest clearance.
 Real-time factor: if the machine cannot keep up the loop just runs late (sim time stays consistent); the achieved
 rate and the worst lag are in the stats."""
 import json
@@ -76,6 +76,7 @@ class Tree:
         self.sprayed = False
         self.marked_calls = 0       # set_tree_sprayed(true) calls that succeeded
         self.nozzle_s = 0.0         # nozzle seconds with the drone within NOZZLE_RADIUS xy of the centre
+        self.nozzle_min_clear = float("inf")   # lowest drone z - highest true crown under it, nozzle on over this tree
         self.first_ns = 0
 
     def entry(self, now):
@@ -160,6 +161,7 @@ class World:
                 "trees": [{"id": t.id, "x": t.x, "y": t.y, "height": t.h, "map_height": t.map_h,
                            "published": t.published, "sprayed": t.sprayed, "marked_calls": t.marked_calls,
                            "nozzle_s": t.nozzle_s,
+                           "nozzle_min_clearance_m": t.nozzle_min_clear if math.isfinite(t.nozzle_min_clear) else None,
                            "min_clearance_m": t.min_clear if math.isfinite(t.min_clear) else None}
                           for t in self.trees],
                 "refused_calls": self.refused_calls,
@@ -203,6 +205,8 @@ class World:
                 over = [t for t in self.trees if math.hypot(d[0] - t.x, d[1] - t.y) <= NOZZLE_RADIUS]
                 if over:
                     over[0].nozzle_s += DT
+                    under = max(t.h for t in self.trees if math.hypot(d[0] - t.x, d[1] - t.y) <= TREE_RADIUS)
+                    over[0].nozzle_min_clear = min(over[0].nozzle_min_clear, d[2] - under)
                 else:
                     self.nozzle_elsewhere_s += DT
             self.was_nozzle = self.nozzle
