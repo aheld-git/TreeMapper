@@ -49,8 +49,11 @@ Clearance nadirClearance(const DisparityView& view, const StereoIntrinsics& ster
 }
 
 GuardAction guardDecision(const Clearance& clearance, double now, bool climbing, const Config& cfg) {
-  if (!clearance.valid || !std::isfinite(clearance.metres) || now - clearance.stamp > cfg.guard_max_age_s)
-    return GuardAction::kNoDescent;
+  if (!clearance.valid || !std::isfinite(clearance.metres)) return GuardAction::kNoDescent;
+  // Fresh only if the age is finite and within +-guard_max_age_s (a NaN stamp or `now`, or a stamp far in the
+  // future, must not read as fresh; small future stamps are bridge/sim clock jitter).
+  const double age = now - clearance.stamp;
+  if (!std::isfinite(age) || age > cfg.guard_max_age_s || age < -cfg.guard_max_age_s) return GuardAction::kNoDescent;
   if (clearance.metres < cfg.min_clearance) return GuardAction::kClimb;
   if (climbing && clearance.metres < cfg.min_clearance + cfg.guard_hysteresis) return GuardAction::kClimb;
   return GuardAction::kNone;

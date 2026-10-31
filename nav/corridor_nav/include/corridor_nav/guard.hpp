@@ -34,7 +34,9 @@ Clearance nadirClearance(const DisparityView& view, const StereoIntrinsics& ster
 
 enum class GuardAction { kNone, kClimb, kNoDescent };
 
-/// Checked in this order: invalid or older than `guard_max_age_s` -> kNoDescent (blind: do not go lower);
+/// Checked in this order: invalid, or not fresh -> kNoDescent (blind: do not go lower). Fresh means
+/// age = now - stamp is finite and -guard_max_age_s <= age <= guard_max_age_s (a NaN time or a stamp far in the
+/// future is not fresh; a small future stamp is clock jitter and stays usable);
 /// metres < min_clearance -> kClimb; while `climbing`, metres < min_clearance + guard_hysteresis -> kClimb;
 /// otherwise kNone.
 GuardAction guardDecision(const Clearance& clearance, double now, bool climbing, const Config& cfg);

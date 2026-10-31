@@ -131,3 +131,21 @@ TEST(Guard, ClimbHysteresisAndBlind) {
   EXPECT_EQ(guardDecision(blind, now, false, cfg), GuardAction::kNoDescent);
   EXPECT_EQ(guardDecision(blind, now, true, cfg), GuardAction::kNoDescent);
 }
+
+TEST(Guard, FailsClosedOnBadOrFutureTimestamps) {
+  Config cfg;  // guard_max_age_s 0.5
+  const double now = 10.0;
+  auto fresh = [&](double stamp) {
+    Clearance c;
+    c.valid = true;
+    c.metres = 3.0;
+    c.stamp = stamp;
+    return c;
+  };
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_EQ(guardDecision(fresh(nan), now, false, cfg), GuardAction::kNoDescent);
+  EXPECT_EQ(guardDecision(fresh(now - 0.1), nan, false, cfg), GuardAction::kNoDescent);
+  EXPECT_EQ(guardDecision(fresh(now + 2.0), now, false, cfg), GuardAction::kNoDescent);   // far future
+  EXPECT_EQ(guardDecision(fresh(now + 0.1), now, false, cfg), GuardAction::kNone);        // clock jitter is fine
+  EXPECT_EQ(guardDecision(fresh(now - cfg.guard_max_age_s), now, false, cfg), GuardAction::kNone);   // age == max
+}
