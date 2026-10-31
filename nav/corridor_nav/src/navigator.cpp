@@ -380,6 +380,7 @@ void Navigator::startGlide(double t) {
   // leg that set them, as at startTransit / startReturn. A retried or next glide that inherited climbing_ would read its
   // first clear tick as a release and touch the spray floor. guard_released_ / guard_failed_ are recomputed from the
   // clearance by every guardUpdate before anything reads them, so there is nothing to reset in them.
+  // Deliberate: the hysteresis band is not inherited across legs (min_clearance is still enforced on every tick).
   climbing_ = blind_ = false;
   planToTarget(t, nullptr);
   enter(NavState::kGlide, t);

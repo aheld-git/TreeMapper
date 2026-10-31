@@ -156,6 +156,8 @@ class Navigator {
   /// lateral_margin (elsewhere it says nothing about this canopy: spray_floor_release_ignored, floor unchanged), and
   /// the floor is capped at published height + spray_clearance + kSprayFloorCapM. Returns false (counted
   /// spray_floor_cap_exceeded, nothing raised) when the release altitude is above the cap: the caller fails the attempt.
+  /// The 2 m cap bounds the guard's contribution only: a spray point the planner already raised over an overlapping
+  /// neighbour (spray_point_raised) may sit above it, and is kept.
   bool raiseSprayFloor();
   void pollMark(const Inputs& in, Outputs& out);
   void sendMark(treemapper::TreeId id, double t, Outputs& out);

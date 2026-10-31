@@ -177,6 +177,40 @@ def test_second_dose_on_a_completed_id_within_one_map_period_is_targeted_again()
     assert ms.targeted_again(eps3, [snap(5.0, sprayed_ids=(5,)), snap(12.0), snap(15.0)]) == [0, 1]
 
 
+def _repo_cfg_value(key):
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "corridor_nav.cfg")
+    for line in open(path):
+        line = line.split("#", 1)[0].strip()
+        if "=" in line and line.split("=", 1)[0].strip() == key:
+            return float(line.split("=", 1)[1])
+    raise KeyError(key)
+
+
+def test_dose_valid_frac_constant_equals_the_shipped_navigator_cfg():
+    assert ms.DOSE_VALID_FRAC == _repo_cfg_value("dose_valid_frac")
+
+
+def test_dose_valid_frac_is_read_from_the_run_cfg(tmp_path):
+    d = str(tmp_path)
+    assert ms.dose_valid_frac(d) == ms.DOSE_VALID_FRAC                     # no cfg in the run dir: the constant
+    with open(os.path.join(d, ms.RUN_CFG), "w") as f:
+        f.write("# run cfg\nstrategy = corridor\ndose_valid_frac = 0.6   # sim\ncarrot_lead_s = 1.2\n")
+    assert ms.dose_valid_frac(d) == pytest.approx(0.6)
+    with open(os.path.join(d, ms.RUN_CFG), "w") as f:
+        f.write("strategy = corridor\n")                                    # key absent: the constant
+    assert ms.dose_valid_frac(d) == ms.DOSE_VALID_FRAC
+    for bad in ("abc", "nan", "0", "1.5"):
+        with open(os.path.join(d, ms.RUN_CFG), "w") as f:
+            f.write("dose_valid_frac = %s\n" % bad)
+        with pytest.raises(ValueError):
+            ms.dose_valid_frac(d)
+    # the threshold decides whether a 3.0 of 4 s first dose was valid, i.e. whether the second episode is a re-dose
+    phases = [(10.0, "SPRAYING"), (14.0, "HOPPING"), (16.0, "SPRAYING"), (20.0, "HOPPING")]
+    eps = ms.dose_episodes(phases, [(0.0, 5)], [(10.0, True), (13.0, False), (16.1, True), (19.9, False)], t_end=30.0)
+    assert ms.targeted_again(eps, []) == []                 # 75 % < 0.8: a retry
+    assert ms.targeted_again(eps, [], 0.7) == [1]           # 75 % >= 0.7: a second dose
+
+
 def test_short_burst_in_a_long_episode_is_not_sprayed():
     # 0.2 s of nozzle in a 4 s SPRAYING episode: all of it on tree 1, but 5 % of the intended dose
     eps = ms.dose_episodes([(10.0, "SPRAYING"), (14.0, "HOPPING")], [(0.0, 5)], [(10.0, True), (10.2, False)],

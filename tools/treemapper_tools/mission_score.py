@@ -34,8 +34,8 @@ Definitions (controller rulings, Task 15 and the interim whole-branch review, I1
   sprayed.
 * *targeted again* (safety row) = an episode whose TreeMapper id was ``sprayed`` in any map before the episode (the
   flag flipping is the evidence of a completed set_tree_sprayed mark), or had an earlier episode that ended before it
-  with a valid dose (nozzle open >= ``DOSE_VALID_FRAC`` of its SPRAYING time) - so a second dose inside one map
-  period is caught. A retry after an invalid dose is not targeted again.
+  with a valid dose (nozzle open >= ``dose_valid_frac`` of its SPRAYING time: the value in the run directory's
+  ``corridor_nav.cfg`` when present, else ``DOSE_VALID_FRAC``) - so a second dose inside one map period is caught. A retry after an invalid dose is not targeted again.
 * an episode's truth target = its TreeMapper id mapped with the latest map snapshot before the episode (truth outline
   containing the TreeMapper centre, else nearest truth centre within 2 m, else unmatched). on-target = litres on the
   matched truth tree / litres emitted; an unmatched episode counts 0 on-target and is counted separately.
@@ -63,6 +63,7 @@ CONSISTENCY_TOL = 0.05         # event deposits must match deposition.json withi
 EPISODE_SLACK_S = 0.15         # s: /corridor_nav/spray and /mission_state are separate topics, a control tick apart
 MATCH_NEAR_M = 2.0
 DOSE_VALID_FRAC = 0.8          # nozzle-open share of an episode's SPRAYING time that makes a dose valid (Config dose_valid_frac)
+RUN_CFG = "corridor_nav.cfg"   # the navigator cfg of the run (written by sim_mission.sh); its dose_valid_frac wins
 
 # NavStatus.state -> time-split group (spec 8.2: scan / settle / transit / glide / dose / hold)
 STATE_GROUP = {"SCAN_OUT": "scan", "SCAN_SETTLE": "settle", "TAKEOFF": "transit", "TRANSIT": "transit",
@@ -164,10 +165,9 @@ class Episode:
     def open_s(self) -> float:
         return float(sum(b - a for a, b in self.intervals))
 
-    @property
-    def dose_complete(self) -> bool:
-        """A valid dose: the nozzle was open for at least DOSE_VALID_FRAC of the SPRAYING interval."""
-        return self.end > self.start and self.open_s >= DOSE_VALID_FRAC * (self.end - self.start) - 1e-9
+    def dose_complete(self, valid_frac: float = DOSE_VALID_FRAC) -> bool:
+        """A valid dose: the nozzle was open for at least ``valid_frac`` of the SPRAYING interval."""
+        return self.end > self.start and self.open_s >= valid_frac * (self.end - self.start) - 1e-9
 
     @property
     def window(self) -> Tuple[float, float]:
@@ -215,10 +215,11 @@ def _marked(snap, tm_id: int) -> bool:
     return any(int(tr.id) == tm_id and bool(tr.sprayed) for tr in snap.trees)
 
 
-def targeted_again(episodes: Sequence[Episode], snaps: Sequence[contract.Snapshot]) -> List[int]:
+def targeted_again(episodes: Sequence[Episode], snaps: Sequence[contract.Snapshot],
+                   valid_frac: float = DOSE_VALID_FRAC) -> List[int]:
     """Indices of the episodes that aimed at a TreeMapper id already sprayed: ``sprayed`` in any snapshot before the
     episode start (a completed set_tree_sprayed mark), or an earlier episode on the same id that ended before this
-    start with a valid dose (nozzle open for at least ``DOSE_VALID_FRAC`` of its SPRAYING time) - independent of the
+    start with a valid dose (nozzle open for at least ``valid_frac`` of its SPRAYING time) - independent of the
     snapshots, which come once per map period. A short, invalid first dose is the navigator's retry, not a second
     dose. Episodes without an id are not judged; orphan units are no dose episode."""
     ss = sorted(snaps, key=lambda s: s.t)
@@ -231,7 +232,8 @@ def targeted_again(episodes: Sequence[Episode], snaps: Sequence[contract.Snapsho
         if any(_marked(ss[j], e.tm_id) for j in range(before)):
             out.append(k)
             continue
-        if any(p.tm_id == e.tm_id and not p.orphan and p.end <= e.start and p.dose_complete for p in episodes[:k]):
+        if any(p.tm_id == e.tm_id and not p.orphan and p.end <= e.start and p.dose_complete(valid_frac)
+               for p in episodes[:k]):
             out.append(k)
     return out
 
@@ -614,6 +616,30 @@ def _ensure_ground_truth(run_dir: str, truth: List[dict]) -> str:
     return p
 
 
+def dose_valid_frac(run_dir: str) -> float:
+    """``dose_valid_frac`` of the run's navigator cfg (``RUN_CFG`` in the run directory, the cfg the navigator flew
+    with), else ``DOSE_VALID_FRAC`` (= config/corridor_nav.cfg's value, pinned by a test). A cfg with a malformed or
+    non-finite value raises ValueError: scoring with a different threshold than the navigator used would be wrong."""
+    path = os.path.join(run_dir, RUN_CFG)
+    if not os.path.exists(path):
+        return DOSE_VALID_FRAC
+    with open(path) as f:
+        for line in f:
+            line = line.split("#", 1)[0].strip()
+            if "=" not in line:
+                continue
+            k, v = (x.strip() for x in line.split("=", 1))
+            if k == "dose_valid_frac":
+                try:
+                    val = float(v)
+                except ValueError:
+                    raise ValueError("%s: dose_valid_frac %r is not a number" % (path, v))
+                if not (math.isfinite(val) and 0.0 < val <= 1.0):
+                    raise ValueError("%s: dose_valid_frac %r is not in (0, 1]" % (path, v))
+                return val
+    return DOSE_VALID_FRAC
+
+
 def _downsample_poses(poses, dt=0.1):
     out, last = [], -math.inf
     for p in poses:
@@ -689,7 +715,8 @@ def score_run(run_dir: str) -> dict:
     emitted_ep = [flow * e.open_s for e in episodes]
     targets = episode_targets(episodes, snaps, truth)
     sp = spray_metrics(deposits, truth, intended, targets, emitted_ep)
-    again = targeted_again(episodes, snaps)
+    valid_frac = dose_valid_frac(run_dir)
+    again = targeted_again(episodes, snaps, valid_frac)
     cmin, cmin_t = clearance_min_at(b.poses, truth, radius)
     outside = nozzle_outside_dose(b.spray, b.phases)
     counters = dict(b.status_last.get("counters", {}))
@@ -738,6 +765,7 @@ def score_run(run_dir: str) -> dict:
         "fail_reasons": fail,
         "run": {"dir": os.path.abspath(run_dir), "strategy": run.get("strategy"), "seed": run.get("seed"),
                 "git_commit": run.get("git_commit"), "flow_lps": flow, "drone_radius": radius,
+                "dose_valid_frac": valid_frac,
                 "n_truth_trees": len(truth)},
         "efficiency": {"mission_time_s": mt, "path_length_m": _path_length(b.poses), "time_split": split,
                        "seconds_per_sprayed_tree": (mt / n_sp) if n_sp else None,
