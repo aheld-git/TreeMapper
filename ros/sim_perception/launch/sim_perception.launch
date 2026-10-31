@@ -2,7 +2,9 @@
        roslaunch sim_perception sim_perception.launch detector_model:=/path/to/yolox.onnx [device:=cpu]
      detector_model has NO default on purpose: it is the ONNX file shipped with the existing detector.
      Needs onnxruntime-gpu (or onnxruntime with device:=cpu) in the container; the detector exits loudly without it.
-     Defaults match the existing detector (416x416, 3 channels, already-decoded output, class 0 = tree). -->
+     Defaults are generic (416x416, 3 channels, already-decoded output, score 0.3, class 0 = tree). The Isaac YOLOX-s
+     model needs input_size [416, 640] and the existing detector's score threshold 0.8: sim_closed_loop.launch passes
+     the parity-checked values (results/corridor_nav_isaac.md "Detector parity"). -->
 <launch>
   <arg name="detector_model"/>
   <arg name="device" default="cuda"/>                       <!-- cuda | cpu -->
