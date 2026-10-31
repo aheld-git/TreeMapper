@@ -100,13 +100,75 @@ def test_on_target_fraction():
     assert r["off_target_l"] == pytest.approx(0.65)
     assert r["unmatched_events"] == 1
     assert r["ground_l"] == pytest.approx(0.65)
-    assert r["resprayed_events"] == 0
 
 
-def test_sprayed_tree_targeted_again_counted():
-    deps = [{1: 0.3}, {1: 0.1, ms.GROUND: 0.2}]
-    r = ms.spray_metrics(deps, [1], 0.3, targets=[1, 1])
-    assert r["resprayed_events"] == 1
+# ----------------------------------------------------------------------------- dose episodes (controller ruling I1)
+
+def snap(t, sprayed_ids=(), ids=(5, 6)):
+    return Snapshot(t, [Tree(i, sq(0.0, 0.0, 1.0), (0.0, 0.0), 5.0, i in sprayed_ids) for i in ids])
+
+
+def test_episode_is_one_spraying_interval_with_its_nozzle_intervals():
+    phases = [(0.0, "HOPPING"), (10.0, "SPRAYING"), (14.0, "HOPPING"), (20.0, "SPRAYING"), (24.0, "RETURN")]
+    targets = [(0.0, 5), (19.0, 6)]
+    # a guard climb closes the nozzle 11.0 .. 12.0 inside the first episode: two nozzle intervals, one episode
+    spray = [(9.9, False), (10.1, True), (11.0, False), (12.0, True), (13.9, False), (20.1, True), (23.9, False)]
+    eps = ms.dose_episodes(phases, targets, spray, t_end=30.0)
+    assert [(e.start, e.end, e.tm_id) for e in eps] == [(10.0, 14.0, 5), (20.0, 24.0, 6)]
+    assert eps[0].intervals == [(10.1, 11.0), (12.0, 13.9)]
+    assert eps[0].spraying_s == pytest.approx(4.0) and eps[0].open_s == pytest.approx(2.8)
+    assert not any(e.orphan for e in eps)
+    # a /spray_target change inside a SPRAYING interval starts a new episode; an open nozzle outside SPRAYING is an
+    # orphan unit of its own (nozzle_outside_dose flags it as a safety failure)
+    eps = ms.dose_episodes([(0.0, "SPRAYING"), (8.0, "HOPPING")], [(0.0, 5), (4.0, 6)],
+                           [(0.5, True), (3.0, False), (4.5, True), (7.5, False), (9.0, True), (9.5, False)], t_end=10.0)
+    assert [(e.start, e.end, e.tm_id, e.orphan) for e in eps] == [(0.0, 4.0, 5, False), (4.0, 8.0, 6, False),
+                                                                  (9.0, 9.5, 6, True)]
+
+
+def test_guard_interruption_is_one_episode_not_a_double_nor_targeted_again():
+    phases = [(0.0, "HOPPING"), (10.0, "SPRAYING"), (14.0, "HOPPING")]
+    spray = [(10.1, True), (11.0, False), (12.0, True), (13.9, False)]
+    eps = ms.dose_episodes(phases, [(0.0, 5)], spray, t_end=20.0)
+    assert len(eps) == 1
+    series = [(9.0, {}), (11.5, {1: 0.09}), (14.5, {1: 0.26, ms.GROUND: 0.02})]   # 2.8 s open at 0.1 L/s
+    deps = ms.per_event_deposit([e.window for e in eps], series)
+    flow = 0.1
+    r = ms.spray_metrics(deps, [1], [flow * e.spraying_s for e in eps], targets=[1],
+                         emitted_l_per_event=[flow * e.open_s for e in eps])
+    assert r["sprayed_ids"] == [1] and r["double_sprayed_ids"] == [] and r["n_events"] == 1
+    assert r["intended_l_total"] == pytest.approx(0.4)              # 4 s of SPRAYING; 0.26 / 0.4 >= 50 %
+    assert r["on_target_fraction"] == pytest.approx(0.26 / 0.28)
+    assert ms.targeted_again(eps, [snap(5.0)]) == []
+
+
+def test_retry_on_an_unsprayed_id_is_not_targeted_again_but_a_sprayed_id_is():
+    # dose invalid -> retry: two SPRAYING episodes on id 5, no sprayed flag in between: a legitimate retry
+    phases = [(10.0, "SPRAYING"), (14.0, "HOPPING"), (16.0, "SPRAYING"), (20.0, "HOPPING")]
+    eps = ms.dose_episodes(phases, [(0.0, 5)], [(10.5, True), (13.5, False), (16.5, True), (19.5, False)], t_end=30.0)
+    assert len(eps) == 2
+    assert ms.targeted_again(eps, [snap(5.0), snap(15.0)]) == []
+    # the map marked 5 sprayed after the first episode: the second is targeted again
+    assert ms.targeted_again(eps, [snap(5.0), snap(15.0, sprayed_ids=(5,))]) == [1]
+    # already sprayed in the latest map before the very first episode
+    assert ms.targeted_again(eps[:1], [snap(5.0, sprayed_ids=(5,))]) == [0]
+    # a map that showed the flag after the first episode, even if a later snapshot before the retry lost it
+    assert ms.targeted_again(eps, [snap(14.5, sprayed_ids=(5,)), snap(15.5)]) == [1]
+    # a sprayed flag on another id does not count; a map after the episode start is not "before"
+    assert ms.targeted_again(eps, [snap(15.0, sprayed_ids=(6,)), snap(17.0, sprayed_ids=(5,))]) == []
+
+
+def test_short_burst_in_a_long_episode_is_not_sprayed():
+    # 0.2 s of nozzle in a 4 s SPRAYING episode: all of it on tree 1, but 5 % of the intended dose
+    eps = ms.dose_episodes([(10.0, "SPRAYING"), (14.0, "HOPPING")], [(0.0, 5)], [(10.0, True), (10.2, False)],
+                           t_end=20.0)
+    flow = 0.1
+    deps = ms.per_event_deposit([e.window for e in eps], [(9.0, {}), (15.0, {1: 0.02})])
+    r = ms.spray_metrics(deps, [1], [flow * e.spraying_s for e in eps], targets=[1],
+                         emitted_l_per_event=[flow * e.open_s for e in eps])
+    assert r["intended_l_total"] == pytest.approx(0.4) and r["emitted_l_total"] == pytest.approx(0.02)
+    assert r["sprayed_ids"] == [] and r["missed_ids"] == [1]
+    assert r["on_target_fraction"] == pytest.approx(1.0)
 
 
 def test_clearance_min_uses_truth_outline():
@@ -213,7 +275,8 @@ def _msg_classes():
     return classes
 
 
-def _build_run(root, flow=0.1, deposition=True, tf=True, spray=True, last_state="DONE"):
+def _build_run(root, flow=0.1, deposition=True, tf=True, spray=True, last_state="DONE", counters=None,
+               extra_phases=()):
     rospy = pytest.importorskip("rospy")
     rosbag = pytest.importorskip("rosbag")
     from geometry_msgs.msg import Point, TransformStamped
@@ -267,8 +330,8 @@ def _build_run(root, flow=0.1, deposition=True, tf=True, spray=True, last_state=
             other.transform.rotation.w = 1.0
             m.transforms = [tr, other]
             bag.write("/tf", m, T(t))
-        for t, s in [(0.0, "IDLE"), (1.0, "SCAN"), (9.0, "HOPPING"), (10.0, "SPRAYING"), (12.5, "HOPPING"),
-                     (20.0, "SPRAYING"), (22.5, "RETURN")]:
+        for t, s in sorted([(0.0, "IDLE"), (1.0, "SCAN"), (9.0, "HOPPING"), (10.0, "SPRAYING"), (12.5, "HOPPING"),
+                            (20.0, "SPRAYING"), (22.5, "RETURN")] + list(extra_phases)):
             bag.write("/mission_state", String(s), T(t))
         bag.write("/spray_target", Int32(-1), T(1.0))
         bag.write("/spray_target", Int32(5), T(9.9))
@@ -291,7 +354,10 @@ def _build_run(root, flow=0.1, deposition=True, tf=True, spray=True, last_state=
             st.header.stamp = T(t)
             st.state = s
             st.trees_sprayed = 2 if t >= 22.5 else 0
-            st.reasons, st.counts = ["glide_climbs_inserted", "hold_map_stale", "guard_triggers"], [1, 3, 2]
+            cn = {"glide_climbs_inserted": 1, "hold_map_stale": 3, "guard_triggers": 2}
+            cn.update(counters or {})
+            st.reasons, st.counts = list(cn), list(cn.values())
+            st.trees_remaining = 0 if t >= 22.5 else 2
             bag.write("/corridor_nav/status", st, T(t))
         for topic, stage, vals in [("/corridor_nav/timing", "step", [1.0, 2.0, 3.0]),
                                    ("/stereo_sgbm/timing", "sgbm", [20.0, 40.0]),
@@ -314,6 +380,9 @@ def test_end_to_end_synthetic_run(tmp_path, capsys):
     assert card["errors"] == [] and card["end_state"] == "DONE" and card["completed"] is True
     assert card["all_pass"] is True
     assert card["efficiency"]["dose_events"] == 2
+    assert card["spray"]["n_events"] == 2 and card["spray"]["intended_l_total"] == pytest.approx(0.5)  # 2 x 2.5 s SPRAYING
+    assert card["spray"]["nav_trees_remaining"] == 0
+    assert card["safety"]["sprayed_tree_targeted_again"] == 0
     assert card["efficiency"]["litres_emitted"] == pytest.approx(0.4)
     assert card["efficiency"]["mission_time_s"] == pytest.approx(29.0)     # 1.0 .. DONE at 30.0
     assert card["efficiency"]["glide_climbs_inserted"] == 1
@@ -398,7 +467,21 @@ def test_abort_end_state_fails_and_is_excluded_from_time_metrics(tmp_path, capsy
     ok = _build_run(str(tmp_path / "ok"))
     assert ms.main(["--run", ok, "--compare", os.path.join(str(tmp_path), "abort")]) == 2
     out = capsys.readouterr().out
-    assert "Completed (ended in DONE): 1 of 2" in out and "`abort`" in out
+    assert "Completed (DONE, no abort or hold timeout, never ERROR): 1 of 2" in out and "`abort`" in out
+
+
+def test_abort_or_hold_timeout_or_error_phase_is_not_completed_even_if_it_ends_in_done(tmp_path, capsys):
+    # an airborne ABORT shows ERROR for one tick, then RETURN -> LAND -> DONE; the 2 Hz NavStatus never says ABORT
+    rc, card, cap = _run_cli(_build_run(str(tmp_path / "a"), counters={"aborts": 1},
+                                        extra_phases=[(15.0, "ERROR"), (15.05, "RETURN"), (19.9, "HOPPING")]), capsys)
+    assert card["end_state"] == "DONE" and card["completed"] is False
+    assert card["all_pass"] is False and card["safety"]["all_pass"] is False and rc == 2
+    assert any("aborts 1" in m for m in card["fail_reasons"]) and any("ERROR" in m for m in card["fail_reasons"])
+    assert "NOT completed" in cap.out
+    rc, card, _ = _run_cli(_build_run(str(tmp_path / "b"), counters={"hold_timeouts": 1}), capsys)
+    assert card["completed"] is False and rc == 2 and any("hold_timeouts 1" in m for m in card["fail_reasons"])
+    rc, card, _ = _run_cli(_build_run(str(tmp_path / "c"), extra_phases=[(15.0, "ERROR"), (15.05, "HOPPING")]), capsys)
+    assert card["completed"] is False and rc == 2
 
 
 def test_compare_excludes_incomplete_runs_from_time_metrics():

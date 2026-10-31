@@ -11,21 +11,33 @@ Per run it writes ``mission_score.json`` and, into the run directory, ``map.json
 to ``--out`` or stdout. With ``--compare`` the runs are grouped by strategy and each metric gets mean, worst case
 (in the bad direction) and run-to-run spread.
 
-Definitions (controller rulings, Task 15):
-* dose event = one nozzle-open interval of ``/corridor_nav/spray`` (rising edge .. falling edge).
-* intended dose of an event = ``flow_lps`` x its open duration, i.e. what was emitted in the event.
-* an event's deposit = the cumulative ``/sim/deposition`` at the first sample at or after its end, minus the latest
-  sample at or before its start. The window end is clipped at the next event's start (no shared deposit); with no
-  sample after the end of the last event the final ``deposition.json`` is used (any other event: error).
+Definitions (controller rulings, Task 15 and the interim whole-branch review, I1 / I2):
+* dose episode = one contiguous ``/mission_state`` SPRAYING interval with a single ``/spray_target`` id (a target
+  change inside SPRAYING starts a new episode). The nozzle-open intervals of ``/corridor_nav/spray`` (rising ..
+  falling edge) inside it, within ``EPISODE_SLACK_S`` of its ends, belong to it: a guard climb that closes the nozzle
+  mid-dose does not make a second episode. A nozzle-open interval outside every SPRAYING interval is an *orphan*
+  unit of its own (and a failed nozzle safety row).
+* intended dose of an episode = ``flow_lps`` x its SPRAYING duration (orphan: x its open time); emitted = ``flow_lps``
+  x the nozzle-open time.
+* an episode's deposit = the cumulative ``/sim/deposition`` at the first sample at or after its window end, minus the
+  latest sample at or before its window start (window = the SPRAYING interval widened to its nozzle intervals). The
+  window end is clipped at the next unit's start (no shared deposit); with no sample after the end of the last unit
+  the final ``deposition.json`` is used (any other unit: error).
 * missing or inconsistent inputs are listed in the card's ``errors`` (no deposition samples, flow <= 0, no TF poses,
-  no dose events, deposition.json missing or disagreeing with the events by > 5 % of the litres emitted); any error,
-  a failed safety row, or a mission that did not end in DONE makes ``all_pass`` false and the CLI exit with 2.
-* a truth tree is *sprayed* if some event delivered >= 50 % of its emission to it; *double-sprayed* if two separate
-  events each delivered >= 20 % to it; *missed* if never sprayed.
-* an event's target = the TreeMapper id on ``/spray_target`` when it started; it is mapped to a truth tree with the
-  latest map snapshot before the event (truth outline containing the TreeMapper centre, else nearest truth centre
-  within 2 m, else unmatched). on-target = litres on the matched truth tree / litres emitted in the event; an
-  unmatched event counts 0 on-target and is counted separately.
+  no nozzle-open interval, deposition.json missing or disagreeing with the episodes by > 5 % of the litres emitted);
+  any error, a failed safety row, or a mission that did not complete makes ``all_pass`` false and the CLI exit with 2.
+* *completed* = the first NavStatus end state is DONE, the last NavStatus counters have ``aborts`` == 0 and
+  ``hold_timeouts`` == 0, and ``/mission_state`` was never ERROR (an airborne ABORT shows ERROR for one tick, then
+  flies home and lands in DONE; the 2 Hz NavStatus can miss the ABORT state).
+* a truth tree is *sprayed* if it received >= 50 % of some episode's intended dose; *double-sprayed* if two separate
+  episodes each delivered >= 20 % of their intended dose to it (a spray metric, not a safety row); *missed* if never
+  sprayed.
+* *targeted again* (safety row) = an episode whose TreeMapper id was already ``sprayed`` in the latest map before the
+  episode, or had an earlier episode after which a map showed it ``sprayed`` (the flag flipping is the evidence of a
+  completed set_tree_sprayed mark). A retry on an id that was never marked is not targeted again.
+* an episode's truth target = its TreeMapper id mapped with the latest map snapshot before the episode (truth outline
+  containing the TreeMapper centre, else nearest truth centre within 2 m, else unmatched). on-target = litres on the
+  matched truth tree / litres emitted; an unmatched episode counts 0 on-target and is counted separately.
 """
 from __future__ import annotations
 
@@ -47,6 +59,7 @@ SPRAYING = "SPRAYING"
 SPRAYED_FRAC = 0.5
 DOUBLE_FRAC = 0.2
 CONSISTENCY_TOL = 0.05         # event deposits must match deposition.json within this fraction of the emitted litres
+EPISODE_SLACK_S = 0.15         # s: /corridor_nav/spray and /mission_state are separate topics, a control tick apart
 MATCH_NEAR_M = 2.0
 
 # NavStatus.state -> time-split group (spec 8.2: scan / settle / transit / glide / dose / hold)
@@ -131,6 +144,94 @@ def dose_events(spray: Sequence[Tuple[float, bool]]) -> List[Tuple[float, float]
     return events
 
 
+@dataclass
+class Episode:
+    """One dose episode (or an orphan nozzle-open interval outside every SPRAYING interval)."""
+    start: float
+    end: float
+    tm_id: Optional[int]                      # TreeMapper id on /spray_target (None: -1 / unknown)
+    intervals: List[Tuple[float, float]] = field(default_factory=list)   # nozzle-open intervals in it
+    orphan: bool = False
+
+    @property
+    def spraying_s(self) -> float:
+        """Duration that sets the intended dose: the SPRAYING interval (orphan: its open time)."""
+        return self.open_s if self.orphan else self.end - self.start
+
+    @property
+    def open_s(self) -> float:
+        return float(sum(b - a for a, b in self.intervals))
+
+    @property
+    def window(self) -> Tuple[float, float]:
+        """Deposit window: the episode widened to its nozzle intervals."""
+        return (min([self.start] + [a for a, _ in self.intervals]), max([self.end] + [b for _, b in self.intervals]))
+
+
+def _tm(v) -> Optional[int]:
+    return int(v) if v is not None and int(v) >= 0 else None
+
+
+def dose_episodes(phases: Sequence[Tuple[float, str]], targets: Sequence[Tuple[float, int]],
+                  spray: Sequence[Tuple[float, bool]], t_end: float,
+                  slack: float = EPISODE_SLACK_S) -> List[Episode]:
+    """Dose episodes, sorted by start: each contiguous SPRAYING interval of ``phases`` (change list), split where
+    ``targets`` changes strictly inside it (more than ``slack`` from both ends), with the nozzle-open intervals of
+    ``spray`` whose start lies in [start - slack, end + slack); a SPRAYING interval still open at the last phase change
+    closes at ``t_end``. Nozzle intervals in no episode become orphan episodes (target = /spray_target at their
+    start)."""
+    ph = sorted(phases, key=lambda r: r[0])
+    tg = sorted(targets, key=lambda r: r[0])
+    eps: List[Episode] = []
+    for i, (t, p) in enumerate(ph):
+        if p != SPRAYING or (i > 0 and ph[i - 1][1] == SPRAYING):
+            continue
+        j = i
+        while j + 1 < len(ph) and ph[j + 1][1] == SPRAYING:
+            j += 1
+        end = ph[j + 1][0] if j + 1 < len(ph) else max(t_end, t)
+        cuts = [tc for tc, _ in tg if t + slack < tc < end - slack]
+        bounds = [t] + cuts + [end]
+        for a, b in zip(bounds, bounds[1:]):
+            eps.append(Episode(a, b, _tm(contract.step_lookup(tg, a + (slack if a == t else 0.0), -1))))
+    for t0, t1 in dose_events(spray):
+        home = next((e for e in eps if e.start - slack <= t0 < e.end + slack), None)
+        if home is not None:
+            home.intervals.append((t0, t1))
+        else:
+            eps.append(Episode(t0, t1, _tm(contract.step_lookup(tg, t0, -1)), [(t0, t1)], orphan=True))
+    eps.sort(key=lambda e: e.window[0])
+    return eps
+
+
+def _marked(snap, tm_id: int) -> bool:
+    return any(int(tr.id) == tm_id and bool(tr.sprayed) for tr in snap.trees)
+
+
+def targeted_again(episodes: Sequence[Episode], snaps: Sequence[contract.Snapshot]) -> List[int]:
+    """Indices of the episodes that aimed at a TreeMapper id already sprayed: ``sprayed`` in the latest snapshot
+    before the episode start, or in any snapshot between the end of an earlier episode on the same id and this
+    start (a completed set_tree_sprayed mark). Episodes without an id are not judged."""
+    ss = sorted(snaps, key=lambda s: s.t)
+    st = [s.t for s in ss]
+    out = []
+    for k, e in enumerate(episodes):
+        if e.tm_id is None:
+            continue
+        before = bisect.bisect_left(st, e.start)          # snapshots strictly before the start
+        if before > 0 and _marked(ss[before - 1], e.tm_id):
+            out.append(k)
+            continue
+        for p in episodes[:k]:
+            if p.tm_id != e.tm_id or p.end > e.start:
+                continue
+            lo = bisect.bisect_right(st, p.end)
+            if any(_marked(ss[j], e.tm_id) for j in range(lo, before)):
+                out.append(k)
+                break
+    return out
+
+
 def _cum_at(series: Sequence[Tuple[float, Dict[int, float]]], times: Sequence[float], t: float) -> Dict[int, float]:
     i = bisect.bisect_right(times, t)
     return series[i - 1][1] if i > 0 else {}
@@ -194,9 +295,12 @@ def _truth_ids(truth) -> List[int]:
 
 
 def spray_metrics(events_deposits: Sequence[Dict[int, float]], truth, intended_l_per_event,
-                  targets: Optional[Sequence[Optional[int]]] = None) -> dict:
-    """Spray outcome. ``truth``: truth trees (or ids). ``intended_l_per_event``: litres emitted in each event (a
-    sequence, or one number for all). ``targets``: truth id each event aimed at (None = unmatched); optional."""
+                  targets: Optional[Sequence[Optional[int]]] = None,
+                  emitted_l_per_event: Optional[Sequence[float]] = None) -> dict:
+    """Spray outcome per dose episode. ``truth``: truth trees (or ids). ``intended_l_per_event``: intended dose of
+    each episode (a sequence, or one number for all); sprayed / double-sprayed are fractions of it.
+    ``targets``: truth id each episode aimed at (None = unmatched); optional. ``emitted_l_per_event``: litres the
+    nozzle emitted in each episode, the base of the on-target fraction (default: the intended dose)."""
     n = len(events_deposits)
     ids = _truth_ids(truth)
     if isinstance(intended_l_per_event, (int, float)):
@@ -205,6 +309,9 @@ def spray_metrics(events_deposits: Sequence[Dict[int, float]], truth, intended_l
         want = [float(v) for v in intended_l_per_event]
     if len(want) != n:
         raise ValueError("intended_l_per_event has %d entries for %d events" % (len(want), n))
+    out_l = list(want) if emitted_l_per_event is None else [float(v) for v in emitted_l_per_event]
+    if len(out_l) != n:
+        raise ValueError("emitted_l_per_event has %d entries for %d events" % (len(out_l), n))
     targets = list(targets) if targets is not None else [None] * n
     if len(targets) != n:
         raise ValueError("targets has %d entries for %d events" % (len(targets), n))
@@ -212,11 +319,8 @@ def spray_metrics(events_deposits: Sequence[Dict[int, float]], truth, intended_l
     sprayed, big_events = set(), {i: 0 for i in ids}
     on_target = 0.0
     unmatched = 0
-    resprayed = 0
     rows = []
-    for e, (dep, w, tg) in enumerate(zip(events_deposits, want, targets)):
-        if tg is not None and tg in sprayed:
-            resprayed += 1
+    for e, (dep, w, em, tg) in enumerate(zip(events_deposits, want, out_l, targets)):
         got_target = 0.0
         if tg is None:
             unmatched += 1
@@ -231,13 +335,14 @@ def spray_metrics(events_deposits: Sequence[Dict[int, float]], truth, intended_l
             if frac >= DOUBLE_FRAC - eps:
                 big_events[i] += 1
         sprayed.update(newly)
-        rows.append({"event": e, "target": tg, "intended_l": w, "on_target_l": got_target,
+        rows.append({"event": e, "target": tg, "intended_l": w, "emitted_l": em, "on_target_l": got_target,
                      "ground_l": dep.get(GROUND, 0.0), "trees_l": {str(k): round(v, 6) for k, v in sorted(dep.items())
                                                                    if k != GROUND}})
-    emitted = sum(want)
+    emitted = sum(out_l)
     return {
         "n_events": n,
-        "intended_l_total": emitted,
+        "intended_l_total": sum(want),
+        "emitted_l_total": emitted,
         "sprayed_ids": sorted(sprayed), "n_sprayed": len(sprayed),
         "missed_ids": [i for i in ids if i not in sprayed], "n_missed": len([i for i in ids if i not in sprayed]),
         "double_sprayed_ids": [i for i in ids if big_events[i] >= 2],
@@ -246,7 +351,6 @@ def spray_metrics(events_deposits: Sequence[Dict[int, float]], truth, intended_l
         "on_target_fraction": (on_target / emitted) if emitted > 0 else None,
         "off_target_l": max(0.0, emitted - on_target),
         "unmatched_events": unmatched,
-        "resprayed_events": resprayed,
         "ground_l": sum(r["ground_l"] for r in rows),
         "events": rows,
     }
@@ -421,6 +525,7 @@ def read_bag(path: str) -> BagData:
                     b.status_states.append((t, msg.state))
                 b.status_last = {"t": t, "trees_sprayed": int(msg.trees_sprayed),
                                  "trees_skipped": int(msg.trees_skipped),
+                                 "trees_remaining": int(msg.trees_remaining),
                                  "counters": {str(r): int(c) for r, c in zip(msg.reasons, msg.counts)}}
             elif topic == "/treemapper/map":
                 b.maps.append((msg.header.stamp.to_sec(), msg.header.frame_id, [_entry(e) for e in msg.trees]))
@@ -518,18 +623,16 @@ def _path_length(poses) -> float:
     return float(sum(math.dist(a[1:], b[1:]) for a, b in zip(poses, poses[1:])))
 
 
-def event_targets(events, targets, snaps, truth) -> List[Optional[int]]:
-    """Truth id each event aimed at (None = unmatched)."""
+def episode_targets(episodes: Sequence[Episode], snaps, truth) -> List[Optional[int]]:
+    """Truth id each episode aimed at (None = unmatched): its TreeMapper id in the latest snapshot before it."""
     snap_t = [s.t for s in snaps]
     out = []
-    for t0, t1 in events:
-        tm = next((v for v in (contract.step_lookup(targets, t0, -1), contract.step_lookup(targets, t1, -1))
-                   if v is not None and v >= 0), None)
-        i = bisect.bisect_right(snap_t, t0)
-        if tm is None or i == 0:
+    for e in episodes:
+        i = bisect.bisect_right(snap_t, e.start)
+        if e.tm_id is None or i == 0:
             out.append(None)
         else:
-            out.append(match_target_to_truth(tm, snaps[i - 1].trees, truth))
+            out.append(match_target_to_truth(e.tm_id, snaps[i - 1].trees, truth))
     return out
 
 
@@ -559,6 +662,7 @@ def score_run(run_dir: str) -> dict:
     t_end = max([r[0] for r in (b.poses[-1:] + b.phases[-1:] + b.status_states[-1:] + b.spray[-1:])], default=0.0)
     split = time_split(b.phases, b.status_states, t_end)
     events = dose_events(b.spray)
+    episodes = dose_episodes(b.phases, b.targets, b.spray, t_end)
     final = parse_deposition(depo) if isinstance(depo, dict) and depo else None
     if not b.deposition:
         errors.append("no /sim/deposition samples in the bag")
@@ -571,14 +675,17 @@ def score_run(run_dir: str) -> dict:
     if not events:
         errors.append("no dose events (/corridor_nav/spray was never true)")
     dep_errors: List[str] = []
-    deposits = per_event_deposit(events, b.deposition, final, dep_errors if b.deposition else None)
+    deposits = per_event_deposit([e.window for e in episodes], b.deposition, final,
+                                 dep_errors if b.deposition else None)
     errors += dep_errors
     if events and b.deposition and final is not None:
         emitted_final = float(depo["emitted"]) if "emitted" in depo else sum(final.values())
         errors += ["deposition inconsistent: " + m for m in deposit_consistency(deposits, final, emitted_final)]
-    intended = [flow * (t1 - t0) for t0, t1 in events]
-    targets = event_targets(events, b.targets, snaps, truth)
-    sp = spray_metrics(deposits, truth, intended, targets)
+    intended = [flow * e.spraying_s for e in episodes]
+    emitted_ep = [flow * e.open_s for e in episodes]
+    targets = episode_targets(episodes, snaps, truth)
+    sp = spray_metrics(deposits, truth, intended, targets, emitted_ep)
+    again = targeted_again(episodes, snaps)
     cmin, cmin_t = clearance_min_at(b.poses, truth, radius)
     outside = nozzle_outside_dose(b.spray, b.phases)
     counters = dict(b.status_last.get("counters", {}))
@@ -590,29 +697,40 @@ def score_run(run_dir: str) -> dict:
 
     emitted = depo.get("emitted") if isinstance(depo, dict) else None
     if emitted is None:
-        emitted = sum(intended)
+        emitted = sum(emitted_ep)
     mt = split["mission_time_s"]
     n_sp = sp["n_sprayed"]
     end_state = next((st for _, st in b.status_states if st in END_STATES), "none")
-    completed = end_state == "DONE"
+    aborts, hold_timeouts = int(counters.get("aborts", 0)), int(counters.get("hold_timeouts", 0))
+    error_phase = any(p == "ERROR" for _, p in b.phases)
+    completed = end_state == "DONE" and aborts == 0 and hold_timeouts == 0 and not error_phase
     safety = {"clearance_min_m": cmin if math.isfinite(cmin) else None, "clearance_min_t": cmin_t,
               "clearance_pass": bool(b.poses) and cmin > 0, "n_pose_samples": len(b.poses),
               "nozzle_outside_dose": outside, "nozzle_pass": outside == 0,
-              "sprayed_tree_targeted_again": sp["resprayed_events"], "retarget_pass": sp["resprayed_events"] == 0}
+              "sprayed_tree_targeted_again": len(again), "targeted_again_episodes": again,
+              "retarget_pass": not again}
     safety["completed"] = completed
     safety["all_pass"] = (not errors and completed and safety["clearance_pass"] and safety["nozzle_pass"]
                           and safety["retarget_pass"])
     fail = list(errors)
     if not completed:
-        fail.append("mission did not complete: end state %s (DONE required)" % end_state)
+        why = []
+        if end_state != "DONE":
+            why.append("end state %s (DONE required)" % end_state)
+        if aborts or hold_timeouts:
+            why.append("NavStatus counters aborts %d, hold_timeouts %d (0 required)" % (aborts, hold_timeouts))
+        if error_phase:
+            why.append("/mission_state was ERROR")
+        fail.append("mission did not complete: " + "; ".join(why))
     if not safety["clearance_pass"] and b.poses:
         fail.append("clearance: minimum %.3f m is not > 0" % cmin)
     if not safety["nozzle_pass"]:
         fail.append("nozzle open outside DOSE in %d samples" % outside)
     if not safety["retarget_pass"]:
-        fail.append("sprayed tree targeted again in %d events" % sp["resprayed_events"])
+        fail.append("sprayed tree targeted again in %d episodes" % len(again))
     card: Dict[str, Any] = {
         "errors": errors, "end_state": end_state, "completed": completed, "all_pass": safety["all_pass"],
+        "aborts": aborts, "hold_timeouts": hold_timeouts, "error_phase": error_phase,
         "fail_reasons": fail,
         "run": {"dir": os.path.abspath(run_dir), "strategy": run.get("strategy"), "seed": run.get("seed"),
                 "git_commit": run.get("git_commit"), "flow_lps": flow, "drone_radius": radius,
@@ -620,9 +738,10 @@ def score_run(run_dir: str) -> dict:
         "efficiency": {"mission_time_s": mt, "path_length_m": _path_length(b.poses), "time_split": split,
                        "seconds_per_sprayed_tree": (mt / n_sp) if n_sp else None,
                        "glide_climbs_inserted": counters.get("glide_climbs_inserted", 0),
-                       "litres_emitted": emitted, "dose_events": len(events)},
+                       "litres_emitted": emitted, "dose_events": len(events), "dose_episodes": len(episodes)},
         "spray": dict(sp, nav_trees_sprayed=b.status_last.get("trees_sprayed"),
-                      nav_trees_skipped=b.status_last.get("trees_skipped")),
+                      nav_trees_skipped=b.status_last.get("trees_skipped"),
+                      nav_trees_remaining=b.status_last.get("trees_remaining")),
         "safety": safety,
         "guards": {"guard_triggers": counters.get("guard_triggers", 0), "guard_blind": counters.get("guard_blind", 0),
                    "holds": {k: v for k, v in counters.items() if k.startswith("hold_")},
@@ -683,7 +802,7 @@ MISSION_METRICS = ("mission_time_s", "path_length_m", "seconds_per_sprayed_tree"
 
 def compare_runs(cards: Sequence[dict]) -> Dict[str, Dict[str, dict]]:
     """{strategy: {metric: {n, mean, worst, spread, values}, "_runs": {n, completed, incomplete}}}; worst is in
-    the bad direction. Runs that did not end in DONE are left out of ``MISSION_METRICS`` and listed in ``_runs``."""
+    the bad direction. Runs that did not complete are left out of ``MISSION_METRICS`` and listed in ``_runs``."""
     groups: Dict[str, List[dict]] = {}
     for c in cards:
         groups.setdefault(str(c["run"].get("strategy")), []).append(c)
@@ -736,23 +855,27 @@ def card_markdown(card: dict) -> str:
          "| Path length (m) | %s |" % _f(e["path_length_m"], 1),
          "| Seconds per sprayed tree | %s |" % _f(e["seconds_per_sprayed_tree"], 1),
          "| Glide climbs inserted | %s |" % _f(e["glide_climbs_inserted"]),
-         "| Litres emitted | %s (%d dose events) |" % (_f(e["litres_emitted"], 4), e["dose_events"]), "",
+         "| Litres emitted | %s (%d dose episodes, %d nozzle openings) |" % (
+             _f(e["litres_emitted"], 4), e.get("dose_episodes", e["dose_events"]), e["dose_events"]), "",
          "Time split (s): " + ", ".join("%s %s" % (k, _f(v, 1)) for k, v in sp["groups"].items()) + ".",
          "By mission phase (s): " + (", ".join("%s %s" % (k, _f(v, 1)) for k, v in sp["by_phase"].items()) or "n/a") + ".",
          "", "## Spray", "", "| Metric | Value |", "|---|---|",
-         "| Truth trees sprayed (>= 50 %% of an event) | %d of %d |" % (s["n_sprayed"], r["n_truth_trees"]),
+         "| Truth trees sprayed (>= 50 %% of an episode's intended dose) | %d of %d |" % (s["n_sprayed"], r["n_truth_trees"]),
          "| Missed | %d %s |" % (s["n_missed"], s["missed_ids"]),
-         "| Double-sprayed (>= 20 %% in two events) | %d %s |" % (s["n_double_sprayed"], s["double_sprayed_ids"]),
+         "| Double-sprayed (>= 20 %% in two episodes) | %d %s |" % (s["n_double_sprayed"], s["double_sprayed_ids"]),
          "| On-target fraction | %s |" % _f(s["on_target_fraction"]),
          "| Off-target litres (on the ground: %s) | %s |" % (_f(s["ground_l"], 4), _f(s["off_target_l"], 4)),
-         "| Events with no matched truth target | %d of %d |" % (s["unmatched_events"], s["n_events"]),
-         "| Skipped trees (navigator) | %s |" % _f(s.get("nav_trees_skipped")), "",
+         "| Episodes with no matched truth target | %d of %d |" % (s["unmatched_events"], s["n_events"]),
+         "| Skipped trees (navigator) | %s |" % _f(s.get("nav_trees_skipped")),
+         "| Trees remaining (navigator) | %s |" % _f(s.get("nav_trees_remaining")), "",
          "## Safety (must pass)", "", "| Check | Value | Result |", "|---|---|---|",
-         "| Mission ended in DONE | %s | %s |" % (card.get("end_state"), _pf(card.get("completed"))),
+         "| Mission completed (DONE, no abort or hold timeout, never ERROR) | %s, aborts %s, hold timeouts %s%s | %s |" % (
+             card.get("end_state"), card.get("aborts", 0), card.get("hold_timeouts", 0),
+             ", ERROR phase" if card.get("error_phase") else "", _pf(card.get("completed"))),
          "| Minimum clearance over truth canopy (m) at t = %s | %s | %s |" % (
              _f(sf["clearance_min_t"], 2), _f(sf["clearance_min_m"]), _pf(sf["clearance_pass"])),
          "| Nozzle open outside DOSE (samples) | %d | %s |" % (sf["nozzle_outside_dose"], _pf(sf["nozzle_pass"])),
-         "| Sprayed tree targeted again (events) | %d | %s |" % (sf["sprayed_tree_targeted_again"], _pf(sf["retarget_pass"])),
+         "| Sprayed tree targeted again (episodes) | %d | %s |" % (sf["sprayed_tree_targeted_again"], _pf(sf["retarget_pass"])),
          "", "## Guards", "",
          "Clearance-guard triggers %s; guard-blind counter %s; re-resolved IDs %s; dropped IDs %s; late trees %s." % (
              g["guard_triggers"], g["guard_blind"], g["ids_reresolved"], g["ids_dropped_vanished"], g["late_trees"]),
@@ -780,7 +903,7 @@ def compare_markdown(cmp: Dict[str, Dict[str, dict]], cards: Sequence[dict]) -> 
     for strat, metrics in cmp.items():
         ru = metrics["_runs"]
         L += ["## %s (%d runs)" % (strat, ru["n"]), "",
-              "Completed (ended in DONE): %d of %d.%s" % (ru["completed"], ru["n"], (
+              "Completed (DONE, no abort or hold timeout, never ERROR): %d of %d.%s" % (ru["completed"], ru["n"], (
                   " Incomplete, excluded from mission time, path length and seconds per tree: %s." %
                   ", ".join("`%s`" % x for x in ru["incomplete"])) if ru["incomplete"] else ""), "",
               "| Metric | Mean | Worst | Spread |", "|---|---|---|---|"]
