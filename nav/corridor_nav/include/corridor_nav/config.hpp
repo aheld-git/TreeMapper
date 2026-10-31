@@ -19,7 +19,7 @@ struct Config {
   // --- corridors
   double z_scan{15.0};                    ///< m above home
   double scan_speed{4.0};                 ///< m/s along a corridor
-  double corridor_width{0.0};             ///< m, 0 = the widest strip the camera footprint allows
+  double corridor_width{0.0};             ///< m, 0 = the widest strip the camera footprint allows, else >= corridor_width_min
   double corridor_width_min{3.0};         ///< m
   double corridor_length_min{5.0};        ///< m, shorter strips are dropped
   double w_margin{1.0};                   ///< m
@@ -54,7 +54,7 @@ struct Config {
   // --- guard
   double min_clearance{1.5};              ///< m
   double guard_hysteresis{0.5};           ///< m
-  double guard_window{0.2};               ///< s
+  double guard_window{0.2};               ///< fraction of the image: the central guard_window of its width and of its height
   double guard_min_valid{0.3};
   double guard_max_age_s{0.5};
   // --- inputs

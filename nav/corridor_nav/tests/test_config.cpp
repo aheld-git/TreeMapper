@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "corridor_nav/config.hpp"
 
@@ -86,4 +87,35 @@ TEST(NavConfig, SanitizedClampsAndLogsEveryClamp) {
   Config{}.sanitized([&](const std::string&) { ++none; });
   EXPECT_EQ(none, 0) << "defaults are in range";
   EXPECT_EQ(Config{}.sanitized(nullptr).service_retries, 3);
+}
+
+TEST(NavConfig, CorridorWidthIsZeroOrAtLeastTheMinimum) {
+  // 0 = automatic; a fixed width below corridor_width_min is raised to it (logged "clamped"); 0 and >= min stay
+  std::vector<std::string> logs;
+  const auto log = [&](const std::string& m) { logs.push_back(m); };
+  Config c;
+  c.corridor_width_min = 3.0;
+  c.corridor_width = 1.0;
+  Config s = c.sanitized(log);
+  EXPECT_DOUBLE_EQ(s.corridor_width, 3.0);
+  ASSERT_EQ(logs.size(), 1u);
+  EXPECT_NE(logs[0].find("corridor_width"), std::string::npos);
+  EXPECT_NE(logs[0].find("clamped"), std::string::npos);
+
+  logs.clear();
+  c.corridor_width = 0.0;
+  EXPECT_DOUBLE_EQ(c.sanitized(log).corridor_width, 0.0);
+  c.corridor_width = 3.0;
+  EXPECT_DOUBLE_EQ(c.sanitized(log).corridor_width, 3.0);
+  c.corridor_width = 7.5;
+  EXPECT_DOUBLE_EQ(c.sanitized(log).corridor_width, 7.5);
+  EXPECT_TRUE(logs.empty());
+
+  // the minimum it is compared with is the sanitized one
+  c.corridor_width_min = 0.0;   // clamped up to the smallest length
+  c.corridor_width = 1e-4;
+  logs.clear();
+  s = c.sanitized(log);
+  EXPECT_GE(s.corridor_width, s.corridor_width_min);
+  EXPECT_GT(s.corridor_width, 0.0);
 }

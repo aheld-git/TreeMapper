@@ -31,8 +31,11 @@ Config Config::sanitized(const Log& log) const {
   Config c = *this;
   c.z_scan = clampLog("z_scan", c.z_scan, kEps, kBig, log);
   c.scan_speed = clampLog("scan_speed", c.scan_speed, kEps, kBig, log);
-  c.corridor_width = clampLog("corridor_width", c.corridor_width, 0.0, kBig, log);
   c.corridor_width_min = clampLog("corridor_width_min", c.corridor_width_min, kEps, kBig, log);
+  c.corridor_width = clampLog("corridor_width", c.corridor_width, 0.0, kBig, log);
+  if (c.corridor_width > 0.0 && c.corridor_width < c.corridor_width_min) {   // 0 = automatic, else >= the minimum
+    c.corridor_width = clampLog("corridor_width", c.corridor_width, c.corridor_width_min, kBig, log);
+  }
   c.corridor_length_min = clampLog("corridor_length_min", c.corridor_length_min, kEps, kBig, log);
   c.w_margin = clampLog("w_margin", c.w_margin, kEps, kBig, log);
   c.expected_canopy_top_max = clampLog("expected_canopy_top_max", c.expected_canopy_top_max, kEps, kBig, log);
