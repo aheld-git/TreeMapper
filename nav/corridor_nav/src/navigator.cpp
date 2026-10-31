@@ -251,7 +251,12 @@ void Navigator::stepGlide(const Inputs& in, Outputs& out) {
     return;
   }
   if (guard_released_) {
-    raiseSprayFloor();   // the descent stops where the guard let go, not at the published spray point
+    if (!raiseSprayFloor()) {   // released above the cap: this attempt does not dose
+      out.setpoint = follow(cfg_);
+      failAttempt(in.t, "spray floor cap exceeded");
+      return;
+    }
+    // the descent stops where the guard let go, not at the published spray point
     planToTarget(in.t, "clearance guard released");
   } else if (needsReplan(planned_heights_, map_, cfg_)) {
     planToTarget(in.t, "published height changed");
@@ -267,7 +272,11 @@ void Navigator::stepGlide(const Inputs& in, Outputs& out) {
 void Navigator::stepDose(const Inputs& in, Outputs& out) {
   const GuardAction g = guardUpdate(in);
   if (guard_released_) {   // hold the dose at the altitude where the guard let go
-    raiseSprayFloor();
+    if (!raiseSprayFloor() && !mark_.active) {   // (once dosed, the attempt is over: nothing to fail)
+      out.setpoint = spray_pt_;
+      failAttempt(in.t, "spray floor cap exceeded");
+      return;
+    }
     hold_ = spray_pt_;
   }
   out.setpoint = spray_pt_;
@@ -367,6 +376,11 @@ void Navigator::startLock(double t) {
 void Navigator::startGlide(double t) {
   attempt_climbs_ = 0;
   guard_ok_t_ = t;
+  // The guard latches per leg: `climbing_` (the hysteresis band) and `blind_` (once-per-episode counting) belong to the
+  // leg that set them, as at startTransit / startReturn. A retried or next glide that inherited climbing_ would read its
+  // first clear tick as a release and touch the spray floor. guard_released_ / guard_failed_ are recomputed from the
+  // clearance by every guardUpdate before anything reads them, so there is nothing to reset in them.
+  climbing_ = blind_ = false;
   planToTarget(t, nullptr);
   enter(NavState::kGlide, t);
 }

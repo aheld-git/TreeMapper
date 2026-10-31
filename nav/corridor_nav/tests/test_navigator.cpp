@@ -494,6 +494,107 @@ TEST(Navigator, GuardReleaseRaisesTheSprayPointOfALowBiasedTree) {
   EXPECT_TRUE(dosed);
 }
 
+namespace {
+
+/// Injects `seconds` of 1.0 m clearance (the guard climbs) once, the first time the navigator is in GLIDE on the target
+/// tree `bad_idx` with `near(d)` true for the drone's xy distance d to its centre. The start is returned in `*t0`.
+template <typename NearFn>
+void injectGlideClimb(FakeWorld& w, std::size_t bad_idx, double seconds, double* t0, NearFn near) {
+  w.before_step = [=](FakeWorld& fw, const Navigator& n, Inputs& in) {
+    const TruthTree& tt = fw.trees[bad_idx];
+    const double d = std::hypot(fw.drone.x - tt.x, fw.drone.y - tt.y);
+    if (*t0 < 0.0 && n.state() == NavState::kGlide && n.status().target == FakeWorld::idOf(bad_idx) && near(d)) {
+      *t0 = in.t;
+    }
+    if (*t0 >= 0.0 && in.t < *t0 + seconds) in.clearance.metres = 1.0;
+  };
+}
+
+}  // namespace
+
+TEST(Navigator, GuardReleaseOutsideTheOutlineLeavesTheSprayFloor) {
+  // a release far from the target's outline (the drone is gliding over something else) is no evidence about the
+  // target's canopy: the floor and the spray point stay, the release is counted
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  Navigator nav(cfg, field30x24(), fov90());
+  double t0 = -1.0;
+  injectGlideClimb(w, 1, 1.0, &t0, [](double d) { return d > 4.0; });
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  ASSERT_GE(t0, 0.0);
+  EXPECT_EQ(counter(nav, "guard_triggers"), 1u);
+  EXPECT_EQ(counter(nav, "spray_floor_release_ignored"), 1u);
+  EXPECT_EQ(counter(nav, "spray_point_guard_raised"), 0u);
+  EXPECT_EQ(counter(nav, "spray_floor_cap_exceeded"), 0u);
+  EXPECT_EQ(counter(nav, "trees_skipped"), 0u);
+  EXPECT_TRUE(w.trees[1].sprayed);
+}
+
+TEST(Navigator, GuardReleaseInsideTheOutlineRaisesTheSprayFloor) {
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  Navigator nav(cfg, field30x24(), fov90());
+  double t0 = -1.0;
+  injectGlideClimb(w, 1, 0.5, &t0, [](double d) { return d < 2.0; });   // within the outline + reach (1.5 + 1.3 m)
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  ASSERT_GE(t0, 0.0);
+  EXPECT_EQ(counter(nav, "guard_triggers"), 1u);
+  EXPECT_EQ(counter(nav, "spray_point_guard_raised"), 1u);
+  EXPECT_EQ(counter(nav, "spray_floor_release_ignored"), 0u);
+  EXPECT_EQ(counter(nav, "spray_floor_cap_exceeded"), 0u);
+  EXPECT_EQ(counter(nav, "trees_skipped"), 0u);
+  EXPECT_TRUE(w.trees[1].sprayed);
+  // dosed at or above where the guard let go, which is above the published spray point
+  const TreeId id = FakeWorld::idOf(1);
+  const double published_spray_z = w.trees[1].height + cfg.spray_clearance;
+  bool dosed = false;
+  for (const Sample& s : w.samples) {
+    if (s.target != id || !s.nozzle) continue;
+    dosed = true;
+    EXPECT_GT(s.pos.z, published_spray_z + 0.3) << "t=" << s.t;
+  }
+  EXPECT_TRUE(dosed);
+}
+
+TEST(Navigator, GuardReleaseAboveTheCapFailsTheAttempt) {
+  // 2.5 s of low clearance next to the tree lifts the drone ~3.75 m: above published top + spray_clearance +
+  // kSprayFloorCapM. The floor is not raised that far; the attempt fails like an invalid dose (one retry), without a dose
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  Navigator nav(cfg, field30x24(), fov90());
+  double t0 = -1.0;
+  injectGlideClimb(w, 1, 2.5, &t0, [](double d) { return d < 2.0; });
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  ASSERT_GE(t0, 0.0);
+  const TreeId id = FakeWorld::idOf(1);
+  EXPECT_EQ(counter(nav, "spray_floor_cap_exceeded"), 1u);
+  EXPECT_EQ(counter(nav, "dose_retries"), 1u);
+  EXPECT_EQ(counter(nav, "spray_point_guard_raised"), 0u);
+  EXPECT_EQ(counter(nav, "trees_skipped"), 0u);
+  EXPECT_EQ(doseEntries(w, id), 1);   // the failed attempt never reached DOSE, the retry did
+  EXPECT_TRUE(w.trees[1].sprayed);
+  EXPECT_EQ(countRequests(w, id), 1u);
+}
+
+TEST(Navigator, NewGlideStartsWithoutTheGuardClimbLatched) {
+  // the guard reads 1.0 m for tree 2 until its attempt is given up (no clear reading for hold_timeout_s); the retry's
+  // glide must not inherit "climbing", or its first clear reading would read as a release and touch the spray floor
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  const TreeId bad = FakeWorld::idOf(1);
+  Navigator nav(cfg, field30x24(), fov90());
+  w.before_step = [&](FakeWorld&, const Navigator& n, Inputs& in) {
+    if (n.status().target == bad && counter(n, "dose_retries") == 0u) in.clearance.metres = 1.0;
+  };
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  EXPECT_EQ(counter(nav, "dose_retries"), 1u);
+  EXPECT_EQ(counter(nav, "guard_triggers"), 1u);   // the one long episode of the first attempt
+  EXPECT_EQ(counter(nav, "spray_point_guard_raised"), 0u);
+  EXPECT_EQ(counter(nav, "spray_floor_release_ignored"), 0u);
+  EXPECT_EQ(counter(nav, "trees_skipped"), 0u);
+  EXPECT_TRUE(w.trees[1].sprayed);
+}
+
 TEST(Navigator, DoseRetryThenSkip) {
   const Config cfg;
   std::vector<TruthTree> trees = grid({6, 12, 18});
@@ -625,7 +726,7 @@ TEST(Navigator, GuardGivesUpAStuckAttempt) {
     if (n.status().target == bad) in.clearance.metres = 1.0;
   };
   ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
-  EXPECT_EQ(counter(nav, "guard_triggers"), 2u);   // one long episode per approach (corridor, cleanup)
+  EXPECT_EQ(counter(nav, "guard_triggers"), 4u);   // one long episode per attempt (glide + retry, in the corridor and in cleanup)
   EXPECT_EQ(counter(nav, "dose_retries"), 2u);
   EXPECT_EQ(counter(nav, "trees_skipped"), 2u);
   EXPECT_EQ(countRequests(w, bad), 0u);

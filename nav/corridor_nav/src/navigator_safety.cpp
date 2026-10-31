@@ -106,7 +106,21 @@ void Navigator::guardApply(GuardAction a, Outputs& out) const {
   }
 }
 
-void Navigator::raiseSprayFloor() {
+bool Navigator::raiseSprayFloor() {
+  const TreeEntry* tr = tree(target_);
+  const double reach = cfg_.drone_radius + cfg_.lateral_margin;   // as the glide planner's lateral reach
+  if (!tr || !(distanceToPolygon(tr->outline, {pos_.x, pos_.y}) <= reach)) {
+    // released over something else (or the target is gone: the caller's own checks deal with that): no evidence
+    count(counters_, "spray_floor_release_ignored");
+    if (log_) log_("tree " + std::to_string(target_) + ": guard release outside its outline, spray floor unchanged");
+    return true;
+  }
+  if (pos_.z > tr->height + cfg_.spray_clearance + kSprayFloorCapM) {
+    count(counters_, "spray_floor_cap_exceeded");
+    if (log_) log_("tree " + std::to_string(target_) + ": guard released at z " + std::to_string(pos_.z) +
+                   ", above the spray floor cap");
+    return false;
+  }
   spray_floor_ = std::max({spray_floor_, spray_pt_.z, pos_.z});
   if (spray_pt_.z < spray_floor_) {
     spray_pt_.z = spray_floor_;
@@ -114,6 +128,7 @@ void Navigator::raiseSprayFloor() {
     if (log_) log_("tree " + std::to_string(target_) + ": spray point raised to z " + std::to_string(spray_floor_) +
                    " (clearance guard)");
   }
+  return true;
 }
 
 void Navigator::sendMark(TreeId id, double t, Outputs& out) {

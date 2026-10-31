@@ -22,6 +22,10 @@
 
 namespace corridor_nav {
 
+/// m above (published height + spray_clearance): the highest spray floor a guard release may set. A safety cap on what a
+/// guard release can drag the dose up to, not a tuning knob, so it is not a Config key.
+constexpr double kSprayFloorCapM = 2.0;
+
 enum class NavState { kIdle, kTakeoff, kTransit, kScanOut, kScanSettle, kLock, kGlide, kDose, kReturn, kLand, kHold,
                       kAbort, kDone };
 const char* toString(NavState s);
@@ -148,7 +152,11 @@ class Navigator {
   void guardApply(GuardAction a, Outputs& out) const;   ///< climb / no-descent on the setpoint
   /// On a guard release in GLIDE / DOSE: spray_floor_ = max(spray_floor_, spray_pt_.z, pos_.z) and spray_pt_ raised
   /// to it (counted spray_point_guard_raised). The floor holds for the target until it is finished, skipped or dropped.
-  void raiseSprayFloor();
+  /// A release only counts while the drone's xy is within the target's outline expanded by drone_radius +
+  /// lateral_margin (elsewhere it says nothing about this canopy: spray_floor_release_ignored, floor unchanged), and
+  /// the floor is capped at published height + spray_clearance + kSprayFloorCapM. Returns false (counted
+  /// spray_floor_cap_exceeded, nothing raised) when the release altitude is above the cap: the caller fails the attempt.
+  bool raiseSprayFloor();
   void pollMark(const Inputs& in, Outputs& out);
   void sendMark(treemapper::TreeId id, double t, Outputs& out);
   void abandonMark();
