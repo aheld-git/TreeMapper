@@ -87,7 +87,7 @@ CorridorPlan planCorridors(const Field& field, const CameraFov& fov, const Confi
     plan.error = "field invalid";
     return plan;
   }
-  if (!(plan.w_max >= config.corridor_width_min)) {  // also catches a non-finite w_max (NaN fov)
+  if (!std::isfinite(plan.w_max) || plan.w_max < config.corridor_width_min) {  // NaN / inf fail closed
     plan.error = "coverage impossible";
     return plan;
   }

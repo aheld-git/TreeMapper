@@ -142,6 +142,18 @@ TEST(CorridorPlan, RefusesANonFiniteFov) {
   }
 }
 
+TEST(CorridorPlan, RefusesAnInfiniteWidth) {
+  Field f;
+  f.polygon = rect(60, 20);
+  f.heading_rad = 0.0;
+  Config c;  // built directly, bypassing configFrom / sanitized
+  c.z_scan = std::numeric_limits<double>::infinity();
+  const CorridorPlan plan = planCorridors(f, fov(90.0), c, nullptr);
+  EXPECT_FALSE(plan.ok);
+  EXPECT_EQ(plan.error, "coverage impossible");
+  EXPECT_TRUE(plan.corridors.empty());
+}
+
 TEST(CorridorPlan, RefusesAnInvalidField) {
   Config c;
   c.corridor_width = 5.0;

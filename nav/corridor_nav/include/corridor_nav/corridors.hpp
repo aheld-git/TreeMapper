@@ -16,6 +16,7 @@ double minAreaRectHeading(const treemapper::Polygon2& field);
 
 /// Widest strip that keeps a whole crown in view when its centre is inside the strip:
 /// 2 (z_scan - expected_canopy_top_max) tan(min(hfov, vfov) / 2) - 2 expected_canopy_radius_max - w_margin.
+/// Returns NaN for a non-finite fov.
 double maxCorridorWidth(const CameraFov& fov, const Config& config);
 
 struct CorridorPlan {
