@@ -201,7 +201,7 @@ Notes on how this interacts with TreeMapper's phase policy:
 
 - Spray point of tree i: `p_i = (centre_i.x, centre_i.y, height_i + spray_clearance)`. `spray_clearance` defaults to
   2.5 m: TreeMapper's worst observed low bias (1.9 m) plus margin. The spray point is raised to `height_k +
-  transit_clearance` when that is higher, for every other tree k whose outline lies within `drone_radius +
+  max(transit_clearance, spray_clearance − descent_slack)` when that is higher, for every other tree k whose outline lies within `drone_radius +
   lateral_margin` of the target centre (a tree the mapper split in two), counted `spray_point_raised`.
 - Obstacles: every published tree `k ∉ {from, to}` whose outline comes within `drone_radius + lateral_margin` of the
   xy segment. Each obstacle requires `z ≥ height_k + transit_clearance` over the part of the segment within that

@@ -39,7 +39,7 @@ Decided while planning and written back into the spec in the same commit:
 2. **`heading_rad` comes from the field file only** (removed from the cfg table). Added cfg keys `pose_max_age_s`
    (0.2) and `service_retries` (3), which the spec used as literals.
 3. **Spray point raised over an overlapping neighbour**: `z = max(height_to + spray_clearance, height_k +
-   transit_clearance for every other tree k whose outline is within drone_radius + lateral_margin of the target
+   max(transit_clearance, spray_clearance − descent_slack) for every other tree k whose outline is within drone_radius + lateral_margin of the target
    centre)`, counted `spray_point_raised`. Without it a split tree makes the final descent impossible to plan.
 4. **Run containers**: the Noetic sim graph and the bridge share one container `tm_sim_ros` (GPU, for the detector)
    built from `sim/bridge/Dockerfile`; `tm_dev` has no GPU and stays the build/test container.
