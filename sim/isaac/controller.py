@@ -20,6 +20,8 @@ State = namedtuple("State", ["x", "y", "z", "vx", "vy", "vz", "roll", "pitch", "
 
 G = 9.81
 STOP_MARGIN = 0.9  # fraction of a_max used to plan the stop
+CARROT_MAX_GAP = 0.5  # s; a longer gap between distinct setpoint stamps means no velocity estimate
+CARROT_MAX_EXTRAP = 0.25  # s; the held setpoint is extrapolated with v_c for at most this long
 
 Setpoint = Tuple[float, float, float, float, float]  # x, y, z, yaw, stamp
 
@@ -45,6 +47,7 @@ class KinematicController:
         self._pitch = 0.0
         self._yaw = 0.0
         self._setpoint = None  # type: Optional[Setpoint]
+        self._carrot_v = np.zeros(3)  # velocity of the setpoint itself, from consecutive stamps
 
     @property
     def state(self) -> State:
@@ -60,38 +63,67 @@ class KinematicController:
         self._pitch = 0.0
         self._yaw = wrap_angle(yaw)
         self._setpoint = None
+        self._carrot_v = np.zeros(3)
+
+    def _accept_setpoint(self, setpoint: Setpoint) -> None:
+        """Store a new setpoint and update the carrot velocity estimate. Non-finite ones are ignored."""
+        new = tuple(float(c) for c in setpoint)
+        if len(new) != 5 or not all(math.isfinite(c) for c in new):
+            return  # fail-safe: keep the last good setpoint
+        old = self._setpoint
+        if old is not None:
+            gap = new[4] - old[4]
+            if 0.0 < gap <= CARROT_MAX_GAP:
+                self._carrot_v = (np.array(new[:3]) - np.array(old[:3])) / gap
+            elif gap != 0.0:  # too far apart, or time going backwards: no estimate
+                self._carrot_v = np.zeros(3)
+            # gap == 0: the same setpoint again, the estimate stands
+        self._setpoint = new
 
     def _desired_velocity(self, now: float, dt: float) -> Tuple[np.ndarray, float]:
         """Velocity the drone should have this step, and the yaw it should turn towards."""
         sp = self._setpoint
         if sp is None or now - sp[4] > self.setpoint_timeout:
+            self._carrot_v = np.zeros(3)
             return np.zeros(3), self._yaw  # hover: stop at the current position
-        err = np.array(sp[:3], dtype=float) - self._p
+        # The setpoint is a moving carrot: between messages it is extrapolated with its own
+        # velocity, so the target (and v_des) moves smoothly instead of jumping per message.
+        v_c = self._carrot_v
+        age = min(max(now - sp[4], 0.0), CARROT_MAX_EXTRAP)
+        target = np.array(sp[:3], dtype=float) + v_c * age
+        err = target - self._p
         dist = float(np.linalg.norm(err))
-        if dist < 1e-12:
-            return np.zeros(3), sp[3]
-        u = err / dist
-        # The acceleration budget is shared by all three axes, so the stopping-distance rule
-        # runs along the 3D error direction; the group speed limits cap the speed along it.
-        # (braking is planned with STOP_MARGIN * a_max so the one-step lag of the velocity
-        # tracking cannot carry the drone past the setpoint)
-        # Position advances by the new velocity (semi-implicit Euler), so capping the new
-        # speed at dist/dt keeps one step inside the remaining distance.
-        # Braking is planned for the discrete steps actually taken: a speed of n*a*dt can be
-        # brought to rest in n steps of deceleration a over a distance a*dt^2*n*(n+1)/2.
-        a_stop = STOP_MARGIN * self.a_max
-        n_steps = 0.5 * (math.sqrt(1.0 + 8.0 * dist / (a_stop * dt * dt)) - 1.0)
-        speed = min(n_steps * a_stop * dt, dist / dt)
-        u_xy = math.hypot(u[0], u[1])
-        if u_xy > 1e-12:
-            speed = min(speed, self.v_max_xy / u_xy)
-        if abs(u[2]) > 1e-12:
-            speed = min(speed, self.v_max_z / abs(u[2]))
-        return u * speed, sp[3]
+        v_stop = np.zeros(3)
+        if dist >= 1e-12:
+            u = err / dist
+            # The acceleration budget is shared by all three axes, so the stopping-distance rule
+            # runs along the 3D error direction; the group speed limits cap the speed along it.
+            # Position advances by the new velocity (semi-implicit Euler), so capping the new
+            # speed at dist/dt keeps one step inside the remaining distance. Braking is planned
+            # for the discrete steps actually taken: a speed of n*a*dt can be brought to rest in
+            # n steps of deceleration a over a distance a*dt^2*n*(n+1)/2, with STOP_MARGIN * a_max
+            # so the one-step lag of the velocity tracking cannot carry the drone past the target.
+            a_stop = STOP_MARGIN * self.a_max
+            n_steps = 0.5 * (math.sqrt(1.0 + 8.0 * dist / (a_stop * dt * dt)) - 1.0)
+            speed = min(n_steps * a_stop * dt, dist / dt)
+            u_xy = math.hypot(u[0], u[1])
+            if u_xy > 1e-12:
+                speed = min(speed, self.v_max_xy / u_xy)
+            if abs(u[2]) > 1e-12:
+                speed = min(speed, self.v_max_z / abs(u[2]))
+            v_stop = u * speed
+        v_des = v_c + v_stop
+        # group limits on the sum (a no-op for a static setpoint, where v_c = 0)
+        s_xy = math.hypot(v_des[0], v_des[1])
+        if s_xy > self.v_max_xy:
+            v_des[0] *= self.v_max_xy / s_xy
+            v_des[1] *= self.v_max_xy / s_xy
+        v_des[2] = max(-self.v_max_z, min(self.v_max_z, v_des[2]))
+        return v_des, sp[3]
 
     def step(self, dt: float, now: float, setpoint: Optional[Setpoint]) -> State:
         if setpoint is not None:
-            self._setpoint = tuple(float(c) for c in setpoint)
+            self._accept_setpoint(setpoint)
         if dt <= 0.0:
             return self.state
 
