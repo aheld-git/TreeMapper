@@ -70,6 +70,7 @@ docker exec tm_dev bash -lc 'source /opt/ros/noetic/setup.bash && mkdir -p /data
   && ./devel/lib/treemapper_ros/test_treemapper_ros'                      # 28 gtest cases
 # the corridor navigator node (nav/corridor_nav + ros/corridor_nav_ros): `catkin build corridor_nav_ros -j2 -p1`, then
 # `catkin build corridor_nav_ros -j2 -p1 --make-args tests && catkin run_tests corridor_nav_ros` (11 gtest cases)
+# closed loop without Isaac (~25 s wall, 100 s of sim time at x5): `source devel/setup.bash && rostest corridor_nav_ros nav_sim_lite.test`
 # end-to-end smoke on 60 s of the Isaac bag (needs /data/isaac and the extraction):
 #   source devel/setup.bash && rostest treemapper_ros replay_smoke.test
 ```

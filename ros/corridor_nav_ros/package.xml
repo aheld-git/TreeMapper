@@ -22,4 +22,9 @@
   <depend>yaml-cpp</depend>
   <exec_depend>message_runtime</exec_depend>
   <test_depend>rosunit</test_depend>
+  <test_depend>rostest</test_depend>
+  <test_depend>rospy</test_depend>
+  <test_depend>rosgraph_msgs</test_depend>
+  <test_depend>tf2_msgs</test_depend>
+  <test_depend>python3-numpy</test_depend>
 </package>

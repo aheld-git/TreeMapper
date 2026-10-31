@@ -1,0 +1,24 @@
+<!-- Closed loop of corridor_nav_node without Isaac. nav_sim_lite.py is the whole world: it owns /clock (sim time at
+     x`rate` wall time), the drone (TF world -> body, flies at the setpoint), a scripted TreeMapper (/treemapper/map,
+     set_tree_sprayed, 8 trees in 2 corridors) and a synthetic stereo disparity with camera_info. check_mission.py
+     calls ~start and asserts the mission: all 8 trees sprayed exactly once, nozzle only while SPRAYING and only over
+     a tree, the setpoint never lower than any tree within 1.3 m + 1.5 m, landing at home. time-limit is WALL time;
+     the checker's own limit is 600 s of SIM time (= 120 s wall at rate 5).
+     The world node is NOT named nav_sim_lite: rostest registers its test under that name and the two would collide. -->
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <node pkg="corridor_nav_ros" type="nav_sim_lite.py" name="nav_sim_world" output="screen">
+    <param name="rate" value="5.0"/>
+  </node>
+
+  <include file="$(find corridor_nav_ros)/launch/corridor_nav.launch">
+    <arg name="field_file" value="$(find corridor_nav_ros)/test/field_lite.yaml"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="output" value="screen"/>
+  </include>
+
+  <test test-name="nav_sim_lite" pkg="corridor_nav_ros" type="check_mission.py" time-limit="400.0">
+    <param name="sim_limit_s" value="600.0"/>
+  </test>
+</launch>
