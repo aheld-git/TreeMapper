@@ -37,7 +37,11 @@ ap.add_argument("--vmax", type=float, default=3.0, help="cube speed cap toward t
 ap.add_argument("--max-wall", type=float, default=0.0, help="stop after this many wall s (0 = run until SIGTERM)")
 ap.add_argument("--domain-id", type=int, default=int(os.environ.get("ROS_DOMAIN_ID", "77")))
 ap.add_argument("--livestream-ip", default=os.environ.get("LIVESTREAM_IP", "127.0.0.1"))
+# Kit consumes its own --/... and --exec style arguments from sys.argv, so unknown ones are not
+# an error here; they are listed so a typo in one of ours does not pass silently.
 args, _unknown = ap.parse_known_args()
+if _unknown:
+    print(f"[spike_publish] WARNING: ignoring unrecognised arguments: {_unknown}", flush=True)
 
 
 def log(msg):

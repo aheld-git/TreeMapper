@@ -1,10 +1,14 @@
 # ros1_bridge parameter_bridge topic list for the Isaac Sim <-> Noetic loop.
 # Loaded onto the ROS 1 parameter server (`rosparam load`) before the bridge starts.
-# Direction is implied by who publishes: the bridge creates a publisher on the
-# other side for every listed topic and relays in the direction data flows
-# (parameter_bridge bridges BOTH ways per topic; each topic has one real
-# publisher, so nothing loops).
+# parameter_bridge always creates BOTH directions for every listed topic (it cannot be told
+# to bridge one way). Each topic here has exactly one real publisher, so the "other" direction
+# stays idle and nothing loops; the Isaac -> Noetic / Noetic -> Isaac grouping below is who
+# publishes, not a bridge setting.
 #
+# The `qos:` block on /tf_static only shapes the ROS 2 *publisher* the bridge creates (Noetic ->
+# Isaac). The ROS 2 -> ROS 1 subscriber is fixed best-effort + volatile and the ROS 1 publisher
+# is unlatched, so a static TF published once by Isaac never reaches Noetic: Isaac must
+# re-publish /tf_static periodically (sim/isaac/spike_publish.py does, at 1 Hz).
 # Isaac (ROS 2 Humble) -> Noetic
 topics:
   - {topic: /cam/bottom/left/half/image_raw,         type: sensor_msgs/msg/Image,       queue_size: 2}

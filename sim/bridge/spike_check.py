@@ -31,8 +31,10 @@ ap.add_argument("--duration", type=float, default=60.0, help="sim seconds of pas
 ap.add_argument("--wait", type=float, default=120.0, help="wall seconds to wait for the first /clock")
 ap.add_argument("--out", default="")
 ap.add_argument("--min-image-hz", type=float, default=9.0)
-ap.add_argument("--max-roundtrip", type=float, default=1.0)
-args, _ = ap.parse_known_args()
+ap.add_argument("--max-onset", type=float, default=1.0,
+                help="max sim s from setpoint publish to first TF motion (the transport criterion)")
+ap.add_argument("--stall", type=float, default=5.0, help="exit non-zero if /clock does not advance for this many wall s")
+args = ap.parse_args()
 
 
 class Stat:
@@ -74,7 +76,7 @@ class Stat:
 
 stats = {k: Stat() for k in ("left", "right", "info_left", "info_right", "tf", "tf_static",
                              "clock", "truth", "deposition")}
-clock_log = {"last": None, "backwards": 0, "n": 0}
+clock_log = {"last": None, "backwards": 0, "n": 0, "wall_advance": None}
 info_first = {}
 img_first = {}
 tf_samples = []          # (stamp, x, y, z) of world->body from /tf
@@ -88,6 +90,8 @@ def on_clock(msg):
     t = msg.clock.to_sec()
     if clock_log["last"] is not None and t < clock_log["last"]:
         clock_log["backwards"] += 1
+    if clock_log["last"] is None or t > clock_log["last"]:
+        clock_log["wall_advance"] = time.time()
     clock_log["last"] = t
     clock_log["n"] += 1
     stats["clock"].add(None)
@@ -143,8 +147,21 @@ def on_depo(msg):
         pass
 
 
+def die(code, msg):
+    print("FAIL: " + msg, flush=True)
+    sys.exit(code)
+
+
+def check_stall():
+    """Sim time freezes when /clock stops, so sim-time loops cannot detect it themselves."""
+    adv = clock_log["wall_advance"]
+    if adv is not None and time.time() - adv > args.stall:
+        die(4, "/clock stalled: no advance for %.1f s wall (last sim t=%.3f)" % (time.time() - adv, clock_log["last"]))
+
+
 def wall_sleep(s):
     time.sleep(s)
+    check_stall()
 
 
 rospy.init_node("tm_spike_check", anonymous=True)
@@ -173,17 +190,20 @@ w0 = time.time()
 while clock_log["last"] is None and time.time() - w0 < args.wait and not rospy.is_shutdown():
     wall_sleep(0.2)
 if clock_log["last"] is None:
-    print("FAIL: no /clock within %.0f s wall" % args.wait)
-    sys.exit(3)
+    die(3, "no /clock within %.0f s wall" % args.wait)
 print("clock up at sim t=%.3f; waiting for both images ..." % clock_log["last"], flush=True)
 while (stats["left"].n < 3 or stats["right"].n < 3) and time.time() - w0 < args.wait:
     wall_sleep(0.2)
+if stats["left"].n < 3 or stats["right"].n < 3:
+    die(5, "images not flowing within %.0f s wall (left=%d right=%d)" % (args.wait, stats["left"].n, stats["right"].n))
 
 # Static transforms reach a late joiner only through Isaac's 1 Hz /tf_static replay (the bridge
 # does not latch); wait for the first one and report how long a fresh Noetic node waited.
 while not tf_static_frames and time.time() - w0 < args.wait:
     wall_sleep(0.1)
-static_first_wait_s = time.time() - node_start_wall if tf_static_frames else None
+if not tf_static_frames:
+    die(6, "no /tf_static within %.0f s wall (is Isaac replaying it?)" % args.wait)
+static_first_wait_s = time.time() - node_start_wall
 
 # ---------------------------------------------------------------- passive window
 t0 = rospy.Time.now().to_sec()
@@ -193,7 +213,11 @@ lookups = {"ok": 0, "fail": 0, "last_error": ""}
 lookup_pairs = [("world", "body"), ("world", "cam_left"), ("world", "cam_right"), ("cam_left", "cam_right")]
 lookup_ok = {"%s->%s" % p: 0 for p in lookup_pairs}
 lookup_fail = {"%s->%s" % p: 0 for p in lookup_pairs}
+passive_deadline = time.time() + args.duration * 4.0 + 30.0     # wall; tolerates RTF down to ~0.25
 while rospy.Time.now().to_sec() - t0 < args.duration and not rospy.is_shutdown():
+    if time.time() > passive_deadline:
+        die(7, "passive window not finished %.0f s wall after start (sim advanced %.1f of %.0f s)" % (
+            time.time() - wall_t0, rospy.Time.now().to_sec() - t0, args.duration))
     for p in lookup_pairs:
         try:
             tfbuf.lookup_transform(p[0], p[1], rospy.Time(0), rospy.Duration(0.0))
@@ -247,7 +271,12 @@ def roundtrip(target, label, timeout_sim=10.0):
     pub_sp.publish(m)
     echo = onset = arrive = None
     dist0 = math.dist(start, target)
+    wall_deadline = time.time() + timeout_sim * 4.0 + 10.0
     while rospy.Time.now().to_sec() - t_pub < timeout_sim and not rospy.is_shutdown():
+        if time.time() > wall_deadline:
+            die(8, "%s: no result %.0f s wall after the setpoint (sim advanced %.1f s)" % (
+                label, time.time() - (wall_deadline - timeout_sim * 4.0 - 10.0),
+                rospy.Time.now().to_sec() - t_pub))
         if echo is None and truth_log and truth_log[-1][1].get("sp_seq", 0) > seq1:
             # first truth message that carries the new setpoint
             for arr, d in truth_log:
@@ -283,12 +312,14 @@ for i, delta in enumerate([(3.0, 0.0, 0.0), (0.0, -3.0, 0.0), (-3.0, 3.0, 0.0)])
 spray = {"ok": False}
 if depo_log:
     v_before = depo_log[-1][1].get("volume_l", 0.0)
-    t_spray = rospy.Time.now().to_sec()
     for _ in range(20):
         pub_spray.publish(Bool(data=True))
         wall_sleep(0.1)
     sim_t_end = rospy.Time.now().to_sec() + 3.0
+    spray_deadline = time.time() + 30.0
     while rospy.Time.now().to_sec() < sim_t_end and not rospy.is_shutdown():
+        if time.time() > spray_deadline:
+            die(9, "spray phase did not finish within 30 s wall (sim time stuck)")
         pub_spray.publish(Bool(data=True))
         wall_sleep(0.1)
     for _ in range(20):
@@ -314,9 +345,12 @@ checks["tf_world_body_lookups"] = lookup_fail["world->body"] == 0 and lookup_ok[
 checks["tf_static_cam_lookups"] = all(lookup_fail[k] == 0 and lookup_ok[k] > 0
                                       for k in ("world->cam_left", "world->cam_right", "cam_left->cam_right"))
 checks["truth_and_deposition_rx"] = passive["truth"]["count"] > 0 and passive["deposition"]["count"] > 0
-rt_ok = [r.get("tf_onset_sim_s") is not None and 0 <= r["tf_onset_sim_s"] < args.max_roundtrip
-         and r.get("tf_arrive_sim_s") is not None for r in rt_results]
-checks["setpoint_roundtrip<%.1fs" % args.max_roundtrip] = bool(rt_ok) and all(rt_ok)
+# Transport criterion = onset: setpoint publish -> first world->body TF motion >= 5 cm. The arrival
+# time (<= 10 cm of goal) is reported as info only: it is distance / the spike cube's 3 m/s cap,
+# not a property of the bridge.
+rt_ok = [r.get("tf_onset_sim_s") is not None and 0 <= r["tf_onset_sim_s"] < args.max_onset
+         for r in rt_results]
+checks["setpoint_onset<%.1fs" % args.max_onset] = bool(rt_ok) and all(rt_ok)
 checks["spray_deposition"] = spray["ok"]
 
 report = {"passive_window": passive_window, "topics": passive, "clock": clock_log,
@@ -325,7 +359,8 @@ report = {"passive_window": passive_window, "topics": passive, "clock": clock_lo
           "tf_lookup_last_error": lookups["last_error"],
           "tf_static_frames": sorted(list(x) for x in tf_static_frames),
           "tf_static_first_arrival_wall_s_after_node_start": static_first_wait_s,
-          "roundtrips": rt_results, "spray": spray, "checks": checks,
+          "roundtrips": rt_results,
+          "roundtrip_note": "tf_onset_sim_s is the checked transport latency; tf_arrive_sim_s is info only (distance / 3 m/s cube speed cap)", "spray": spray, "checks": checks,
           "pass": all(checks.values())}
 text = json.dumps(report, indent=2, default=str)
 print(text)

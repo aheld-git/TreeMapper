@@ -10,6 +10,10 @@
 # runtime libs it needs (the base ships no CUDA), and a clean entrypoint.
 #
 #   docker build -t tm_sim_ros:latest sim/bridge
+# The base is a LOCAL image (built by the TreeHoppingNavigation project, not pulled from a registry),
+# so `latest` is only as stable as that machine's copy. The spike was run on
+# sha256:4d87252ea3a4fc8cd225fccc026b1026ba7e02bd9c49416a5de15a5943ed97f4
+# (`docker inspect -f '{{.Id}}' treehoppingnavigation-bridge:latest`); check it when results differ.
 FROM treehoppingnavigation-bridge:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -29,7 +33,7 @@ RUN set -eux; \
 # onnxruntime-gpu: the last release with a cp38 wheel is 1.19.2 (CUDA 12.x,
 # cuDNN 9). The host driver (580) is CUDA 13 capable, so a CUDA 12 userland runs.
 # The CUDA libs come from the pip nvidia-* wheels (the base has no toolkit).
-RUN python3 -m pip install --no-cache-dir -U pip \
+RUN python3 -m pip install --no-cache-dir pip==25.0.1 \
  && python3 -m pip install --no-cache-dir \
         onnxruntime-gpu==1.19.2 \
         nvidia-cuda-runtime-cu12==12.4.127 \
@@ -51,7 +55,8 @@ RUN set -eux; \
 # Expose the GPU compute libs when run with --gpus all.
 ENV NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility \
-    ROS_DOMAIN_ID=77
+    ROS_DOMAIN_ID=77 \
+    RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
 COPY entrypoint.sh /tm_entrypoint.sh
 COPY bridge_topics.yaml /tm/bridge_topics.yaml
