@@ -1,0 +1,24 @@
+# ros1_bridge parameter_bridge topic list for the Isaac Sim <-> Noetic loop.
+# Loaded onto the ROS 1 parameter server (`rosparam load`) before the bridge starts.
+# Direction is implied by who publishes: the bridge creates a publisher on the
+# other side for every listed topic and relays in the direction data flows
+# (parameter_bridge bridges BOTH ways per topic; each topic has one real
+# publisher, so nothing loops).
+#
+# Isaac (ROS 2 Humble) -> Noetic
+topics:
+  - {topic: /cam/bottom/left/half/image_raw,         type: sensor_msgs/msg/Image,       queue_size: 2}
+  - {topic: /cam/bottom/right/half/image_raw,        type: sensor_msgs/msg/Image,       queue_size: 2}
+  - {topic: /cam/bottom/left/half/camera_info,       type: sensor_msgs/msg/CameraInfo,  queue_size: 5}
+  - {topic: /cam/bottom/right/half/camera_info,      type: sensor_msgs/msg/CameraInfo,  queue_size: 5}
+  - {topic: /tf,                                     type: tf2_msgs/msg/TFMessage,      queue_size: 100}
+  - topic: /tf_static
+    type: tf2_msgs/msg/TFMessage
+    queue_size: 100
+    qos: {history: keep_last, depth: 100, durability: transient_local, reliability: reliable}
+  - {topic: /clock,                                  type: rosgraph_msgs/msg/Clock,     queue_size: 10}
+  - {topic: /sim/truth,                              type: std_msgs/msg/String,         queue_size: 10}
+  - {topic: /sim/deposition,                         type: std_msgs/msg/String,         queue_size: 10}
+  # Noetic -> Isaac
+  - {topic: /corridor_nav/setpoint,                  type: geometry_msgs/msg/PoseStamped, queue_size: 10}
+  - {topic: /corridor_nav/spray,                     type: std_msgs/msg/Bool,           queue_size: 10}
