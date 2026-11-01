@@ -137,6 +137,7 @@ are not a strategy comparison.
   outlines spill 0.32 .. 0.44 outside the canopies over the five runs on the textured ground). Spray outcomes are limited by that map.
 - Per run (3x3, RTF 1.0): ~150 s Isaac startup, the mission (170 .. 220 sim s), ~5 s teardown, ~10 s scoring;
   340 .. 395 s wall in total (3x3; 153 s to /clock in the re-run). Bag 2.0 .. 2.6 MB, run directory 5 .. 6 MB.
+
 ## Comparison: corridor vs field_first (Task 16 Step 3, 3 runs per spec and strategy)
 
 Runs: `scripts/sim_mission.sh sim/specs/<spec>.json --strategy <corridor|field_first> --runs 3 --out
@@ -219,7 +220,7 @@ not a proof.
 | safety | All safety rows pass (1 = yes) | 1.00 / 1.00 / 0.00 | 1.00 / 1.00 / 0.00 | +0.00 (0.01) | no measurable difference |
 | safety | Sprayed tree targeted again (episodes) | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
 | guards | Clearance-guard triggers | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
-| guards | Guard-blind counter | 6.33 / 7.00 / 1.00 | 1.00 / 1.00 / 0.00 | -5.33 (1.00) | field_first better |
+| guards | Guard-blind counter | 6.33 / 7.00 / 1.00 | 1.00 / 1.00 / 0.00 | -5.33 (1.00) | field_first lower (info only) |
 | guards | Holds (all reasons) | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
 | guards | IDs re-resolved | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
 | guards | IDs dropped (vanished) | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
@@ -242,7 +243,7 @@ not a proof.
 | cost | Navigator step mean (ms) | 0.01 / 0.01 / 0.00 | 0.01 / 0.01 / 0.00 | +0.00 (0.00) | no measurable difference |
 | cost | Navigator step p99 (ms) | 0.05 / 0.06 / 0.04 | 0.06 / 0.06 / 0.00 | +0.01 (0.04) | no measurable difference |
 | cost | SGBM mean (ms) | 13.33 / 13.45 / 0.19 | 13.38 / 13.42 / 0.08 | +0.05 (0.19) | no measurable difference |
-| cost | Detector mean (ms) | 9.75 / 9.75 / 0.01 | 9.89 / 9.90 / 0.05 | +0.13 (0.10) | corridor better |
+| cost | Detector mean (ms) | 9.75 / 9.75 / 0.01 | 9.89 / 9.90 / 0.05 | +0.13 (0.10) | field_first higher (info only) |
 | cost | Real-time factor | 1.00 / 1.00 / 0.00 | 1.00 / 1.00 / 0.00 | -0.00 (0.01) | no measurable difference |
 
 ### rows_8x12: per-strategy statistics
@@ -275,13 +276,13 @@ not a proof.
 | safety | All safety rows pass (1 = yes) | 1.00 / 1.00 / 0.00 | 1.00 / 1.00 / 0.00 | +0.00 (0.01) | no measurable difference |
 | safety | Sprayed tree targeted again (episodes) | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
 | guards | Clearance-guard triggers | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
-| guards | Guard-blind counter | 10.33 / 12.00 / 4.00 | 1.33 / 2.00 / 1.00 | -9.00 (4.00) | field_first better |
+| guards | Guard-blind counter | 10.33 / 12.00 / 4.00 | 1.33 / 2.00 / 1.00 | -9.00 (4.00) | field_first lower (info only) |
 | guards | Holds (all reasons) | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
 | guards | IDs re-resolved | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
 | guards | IDs dropped (vanished) | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | +0.00 (0.00) | no measurable difference |
-| guards | Late trees (cleanup list) | 1.33 / 2.00 / 1.00 | 0.00 / 0.00 / 0.00 | -1.33 (1.00) | field_first better |
+| guards | Late trees (cleanup list) | 1.33 / 2.00 / 1.00 | 0.00 / 0.00 / 0.00 | -1.33 (1.00) | field_first lower (info only) |
 | guards | Targets skipped as implausibly high | 0.33 / 1.00 / 1.00 | 0.33 / 1.00 / 1.00 | +0.00 (1.00) | no measurable difference |
-| guards | Spray points raised (split neighbour) | 0.33 / 1.00 / 1.00 | 2.33 / 3.00 / 1.00 | +2.00 (1.00) | corridor better |
+| guards | Spray points raised (split neighbour) | 0.33 / 1.00 / 1.00 | 2.33 / 3.00 / 1.00 | +2.00 (1.00) | field_first higher (info only) |
 | map | Map recall (final) | 1.00 / 0.99 / 0.01 | 1.00 / 1.00 / 0.00 | +0.00 (0.01) | no measurable difference |
 | map | Map precision (final) | 0.99 / 0.99 / 0.01 | 0.98 / 0.96 / 0.03 | -0.01 (0.03) | no measurable difference |
 | map | Split trees (final) | 0.67 / 1.00 / 1.00 | 1.33 / 3.00 / 3.00 | +0.67 (3.00) | no measurable difference |
@@ -295,15 +296,17 @@ not a proof.
 | map | Max height drift per ID since lock (m) | 3.93 / 5.45 / 3.28 | 0.00 / 0.00 / 0.00 | -3.93 (3.28) | field_first better |
 | map | Frames with an implausible height | 2230.67 / 2639.00 / 658.00 | 2003.67 / 3392.00 / 3392.00 | -227.00 (3392.00) | no measurable difference |
 | map | Map safety violations (total) | 2243.00 / 2642.00 / 650.00 | 2003.67 / 3392.00 / 3392.00 | -239.33 (3392.00) | no measurable difference |
-| cost | Navigator step mean (ms) | 0.01 / 0.01 / 0.00 | 0.02 / 0.02 / 0.00 | +0.00 (0.00) | corridor better |
-| cost | Navigator step p99 (ms) | 0.06 / 0.07 / 0.00 | 0.11 / 0.11 / 0.00 | +0.04 (0.00) | corridor better |
-| cost | SGBM mean (ms) | 13.41 / 13.44 / 0.04 | 13.58 / 13.63 / 0.09 | +0.17 (0.14) | corridor better |
-| cost | Detector mean (ms) | 9.58 / 9.64 / 0.10 | 9.73 / 9.79 / 0.10 | +0.15 (0.10) | corridor better |
+| cost | Navigator step mean (ms) | 0.01 / 0.01 / 0.00 | 0.02 / 0.02 / 0.00 | +0.00 (0.00) | field_first higher (info only) |
+| cost | Navigator step p99 (ms) | 0.06 / 0.07 / 0.00 | 0.11 / 0.11 / 0.00 | +0.04 (0.00) | field_first higher (info only) |
+| cost | SGBM mean (ms) | 13.41 / 13.44 / 0.04 | 13.58 / 13.63 / 0.09 | +0.17 (0.14) | field_first higher (info only) |
+| cost | Detector mean (ms) | 9.58 / 9.64 / 0.10 | 9.73 / 9.79 / 0.10 | +0.15 (0.10) | field_first higher (info only) |
 | cost | Real-time factor | 1.00 / 1.00 / 0.00 | 1.00 / 1.00 / 0.00 | -0.00 (0.01) | no measurable difference |
 
 ### Corridor vs field_first: what differs and why
 
-- **Where the time goes**: scan, settle and dose times are the same; the difference is transit (120 vs 51 s on 5x5,
+- **Where the time goes**: settle and dose times show no measurable difference; scan time is 1.2 s (5x5) and 2.5 s
+  (8x12) shorter in field_first, out of 94-95 s and 171-174 s: above the noise floor, negligible in size. The
+  difference is transit (120 vs 51 s on 5x5,
   135 vs 60 s on 8x12) and, less, glide (-12 s on each). Corridor mode climbs back to the 15 m scan altitude after
   each corridor's spray-back and transits to the next corridor's entry (8 and 10 corridors); field_first scans all
   corridors in one boustrophedon sequence at scan altitude, descends once, and glides from corridor to corridor at
@@ -314,16 +317,20 @@ not a proof.
   off-target and ground litres, map recall, precision, IoU and centre RMSE.
 - **Map heights**: on 5x5 field_first's final heights are better (bias +0.30 vs +0.69 m, RMSE 0.49 vs 0.89 m); on
   8x12 corridor's bias is smaller (-0.01 vs -0.22 m) with no measurable RMSE difference. The per-ID height drift after
-  the lock (3.7 / 3.9 m in corridor mode, <= 0.17 m in field_first) is structural: field_first has no scan after its
-  only lock, corridor mode scans again after every lock but the last.
+  the lock (3.7 / 3.9 m in corridor mode, <= 0.17 m in field_first) is structural - field_first has no scan after its
+  only lock, corridor mode scans again after every lock but the last - but with 3 runs it is not statistically
+  separable on 5x5 (difference 3.6 m, noise floor 4.2 m); on 8x12 it is just above the floor (3.9 vs 3.3 m). The
+  mechanism (finding 2) rests on the traces, not on this statistic. The TreeMapper scorer's implausible-height frames
+  and map safety violations show no measurable difference on either orchard.
 - **Safety margins**: minimum true clearance 2.23 vs 2.04 m on 5x5 (corridor higher by 0.19 m, just above the 0.13 m
   floor), no measurable difference on 8x12 (1.63 vs 1.55 m; worst run 1.46 m in field_first). Both are above zero
   in every run; the clearance guard never had to act.
 - **Guards and counters**: no holds, no re-resolved or dropped IDs in any run. `guard_blind` scales with the number of
   descents from scan altitude (6.3 and 10.3 per corridor run vs 1.0 and 1.3 per field_first run; not analysed
   further, no effect on the dose). Late trees (cleanup list) occur only in corridor mode (0.3 and 1.3 per run).
-  `spray_point_raised` (a split neighbour within reach) is 2.3 per run in field_first on 8x12 vs 0.3: just above the
-  1-run floor.
+  `spray_point_raised` (a split neighbour within reach) is 2.3 per run in field_first on 8x12 vs 0.3: a difference
+  of 2.0 against a noise floor of 1.0 (the larger 3-run spread). These counters, like the cost rows, are tagged
+  "info only" in the tables: they describe how the mission was flown, not its quality.
 - **Cost**: the navigator step is 0.01-0.02 ms mean, <= 0.11 ms p99 (field_first holds the whole field's list: ~2x,
   irrelevant at 20 Hz); SGBM 13.3-13.6 ms and detector 9.6-9.9 ms per frame on the workstation GPU; RTF 1.000 in all
   runs (the sim was capped at 1.0).
@@ -410,10 +417,31 @@ First-sighting lateral offset = across-track distance from the drone to the trut
 | rows_8x12 | corridor | 258 | 125, 0.34 m, 9 %, 4 % | 133, 0.39 m, 7 %, 2 % | 7 of 20 | 0.81 | 3 % / 5 % / 1 % | 14, 50 % |
 | rows_8x12 | field_first | 261 | 120, 0.30 m, 5 %, 2 % | 141, 0.39 m, 11 %, 3 % | 17 of 22 | 0.70 | 4 % / 2 % / 3 % | 3, 33 % |
 
+| Spec | Strategy | Episodes with err > r_fp that still got >= 50 %: n, error range | Max error / crown radius of an episode that got >= 50 % | Min error / crown radius of an episode with err > r_fp that got < 50 % | Height over-estimate > 1.5 m at spray: n, along-track distance of the tree from the field's entry edge |
+|---|---|---|---|---|---|
+| 5x5_tropical | all | 20, 0.81 .. 1.82 m | 0.85 | 0.75 | 9, 3.8 .. 26.5 m |
+| 5x5_tropical | corridor | 9, 0.81 .. 1.82 m | 0.85 | 0.88 | 8, 3.8 .. 19.7 m |
+| 5x5_tropical | field_first | 11, 0.83 .. 1.62 m | 0.79 | 0.75 | 1, 26.5 .. 26.5 m |
+| rows_8x12 | all | 32, 0.80 .. 1.91 m | 0.93 | 0.70 | 12, 5.1 .. 18.8 m |
+| rows_8x12 | corridor | 17, 0.80 .. 1.91 m | 0.93 | 0.70 | 10, 5.1 .. 18.8 m |
+| rows_8x12 | field_first | 15, 0.83 .. 1.77 m | 0.90 | 0.91 | 2, 9.1 .. 18.6 m |
+
+#### Dose aim accuracy
+
+Aim error = distance from the drone's mean xy during a dose episode to the centre of the map entry the navigator aimed at (its `/spray_target` id, centre in the latest map before the episode). It measures the navigator and the drone, not the map.
+
+| Spec / strategy | Episodes | Median (m) | p95 (m) | Max (m) | Share <= 0.1 m |
+|---|---|---|---|---|---|
+| 5x5_tropical/corridor | 77 | 0.000 | 0.106 | 0.172 | 92.2 % |
+| 5x5_tropical/field_first | 77 | 0.000 | 0.000 | 0.028 | 100.0 % |
+| rows_8x12/corridor | 258 | 0.000 | 0.065 | 0.328 | 96.5 % |
+| rows_8x12/field_first | 263 | 0.000 | 0.010 | 0.075 | 100.0 % |
+| all/all | 675 | 0.000 | 0.043 | 0.328 | 97.8 % |
+
 Phantom episodes (dose on an entry that is not a displaced copy of any truth tree): 5x5_tropical field_first run_1 id 149 at 175 s, rows_8x12 field_first run_2 id 82 at 634 s, rows_8x12 field_first run_3 id 86 at 635 s.
 
-**Findings** (from the tables above and the traces of `map.jsonl`; "TreeMapper" = `cand_obj` as configured by
-`config/cand_obj.cfg`):
+**Findings** (numbers from the generated tables above and the generated height traces in "Appendix: height traces";
+the few derived readings are marked as such; "TreeMapper" = `cand_obj` as configured by `config/cand_obj.cfg`):
 
 1. **First sighting at the image edge -> centre bias (5x5_tropical, both strategies; 21 of the 23 5x5 misses).**
    Over every attributed 5x5 episode, entries first published with the tree < 5 m across track were 0.32 m off at spray
@@ -423,54 +451,61 @@ Phantom episodes (dose on an entry that is not a displaced copy of any truth tre
    and the view is ~17 m wide across track, so a tree is first confirmed from a scan line one or two corridors before
    its own, at the far edge of the image, with part of the crown outside it: the published centre sits toward the
    drone. Later passes much closer to the tree (its own corridor's scan, 3-4 m) did not pull it back far enough
-   (first-sighting error 1.0-3.1 m, at spray 1.15-2.48 m, final IoU 0.20-0.44). The trees concerned are the 5x5 rows
-   at y ~ 13-15 and y ~ 29 (and a few at y ~ 7.5 / 19.5 / 21.7), which lie within ~1.8 m of a corridor boundary
-   (14.0 and 28.25 m), i.e. 7-8 m from the scan line two corridors back. It hits corridor and field_first alike
+   (first-sighting error 1.0-3.1 m, at spray 1.15-2.48 m, final IoU 0.20-0.44). (Derived reading, from the truth
+   positions in `truth.json` and the 8 equal strips of 4.75 m the navigator planned over the 38 m field: the trees
+   concerned are the 5x5 rows at y ~ 13-15 and y ~ 29, plus single trees at y ~ 7.5 / 19.5 / 21.7, all within ~1.8 m
+   of a strip boundary, i.e. 7-8 m from the scan line two corridors back.) It hits corridor and field_first alike
    (5x5 miss share of far-sighted episodes 34 % vs 39 %): it is a perception property, not a strategy effect.
    On rows_8x12 it is much weaker (far-sighted entries 0.39 m off vs 0.32 m near, 9 % vs 7 % beyond r_fp); it still
    caused two of the three rows_8x12 field_first (a) misses (tree 65 in runs 1 and 2: first published 7.4-7.5 m
    across track, 2.2-2.3 m off, 1.7-1.8 m off at spray time). Why the dense rows orchard shows it less was not
-   investigated. Centre error > r_fp is necessary for a class (a) miss but not sufficient: the dose share falls below
-   50 % once the aim error reaches roughly 0.75-0.9 of the crown radius (5x5: every passing episode below 0.85, every
-   class (a) miss at 0.75 or more), and 20 5x5 episodes with errors of 0.81-1.82 m still delivered >= 50 %.
+   investigated. Centre error > r_fp is necessary for a class (a) miss but not sufficient (threshold table under "Patterns"): on
+   5x5 every episode that got >= 50 % had an error below 0.85 of the crown radius and every episode beyond r_fp that
+   got < 50 % was at 0.75 or more; 20 5x5 episodes with errors of 0.81-1.82 m still delivered >= 50 % (8x12: 0.93 /
+   0.70, 32 episodes at 0.80-1.91 m; its lowest misses are the height over-estimates of finding 2).
 2. **Published height ramps up after the drone has passed, and the lock freezes it (mostly corridor mode;
    5 of the 8 rows_8x12 corridor misses, 1 of the 11 5x5 corridor misses, plus all three navigator skips).** TreeMapper rate-limits a
    published height to `max_height_rate` = 0.5 m/s. In the traces the height of an entry near the start of a scan
    climbs at exactly that rate while the drone flies away from it along the corridor (out of view, 10-25 m away), and
    keeps climbing until that scan line ends (outside SCAN TreeMapper holds its entries; in corridor mode the list
-   then locks); a later scan line that sees the tree again brings it back down at the same rate. Examples: 5x5 corridor run_1 entry 12 (tree 2, true top 2.31 m) 4.35 m at
-   21.6 s -> 9.06 m at the first lock (31 s) -> back to 3.1 m during later scans (the "5.9 m height drift after lock"
-   in that scorecard); rows_8x12 corridor run_1 entry 78 (tree 24, top 2.83 m) 3.58 m when the drone passed over it at
-   284 s -> 6.57 m at the lock (290.5 s), sprayed from 9.1 m. Consequences: (i) a frozen height above
+   then locks); a later scan line that sees the tree again brings it back down at the same rate. Examples (appendix traces): 5x5 corridor run_1 entry 12
+   (tree 2, true top 2.31 m) 4.35 m at 21.63 s, 25 m behind the drone at 8.39 m by 29.83 s, 8.99 m at the first lock
+   (31.03 s, PLANNING; peak 9.06 m), back down from 79 s when the next scan line saw it, 3.10 m at the end (the
+   "5.9 m height drift after lock" in that scorecard); rows_8x12 corridor run_1 entry 78 (tree 24, top 2.83 m)
+   3.63 m when the drone passed it at 283.53 s, 6.37 m at 289.93 s with the drone 23.8 m away, 6.57 m frozen from the
+   lock on, nozzle 5.93 m above the true top at its dose (miss table). Consequences: (i) a frozen height above
    home + `expected_canopy_top_max` + `target_height_margin` = 9 m makes the navigator skip the tree
    (`target_height_implausible`; it is never revisited when the height later comes down - the known Task 16B minor);
    (ii) a frozen height 2.8-4.1 m too high puts the nozzle 5-6.3 m above the true top, the footprint radius grows to
    1.8-2.3 m, wider than the crown, and half the dose lands on the ground (class (e) "height over-estimate").
-   Over-estimates > 1.5 m at spray time: 18 episodes in corridor mode (8 on 5x5, 10 on 8x12), all on trees within
-   20 m of the corridor entry (x <= 14.7 m, entry at x = -5 m; the corridors are 38 m and 59.5 m long), against 3 in
-   field_first (1 on 5x5, 2 on 8x12). field_first locks only after every corridor has been scanned, so a later scan
+   Over-estimates > 1.5 m at spray time (threshold table): 18 episodes in corridor mode (8 on 5x5 on trees
+   3.8-19.7 m from the field's entry edge, 10 on 8x12 at 5.1-18.8 m; the corridors are 38 m and 59.5 m long, so
+   these trees are in the part of the corridor scanned first), against 3 in field_first (1 on 5x5 at 26.5 m, 2 on
+   8x12). field_first locks only after every corridor has been scanned, so a later scan
    line usually sees the tree again before the lock and pulls the height back (5x5 final height bias +0.30 m vs
    +0.69 m, RMSE 0.49 vs 0.89 m). When no later line sees it, field_first freezes it too: rows_8x12 field_first run_2,
-   tree 30 (top 3.47 m), entry 105 went from 3.6 m when the drone passed at 89.9 s to 10.31 m when that scan line
-   ended (103.3 s), stayed there to the single lock (234.5 s) and was skipped (`target_height_implausible`).
+   tree 30, entry 105: 3.62 m when the drone passed at 89.93 s, 10.31 m when that scan line ended (103.33 s,
+   SCAN_APPROACH), 10.32 m to the end of the mission; skipped at the single lock (`target_height_implausible`).
    Why the height target is too high once the tree is behind the drone is inside `cand_obj` and was not diagnosed.
 3. **Controller's run_1 observation, checked**: 5x5 corridor run_1 sprayed 19 of 25 (confirmed). Five of the six
    misses (13, 17, 21, 22, 24) are class (a): map centre error at spray time 1.17-2.13 m, final IoU 0.21-0.25,
    first published 7.7-8.2 m across track with the error pointing back to that track (finding 1); they are late in
    the mission (time fraction 0.46-0.85) only because they are in the rows scanned last, and they have no crowded
    neighbours (crown gaps 1.3-3.6 m). The sixth, tree 2, is different: centre error 0.35 m, but its entry 12 was
-   frozen at 9.06 m (finding 2) and skipped (`target_height_implausible` 1); the 5.9 m per-ID height drift after lock is
+   frozen at 8.99-9.06 m (finding 2) and skipped (`target_height_implausible` 1); the 5.9 m per-ID height drift after lock is
    that same entry coming back down to 3.1 m in later scans.
-4. **Phantoms** cost one dose in 12 runs (5x5 field_first run_1, entry 149, 3.9 m from the nearest tree, published
-   1.22 m high) and caused no miss: class (c) is empty.
+4. **Phantoms** cost three doses in 12 runs, all in field_first (5x5 run_1 entry 149; 8x12 run_2 entry 82, run_3
+   entry 86; list under the patterns table) and caused no miss: class (c) is empty.
 
 ### Known weaknesses of this comparison
 
 - **One orchard per spec, 3 runs per side.** The spread is the loop's own non-determinism on a fixed seed; orchard
   variation (other seeds, other layouts) is not sampled. The noise-floor rule (difference vs the larger spread of 3
   runs) is coarse: differences just above it are hints.
-- **The map, not the navigator, limits the spray outcome.** Over all 675 dose episodes the drone's mean position during the dose
-  was within 0.04 m of the aimed map centre in 95 % of them (median 0.00 m, max 0.33 m); every miss traces back to a map entry: its published centre (24) or height (9; findings 1 and 2), a merged entry
+- **The map, not the navigator, limits the spray outcome.** The drone's mean xy during a dose was within 0.043 m of the centre of
+  the map entry it aimed at (its `/spray_target` id, centre in the map before the dose) in 95 % of the 675 episodes,
+  max 0.33 m, 97.8 % within 0.1 m (table "Dose aim accuracy"), against map centre errors of 1.15-2.48 m on the
+  class (a) misses; every miss traces back to a map entry: its published centre (24) or height (9; findings 1 and 2), a merged entry
   (1), or a tree never published (1). The map runs on SGBM over rendered images with a periodic grass texture; the earlier Isaac
   results of TreeMapper were on rendered depth (see "What this smoke says about the sim"), so map quality here is
   neither the recording's nor a real flight's.
@@ -480,12 +515,108 @@ Phantom episodes (dose on an entry that is not a displaced copy of any truth tre
 - **The navigator never retries a target skipped as implausibly high** once its height comes back down (3 trees in
   12 runs).
 - **TreeMapper's own scorer rows** (frames with an implausible height, non-target changes during descent, new tree
-  inside a sprayed outline; "Map safety violations" in the tables) are high in corridor mode on rows_8x12; they are
-  map-quality rows of the TreeMapper scorer, not the mission safety rows, which all pass.
+  inside a sprayed outline; "Map safety violations" in the tables) are high on rows_8x12 in both strategies (no measurable
+  difference); they are map-quality rows of the TreeMapper scorer, not the mission safety rows, which all pass.
 - **Sim simplifications**: no wind or drift, ideal rectified stereo pair, nozzle as a ray cone onto collider meshes,
   RTF 1.0 on a workstation GPU, detector trained on real images (parity with the Orin checked above), the Isaac
   drone's controller instead of ArduPilot.
 - Minimum true clearance over the canopy is 1.6 m on rows_8x12 (taller, denser trees) against 2.0-2.3 m on 5x5; it
   passes (> 0) and no clearance-guard trigger occurred in any run.
 
-Not verified on the Orin or on a real flight.
+### Appendix: height traces
+
+Generated with `python3 -m treemapper_tools.sim_compare_report /data/work/sim_runs/cmp16c_5x5_tropical_corridor --trace /data/work/sim_runs/cmp16c_5x5_tropical_corridor/run_1:12 --trace /data/work/sim_runs/cmp16c_rows_8x12_corridor/run_1:78 --trace /data/work/sim_runs/cmp16c_rows_8x12_field_first/run_2:105` (one row whenever the published height moved >= 0.25 m, plus the last snapshot).
+
+#### Height trace: /data/work/sim_runs/cmp16c_5x5_tropical_corridor/run_1
+
+| Entry | t (s) | Published height (m) | Phase | Drone x, y, z (m) | Drone - entry distance (m) |
+|---|---|---|---|---|---|
+| 12 | 21.63 | 4.35 | SCAN | 6.4, -2.6, 15.0 | 2.0 |
+| 12 | 22.43 | 4.69 | SCAN | 9.8, -2.6, 15.0 | 2.7 |
+| 12 | 23.23 | 5.09 | SCAN | 12.7, -2.6, 15.0 | 5.3 |
+| 12 | 23.83 | 5.39 | SCAN | 15.3, -2.6, 15.0 | 7.8 |
+| 12 | 24.43 | 5.69 | SCAN | 17.8, -2.6, 15.0 | 10.2 |
+| 12 | 25.03 | 6.00 | SCAN | 20.0, -2.6, 15.0 | 12.4 |
+| 12 | 25.63 | 6.30 | SCAN | 22.5, -2.6, 15.0 | 14.9 |
+| 12 | 26.23 | 6.58 | SCAN | 24.6, -2.6, 15.0 | 17.0 |
+| 12 | 26.83 | 6.88 | SCAN | 27.1, -2.6, 15.0 | 19.5 |
+| 12 | 27.43 | 7.20 | SCAN | 29.6, -2.6, 15.0 | 21.9 |
+| 12 | 28.03 | 7.49 | SCAN | 31.2, -2.6, 15.0 | 23.6 |
+| 12 | 28.63 | 7.79 | SCAN | 32.5, -2.6, 15.0 | 24.8 |
+| 12 | 29.23 | 8.09 | SCAN | 32.9, -2.6, 15.0 | 25.3 |
+| 12 | 29.83 | 8.39 | SCAN | 33.0, -2.6, 15.0 | 25.4 |
+| 12 | 30.43 | 8.69 | SCAN | 33.0, -2.6, 15.0 | 25.4 |
+| 12 | 31.03 | 8.99 | PLANNING | 33.0, -2.6, 15.0 | 25.4 |
+| 12 | 79.03 | 8.72 | SCAN | 8.3, 2.1, 15.0 | 3.3 |
+| 12 | 79.63 | 8.42 | SCAN | 10.5, 2.1, 15.0 | 4.3 |
+| 12 | 80.23 | 8.12 | SCAN | 12.7, 2.1, 15.0 | 6.0 |
+| 12 | 80.83 | 7.82 | SCAN | 15.3, 2.1, 15.0 | 8.2 |
+| 12 | 81.43 | 7.52 | SCAN | 17.5, 2.1, 15.0 | 10.3 |
+| 12 | 82.03 | 7.22 | SCAN | 20.1, 2.1, 15.0 | 12.9 |
+| 12 | 82.63 | 6.92 | SCAN | 22.3, 2.1, 15.0 | 15.0 |
+| 12 | 83.23 | 6.62 | SCAN | 24.5, 2.1, 15.0 | 17.2 |
+| 12 | 83.83 | 6.32 | SCAN | 27.1, 2.1, 15.0 | 19.7 |
+| 12 | 84.43 | 6.02 | SCAN | 29.3, 2.1, 15.0 | 21.9 |
+| 12 | 85.03 | 5.72 | SCAN | 31.3, 2.1, 15.0 | 23.9 |
+| 12 | 85.63 | 5.42 | SCAN | 32.4, 2.1, 15.0 | 25.0 |
+| 12 | 86.23 | 5.17 | SCAN | 32.9, 2.1, 15.0 | 25.5 |
+| 12 | 86.63 | 4.92 | SCAN | 33.0, 2.1, 15.0 | 25.5 |
+| 12 | 87.23 | 4.62 | SCAN | 33.0, 2.1, 15.0 | 25.5 |
+| 12 | 87.77 | 4.32 | SCAN | 33.0, 2.1, 15.0 | 25.5 |
+| 12 | 88.27 | 4.07 | PLANNING | 33.0, 2.1, 15.0 | 25.5 |
+| 12 | 100.83 | 3.76 | SCAN_APPROACH | 28.4, -0.1, 5.1 | 20.7 |
+| 12 | 124.23 | 3.43 | SCAN | 12.5, 6.9, 15.0 | 9.3 |
+| 12 | 124.83 | 3.18 | SCAN | 15.0, 6.9, 15.0 | 10.8 |
+| 12 | 453.83 | 3.10 | IDLE | -3.0, -3.0, 0.0 | 10.8 |
+
+#### Height trace: /data/work/sim_runs/cmp16c_rows_8x12_corridor/run_1
+
+| Entry | t (s) | Published height (m) | Phase | Drone x, y, z (m) | Drone - entry distance (m) |
+|---|---|---|---|---|---|
+| 78 | 179.33 | 4.29 | SCAN | 6.5, 8.0, 15.0 | 4.0 |
+| 78 | 179.93 | 4.56 | SCAN | 8.6, 8.0, 15.0 | 3.7 |
+| 78 | 181.53 | 4.26 | SCAN | 14.7, 8.0, 15.0 | 7.4 |
+| 78 | 182.13 | 3.95 | SCAN | 17.4, 8.0, 15.0 | 9.7 |
+| 78 | 283.53 | 3.63 | SCAN | 7.5, 13.2, 15.0 | 1.6 |
+| 78 | 285.13 | 3.97 | SCAN | 13.6, 13.2, 15.0 | 5.0 |
+| 78 | 285.73 | 4.27 | SCAN | 15.8, 13.2, 15.0 | 7.2 |
+| 78 | 286.33 | 4.57 | SCAN | 18.5, 13.2, 15.0 | 9.8 |
+| 78 | 286.93 | 4.87 | SCAN | 20.7, 13.2, 15.0 | 12.0 |
+| 78 | 287.53 | 5.17 | SCAN | 23.3, 13.2, 15.0 | 14.6 |
+| 78 | 288.13 | 5.47 | SCAN | 25.5, 13.2, 15.0 | 16.8 |
+| 78 | 288.73 | 5.76 | SCAN | 27.7, 13.2, 15.0 | 19.0 |
+| 78 | 289.33 | 6.06 | SCAN | 30.3, 13.2, 15.0 | 21.6 |
+| 78 | 289.93 | 6.37 | SCAN | 32.6, 13.2, 15.0 | 23.8 |
+| 78 | 1017.53 | 6.57 | IDLE | -3.0, -3.0, 0.0 | 19.2 |
+
+#### Height trace: /data/work/sim_runs/cmp16c_rows_8x12_field_first/run_2
+
+| Entry | t (s) | Published height (m) | Phase | Drone x, y, z (m) | Drone - entry distance (m) |
+|---|---|---|---|---|---|
+| 105 | 73.33 | 3.33 | SCAN | 34.4, 8.0, 15.0 | 4.3 |
+| 105 | 89.93 | 3.62 | SCAN | 36.1, 13.2, 15.0 | 1.0 |
+| 105 | 90.73 | 4.02 | SCAN | 33.1, 13.2, 15.0 | 2.7 |
+| 105 | 91.33 | 4.32 | SCAN | 30.5, 13.2, 15.0 | 5.3 |
+| 105 | 91.93 | 4.62 | SCAN | 28.3, 13.2, 15.0 | 7.5 |
+| 105 | 92.53 | 4.92 | SCAN | 26.1, 13.2, 15.0 | 9.7 |
+| 105 | 93.13 | 5.21 | SCAN | 23.5, 13.2, 15.0 | 12.3 |
+| 105 | 93.73 | 5.51 | SCAN | 21.3, 13.2, 15.0 | 14.4 |
+| 105 | 94.33 | 5.83 | SCAN | 18.6, 13.2, 15.0 | 17.1 |
+| 105 | 94.93 | 6.12 | SCAN | 16.4, 13.2, 15.0 | 19.3 |
+| 105 | 95.53 | 6.42 | SCAN | 14.2, 13.2, 15.0 | 21.5 |
+| 105 | 96.13 | 6.72 | SCAN | 11.6, 13.2, 15.0 | 24.1 |
+| 105 | 96.73 | 7.02 | SCAN | 9.4, 13.2, 15.0 | 26.3 |
+| 105 | 97.33 | 7.32 | SCAN | 6.8, 13.2, 15.0 | 28.9 |
+| 105 | 97.93 | 7.61 | SCAN | 4.6, 13.2, 15.0 | 31.1 |
+| 105 | 98.53 | 7.91 | SCAN | 2.4, 13.2, 15.0 | 33.3 |
+| 105 | 99.13 | 8.22 | SCAN | -0.2, 13.2, 15.0 | 35.9 |
+| 105 | 99.73 | 8.52 | SCAN | -2.2, 13.2, 15.0 | 37.9 |
+| 105 | 100.33 | 8.82 | SCAN | -3.9, 13.2, 15.0 | 39.6 |
+| 105 | 100.93 | 9.11 | SCAN | -4.8, 13.2, 15.0 | 40.5 |
+| 105 | 101.53 | 9.42 | SCAN | -5.0, 13.2, 15.0 | 40.7 |
+| 105 | 102.13 | 9.72 | SCAN | -5.0, 13.2, 15.0 | 40.7 |
+| 105 | 102.73 | 10.02 | SCAN | -5.0, 13.2, 15.0 | 40.7 |
+| 105 | 103.33 | 10.31 | SCAN_APPROACH | -5.0, 13.4, 15.0 | 40.7 |
+| 105 | 908.13 | 10.32 | IDLE | -3.0, -3.0, 0.0 | 41.6 |
+
+Not verified on the Orin or on a real flight
