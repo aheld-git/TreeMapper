@@ -147,7 +147,8 @@ navigator = `config/corridor_nav.cfg` with the strategy and the sim-only `carrot
 parity" (sha256 3f6ec5a0...504b, score threshold 0.8), TreeMapper `treemapper_sim.launch` with `cand_obj.cfg` unchanged.
 Batch log: `/data/work/logs/cmp_16c_20261031T192531Z.log`. Specs: `5x5_tropical` (25 trees, 7 m x 7 m grid, jitter
 1.5 m, flat, seed 1001) and `rows_8x12` (86 trees after 8 % missing, 6 m rows x 4.5 m, jitter 0.5 m, 0.03 rad slope,
-30 rocks, seed 7). Every run uses the spec's seed, so the three runs of a batch fly the same orchard: the run-to-run
+seed 7; the spec asks for 30 rocks, but rocks are not instantiated: `sim/isaac/orchard_sim.py` warns and builds no rock
+geometry, see `results/sim_isaac_checks.md`, "Concerns and limits"). Every run uses the spec's seed, so the three runs of a batch fly the same orchard: the run-to-run
 spread is the loop's own non-determinism (rendering, SGBM, detector, timing), not orchard variation.
 
 The tables below are generated, not typed:
@@ -182,8 +183,9 @@ not a proof.
 - **Spray outcome: no measurable difference** on either orchard (trees sprayed 21.3 vs 21.0 of 25 and 83.3 vs 84.7 of
   86; on-target fraction 0.73 vs 0.70 and 0.93 vs 0.93; spreads of 3-6 trees between runs of the same strategy).
 - **Safety: all 12 runs completed** (DONE, no abort, no hold, never ERROR) and **pass every safety row**: minimum true
-  clearance over the canopy 1.46-2.28 m (> 0), nozzle never open outside DOSE, no sprayed tree targeted again, no
-  clearance-guard trigger.
+  clearance over the canopy 1.46-2.28 m (> 0), nozzle never open outside DOSE, no sprayed tree targeted again. The
+  clearance guard never triggered; that is not evidence that it works in this loop: the low-bias / guard / spray-floor
+  path was not exercised in Isaac (see "Known weaknesses").
 - **Misses (35 in 12 runs, 5.3 % of the 666 tree visits) are map errors, not navigation errors**: 24 (a) map centre
   further from the truth than the 0.80 m footprint (21 on 5x5, where a tree first confirmed at the far edge of the
   image keeps a centre biased toward that track), 7 (e) other (6 published heights 1.8-4.1 m too high, so the footprint
@@ -324,7 +326,11 @@ not a proof.
   and map safety violations show no measurable difference on either orchard.
 - **Safety margins**: minimum true clearance 2.23 vs 2.04 m on 5x5 (corridor higher by 0.19 m, just above the 0.13 m
   floor), no measurable difference on 8x12 (1.63 vs 1.55 m; worst run 1.46 m in field_first). Both are above zero
-  in every run; the clearance guard never had to act.
+  in every run. The clearance guard never triggered, also in the run whose worst true clearance (1.46 m) is below
+  `min_clearance` 1.5 m. The two numbers are not comparable: the guard reads the 10th-percentile nadir depth in the
+  central `guard_window` (0.2 of the image width and height, a small patch straight below the camera), while this
+  scorer row takes the highest truth crown whose outline lies within 0.8 m (the drone radius) of the drone's xy. The
+  guard path was not exercised in Isaac (see "Known weaknesses").
 - **Guards and counters**: no holds, no re-resolved or dropped IDs in any run. `guard_blind` scales with the number of
   descents from scan altitude (6.3 and 10.3 per corridor run vs 1.0 and 1.3 per field_first run; not analysed
   further, no effect on the dose). Late trees (cleanup list) occur only in corridor mode (0.3 and 1.3 per run).
@@ -521,7 +527,22 @@ the few derived readings are marked as such; "TreeMapper" = `cand_obj` as config
   RTF 1.0 on a workstation GPU, detector trained on real images (parity with the Orin checked above), the Isaac
   drone's controller instead of ArduPilot.
 - Minimum true clearance over the canopy is 1.6 m on rows_8x12 (taller, denser trees) against 2.0-2.3 m on 5x5; it
-  passes (> 0) and no clearance-guard trigger occurred in any run.
+  passes (> 0).
+- **The low-bias / clearance-guard / spray-floor path was not exercised in Isaac.** No clearance-guard trigger occurred
+  in any of the 12 runs, so there was no guard release and no guard-raised spray floor either. TreeMapper biased its
+  published heights HIGH in this loop (+0.3 to +0.7 m: final mean bias +0.30 / +0.69 m on 5x5_tropical, +0.4 to
+  +0.65 m in the smoke; on rows_8x12 the final mean is near zero, -0.01 / -0.22 m), so the spray altitude sat above
+  the true canopy. The guard's reading (10th-percentile nadir depth in the central `guard_window`) and the scorer's
+  clearance row (any truth crown within 0.8 m of the drone's xy) are not comparable, so the 1.46 m worst true clearance
+  below `min_clearance` 1.5 m is no guard failure, and no guard success either. Only `nav_sim_lite` (the ROS closed
+  loop without Isaac, one tree published 1.2 m below its true top) covers this path. **Next sim experiment, before any
+  real-flight step:** make the guard act in Isaac, e.g. bias the published heights low or plant trees taller than the
+  map believes, and check the climb, the release and the spray floor.
+- **SGBM's disparity range caps the measurable clearance in sim.** `num_disparities` 64 (spec section 7; not changed
+  here) with fx * B = 72.7 px*m (fx 454.5 px, B 0.16 m) gives a closest measurable range of about 72.7 / 63 = 1.15 m,
+  0.35 m under `min_clearance` 1.5 m. Closer than that SGBM cannot match the true disparity; it leaves the pixel invalid
+  or matches a wrong, smaller disparity, so the guard can read the canopy too far away (fail open) in sim. Documented
+  only; a lower bound for the camera height above the canopy that the sim guard can see.
 
 ### Appendix: height traces
 
