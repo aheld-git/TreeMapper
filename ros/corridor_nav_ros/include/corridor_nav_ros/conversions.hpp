@@ -32,6 +32,11 @@ corridor_nav_msgs::NavStatus toMsg(const corridor_nav::Status& status, const cor
 geometry_msgs::PoseStamped toSetpoint(const corridor_nav::Outputs& out, const std::string& frame,
                                       const ros::Time& stamp);
 
+/// The setpoint the node publishes for a navigator step: toSetpoint(out), or nullopt while out.setpoint_valid is false
+/// (no pose yet: the setpoint would be the origin, not the drone's position).
+std::optional<geometry_msgs::PoseStamped> setpointToPublish(const corridor_nav::Outputs& out, const std::string& frame,
+                                                            const ros::Time& stamp);
+
 /// Full field of view of a camera_info: hfov = 2 atan(width / (2 K[0])), vfov = 2 atan(height / (2 K[4])).
 /// nullopt when the size or the focal lengths are not positive and finite.
 std::optional<corridor_nav::CameraFov> fovFrom(const sensor_msgs::CameraInfo& left);

@@ -52,7 +52,10 @@ struct Inputs {
 };
 
 struct Outputs {
-  Point3 setpoint;                     ///< carrot point, world frame
+  Point3 setpoint;                     ///< carrot point, world frame; meaningful only when setpoint_valid
+  /// False until the navigator has had a fresh valid pose (it has no position yet): publish no setpoint. Every state
+  /// after IDLE is entered with a pose, so this is false only in IDLE before the first pose.
+  bool setpoint_valid{false};
   double yaw{0.0};                     ///< rad
   bool nozzle{false};
   std::string phase;                   ///< /mission_state (spec 4.4)

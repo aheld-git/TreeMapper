@@ -19,7 +19,8 @@
 // composed first, for ~camera_mount and for TF alike.
 //
 // Until camera_info (and, without `home` in the field file, a pose) has arrived there is no Navigator: the node
-// publishes IDLE, nozzle closed and a hover setpoint at the current pose if there is one.
+// publishes IDLE, nozzle closed and a hover setpoint at the current pose if there is one. A navigator that has not
+// had a fresh valid pose yet (created from the field file's home) outputs no valid setpoint, and none is published.
 //
 // Nadir clearance: fx = the left P[0], baseline from the right P[3] in any of the conventions TreeMapper accepts
 // (deduceBaseline: REP-104 metres, or millimetres as the Isaac and field camera_infos have it). Without the right
@@ -294,7 +295,8 @@ class CorridorNavNode {
     const corridor_nav::Outputs out = nav_->step(in);
     step_ms_ = wallMs(t0);
 
-    pub_setpoint_.publish(toSetpoint(out, world_frame_, stamp));
+    // no setpoint until the navigator has had a pose (as publishIdle): it would be the origin, not the drone
+    if (const auto sp = setpointToPublish(out, world_frame_, stamp)) pub_setpoint_.publish(*sp);
     publishSpray(out.nozzle);
     publishPhase(out.phase, out.target, stamp);
     treemapper_msgs::StageTiming tm;

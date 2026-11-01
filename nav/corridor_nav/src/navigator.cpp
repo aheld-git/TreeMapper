@@ -137,6 +137,8 @@ Outputs Navigator::finish(NavState before, double t, Outputs out) {
     yaw_ = corridorYaw(corridors_[static_cast<std::size_t>(corridor_)].heading_rad, fov_);
   }
   out.yaw = yaw_;
+  // No fresh valid pose yet: pos_ (and every point derived from it) is the default origin, not the drone's position.
+  out.setpoint_valid = have_pose_;
   out.phase = phase();
   last_phase_ = out.phase;
   last_target_ = out.target;

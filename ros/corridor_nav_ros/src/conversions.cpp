@@ -66,6 +66,12 @@ geometry_msgs::PoseStamped toSetpoint(const corridor_nav::Outputs& out, const st
   return m;
 }
 
+std::optional<geometry_msgs::PoseStamped> setpointToPublish(const corridor_nav::Outputs& out, const std::string& frame,
+                                                            const ros::Time& stamp) {
+  if (!out.setpoint_valid) return std::nullopt;
+  return toSetpoint(out, frame, stamp);
+}
+
 std::optional<corridor_nav::CameraFov> fovFrom(const sensor_msgs::CameraInfo& left) {
   const double fx = left.K[0], fy = left.K[4];
   if (left.width == 0 || left.height == 0 || !positiveFinite(fx) || !positiveFinite(fy)) return std::nullopt;

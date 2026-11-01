@@ -79,6 +79,59 @@ std::uint64_t counter(const Navigator& nav, const std::string& name) {
 
 }  // namespace
 
+// Final review I1: before any fresh valid pose the navigator has no position, so it outputs no setpoint (the node
+// publishes none); a pose rejected as stale or invalid counts as none. Once a pose arrived, IDLE hovers at it.
+TEST(Navigator, NoSetpointBeforeTheFirstPose) {
+  const Config cfg;
+  Navigator nav(cfg, field30x24(), fov90());
+  Inputs in;
+  in.t = 10.0;
+  in.start_requested = true;   // a start without a pose is refused: still IDLE
+  Outputs out = nav.step(in);  // no pose at all
+  EXPECT_FALSE(out.setpoint_valid);
+  EXPECT_FALSE(out.nozzle);
+  EXPECT_EQ(out.phase, "IDLE");
+  EXPECT_EQ(nav.state(), NavState::kIdle);
+
+  in.t = 10.1;
+  in.pose.valid = true;
+  in.pose.x = 5.0;
+  in.pose.y = 6.0;
+  in.pose.z = 1.0;
+  in.pose.qw = 1.0;
+  in.pose.t = 10.1 - 2.0 * cfg.pose_max_age_s;   // stale: rejected
+  out = nav.step(in);
+  EXPECT_FALSE(out.setpoint_valid);
+  EXPECT_EQ(nav.state(), NavState::kIdle);
+
+  in.t = 10.2;
+  in.pose.valid = false;   // a fresh stamp, but invalid
+  in.pose.t = 10.2;
+  out = nav.step(in);
+  EXPECT_FALSE(out.setpoint_valid);
+
+  in.t = 10.3;
+  in.start_requested = false;
+  in.pose.valid = true;
+  in.pose.t = 10.3;
+  in.pose.x = 3.0;
+  in.pose.y = 4.0;
+  in.pose.z = 0.5;
+  out = nav.step(in);
+  EXPECT_TRUE(out.setpoint_valid);
+  EXPECT_EQ(out.setpoint.x, 3.0);
+  EXPECT_EQ(out.setpoint.y, 4.0);
+  EXPECT_EQ(out.setpoint.z, 0.5);
+
+  in.t = 10.4;
+  in.pose.valid = false;   // the pose drops out on the ground: hover where it was last seen
+  out = nav.step(in);
+  EXPECT_TRUE(out.setpoint_valid);
+  EXPECT_EQ(out.setpoint.x, 3.0);
+  EXPECT_EQ(out.setpoint.y, 4.0);
+  EXPECT_EQ(out.setpoint.z, 0.5);
+}
+
 TEST(Navigator, FullCorridorMissionSpraysEveryTreeOnce) {
   const Config cfg;
   FakeWorld w = world(cfg, grid({6, 12, 18}));
@@ -93,6 +146,7 @@ TEST(Navigator, FullCorridorMissionSpraysEveryTreeOnce) {
   EXPECT_EQ(nav.status().sprayed, 12u);
   EXPECT_EQ(nav.status().remaining, 0u);
   EXPECT_GE(w.min_clearance, cfg.min_clearance);
+  for (const Sample& s : w.samples) EXPECT_TRUE(s.setpoint_valid) << "t=" << s.t;   // a pose on every tick
   // landed back home
   EXPECT_NEAR(w.drone.x, 0.0, cfg.xy_tol);
   EXPECT_NEAR(w.drone.y, -2.0, cfg.xy_tol);

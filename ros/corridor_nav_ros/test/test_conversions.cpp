@@ -75,6 +75,43 @@ TEST(Conversions, SetpointYaw) {
   EXPECT_DOUBLE_EQ(sp.pose.orientation.w, std::cos(0.5));
 }
 
+// Final review I1: the node publishes the navigator's setpoint only when it is valid (the navigator has had a pose).
+TEST(Conversions, SetpointPublishedOnlyWhenValid) {
+  corridor_nav::Outputs o;
+  o.setpoint = {1.0, 2.0, 3.0};
+  o.yaw = 1.0;
+  EXPECT_FALSE(setpointToPublish(o, "world", ros::Time(5.0)));   // default: not valid
+  o.setpoint_valid = true;
+  const auto sp = setpointToPublish(o, "world", ros::Time(5.0));
+  ASSERT_TRUE(sp);
+  EXPECT_EQ(sp->header.frame_id, "world");
+  EXPECT_DOUBLE_EQ(sp->pose.position.x, 1.0);
+  EXPECT_DOUBLE_EQ(sp->pose.position.y, 2.0);
+  EXPECT_DOUBLE_EQ(sp->pose.position.z, 3.0);
+  EXPECT_DOUBLE_EQ(sp->pose.orientation.z, std::sin(0.5));
+
+  // the node's path: a navigator created without a pose (field file with home) publishes no (0, 0, 0) setpoint
+  corridor_nav::Field field;
+  field.polygon = {{0, 0}, {30, 0}, {30, 24}, {0, 24}};
+  field.home = {0.0, -2.0};
+  corridor_nav::Navigator nav(corridor_nav::Config(), field, corridor_nav::CameraFov{1.5, 1.5});
+  corridor_nav::Inputs in;
+  in.t = 3.0;   // no pose (TF lookup failed: valid = false)
+  EXPECT_FALSE(setpointToPublish(nav.step(in), "world", ros::Time(3.0)));
+  in.t = 3.1;
+  in.pose.valid = true;
+  in.pose.t = 3.1;
+  in.pose.x = 4.0;
+  in.pose.y = -1.0;
+  in.pose.z = 0.2;
+  in.pose.qw = 1.0;
+  const auto first = setpointToPublish(nav.step(in), "world", ros::Time(3.1));
+  ASSERT_TRUE(first);
+  EXPECT_DOUBLE_EQ(first->pose.position.x, 4.0);
+  EXPECT_DOUBLE_EQ(first->pose.position.y, -1.0);
+  EXPECT_DOUBLE_EQ(first->pose.position.z, 0.2);
+}
+
 TEST(Conversions, StatusCarriesCounters) {
   corridor_nav::Status s;
   s.state = corridor_nav::NavState::kGlide;
