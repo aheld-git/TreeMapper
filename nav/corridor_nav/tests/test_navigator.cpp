@@ -551,6 +551,23 @@ TEST(Navigator, PoseDropoutMidDoseResumesTheDose) {
   EXPECT_GE(open[held], cfg.dose_valid_frac * open[other]);
 }
 
+// Final review I2 (scorer): NavStatus must show a HOLD as HOLD, also in a cleanup glide / dose, so the mission scorer
+// can take the hold out of the intended dose; CLEANUP is the state string only while gliding to / dosing a cleanup tree.
+TEST(Navigator, StatusNameIsHoldDuringACleanupHold) {
+  Status s;
+  s.cleanup = true;
+  s.state = NavState::kGlide;
+  EXPECT_STREQ(statusName(s), "CLEANUP");
+  s.state = NavState::kDose;
+  EXPECT_STREQ(statusName(s), "CLEANUP");
+  s.state = NavState::kHold;
+  EXPECT_STREQ(statusName(s), "HOLD");
+  s.cleanup = false;
+  EXPECT_STREQ(statusName(s), "HOLD");
+  s.state = NavState::kDose;
+  EXPECT_STREQ(statusName(s), "DOSE");
+}
+
 TEST(Navigator, GuardClimbsAndBlocksDescent) {
   const Config cfg;
   FakeWorld w = world(cfg, grid({6, 12, 18}));

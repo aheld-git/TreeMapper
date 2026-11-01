@@ -44,7 +44,10 @@ const char* toString(NavState s) {
   return "UNKNOWN";
 }
 
-const char* statusName(const Status& s) { return s.cleanup ? "CLEANUP" : toString(s.state); }
+const char* statusName(const Status& s) {
+  // a hold shows as HOLD (Status.cleanup stays set through it): the scorer reads holds from this string
+  return s.cleanup && s.state != NavState::kHold ? "CLEANUP" : toString(s.state);
+}
 
 Navigator::Navigator(Config config, Field field, CameraFov fov, std::function<void(const std::string&)> log)
     : cfg_(config.sanitized(log)), scan_cfg_(cfg_), field_(std::move(field)), fov_(fov), log_(std::move(log)),

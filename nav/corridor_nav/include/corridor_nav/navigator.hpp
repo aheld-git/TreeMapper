@@ -74,7 +74,7 @@ struct Status {
   std::vector<std::string> warnings;
 };
 
-/// The status state string: "CLEANUP" while gliding to / dosing a cleanup tree, else toString(state).
+/// The status state string: "CLEANUP" while gliding to / dosing a cleanup tree (not in a HOLD), else toString(state).
 const char* statusName(const Status& s);
 
 class Navigator {

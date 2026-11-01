@@ -17,8 +17,10 @@ Definitions (controller rulings, Task 15 and the interim whole-branch review, I1
   falling edge) inside it, within ``EPISODE_SLACK_S`` of its ends, belong to it: a guard climb that closes the nozzle
   mid-dose does not make a second episode. A nozzle-open interval outside every SPRAYING interval is an *orphan*
   unit of its own (and a failed nozzle safety row).
-* intended dose of an episode = ``flow_lps`` x its SPRAYING duration (orphan: x its open time); emitted = ``flow_lps``
-  x the nozzle-open time.
+* intended dose of an episode = ``flow_lps`` x its SPRAYING duration minus the NavStatus HOLD time inside it (orphan:
+  x its open time); emitted = ``flow_lps`` x the nozzle-open time. HOLD keeps ``/mission_state`` SPRAYING (spec 4.4)
+  with the nozzle closed and the navigator pauses the dose over it (final review I2), so a hold is no intended dose.
+  HOLD intervals come from ``/corridor_nav/status`` (2 Hz: resolved to about 0.5 s).
 * an episode's deposit = the cumulative ``/sim/deposition`` at the first sample at or after its window end, minus the
   latest sample at or before its window start (window = the SPRAYING interval widened to its nozzle intervals). The
   window end is clipped at the next unit's start (no shared deposit); with no sample after the end of the last unit
@@ -34,7 +36,7 @@ Definitions (controller rulings, Task 15 and the interim whole-branch review, I1
   sprayed.
 * *targeted again* (safety row) = an episode whose TreeMapper id was ``sprayed`` in any map before the episode (the
   flag flipping is the evidence of a completed set_tree_sprayed mark), or had an earlier episode that ended before it
-  with a valid dose (nozzle open >= ``dose_valid_frac`` of its SPRAYING time: the value in the run directory's
+  with a valid dose (nozzle open >= ``dose_valid_frac`` of its non-hold SPRAYING time: the value in the run directory's
   ``corridor_nav.cfg`` when present, else ``DOSE_VALID_FRAC``) - so a second dose inside one map period is caught. A retry after an invalid dose is not targeted again.
 * an episode's truth target = its TreeMapper id mapped with the latest map snapshot before the episode (truth outline
   containing the TreeMapper centre, else nearest truth centre within 2 m, else unmatched). on-target = litres on the
@@ -155,24 +157,45 @@ class Episode:
     tm_id: Optional[int]                      # TreeMapper id on /spray_target (None: -1 / unknown)
     intervals: List[Tuple[float, float]] = field(default_factory=list)   # nozzle-open intervals in it
     orphan: bool = False
+    hold_s: float = 0.0                       # NavStatus HOLD time inside [start, end]
 
     @property
     def spraying_s(self) -> float:
-        """Duration that sets the intended dose: the SPRAYING interval (orphan: its open time)."""
-        return self.open_s if self.orphan else self.end - self.start
+        """Duration that sets the intended dose: the SPRAYING interval without its HOLD time (orphan: its open
+        time)."""
+        return self.open_s if self.orphan else max(0.0, self.end - self.start - self.hold_s)
 
     @property
     def open_s(self) -> float:
         return float(sum(b - a for a, b in self.intervals))
 
     def dose_complete(self, valid_frac: float = DOSE_VALID_FRAC) -> bool:
-        """A valid dose: the nozzle was open for at least ``valid_frac`` of the SPRAYING interval."""
-        return self.end > self.start and self.open_s >= valid_frac * (self.end - self.start) - 1e-9
+        """A valid dose: the nozzle was open for at least ``valid_frac`` of the non-hold SPRAYING time."""
+        return self.spraying_s > 0.0 and self.open_s >= valid_frac * self.spraying_s - 1e-9
 
     @property
     def window(self) -> Tuple[float, float]:
         """Deposit window: the episode widened to its nozzle intervals."""
         return (min([self.start] + [a for a, _ in self.intervals]), max([self.end] + [b for _, b in self.intervals]))
+
+
+def hold_intervals(status_states: Sequence[Tuple[float, str]], t_end: float) -> List[Tuple[float, float]]:
+    """(start, end) of each NavStatus HOLD interval of the state change list; one still open at the last change ends
+    at ``t_end``."""
+    st = sorted(status_states, key=lambda r: r[0])
+    out: List[Tuple[float, float]] = []
+    for i, (t, s) in enumerate(st):
+        if s != "HOLD" or (i > 0 and st[i - 1][1] == "HOLD"):
+            continue
+        j = i
+        while j + 1 < len(st) and st[j + 1][1] == "HOLD":
+            j += 1
+        out.append((t, st[j + 1][0] if j + 1 < len(st) else max(t_end, t)))
+    return out
+
+
+def _overlap(a: float, b: float, intervals: Sequence[Tuple[float, float]]) -> float:
+    return float(sum(max(0.0, min(b, y) - max(a, x)) for x, y in intervals))
 
 
 def _tm(v) -> Optional[int]:
@@ -181,12 +204,13 @@ def _tm(v) -> Optional[int]:
 
 def dose_episodes(phases: Sequence[Tuple[float, str]], targets: Sequence[Tuple[float, int]],
                   spray: Sequence[Tuple[float, bool]], t_end: float,
-                  slack: float = EPISODE_SLACK_S) -> List[Episode]:
+                  slack: float = EPISODE_SLACK_S,
+                  holds: Sequence[Tuple[float, float]] = ()) -> List[Episode]:
     """Dose episodes, sorted by start: each contiguous SPRAYING interval of ``phases`` (change list), split where
     ``targets`` changes strictly inside it (more than ``slack`` from both ends), with the nozzle-open intervals of
     ``spray`` whose start lies in [start - slack, end + slack); a SPRAYING interval still open at the last phase change
     closes at ``t_end``. Nozzle intervals in no episode become orphan episodes (target = /spray_target at their
-    start)."""
+    start). ``holds`` (``hold_intervals``) set each episode's ``hold_s``: its overlap with them."""
     ph = sorted(phases, key=lambda r: r[0])
     tg = sorted(targets, key=lambda r: r[0])
     eps: List[Episode] = []
@@ -200,7 +224,8 @@ def dose_episodes(phases: Sequence[Tuple[float, str]], targets: Sequence[Tuple[f
         cuts = [tc for tc, _ in tg if t + slack < tc < end - slack]
         bounds = [t] + cuts + [end]
         for a, b in zip(bounds, bounds[1:]):
-            eps.append(Episode(a, b, _tm(contract.step_lookup(tg, a + (slack if a == t else 0.0), -1))))
+            eps.append(Episode(a, b, _tm(contract.step_lookup(tg, a + (slack if a == t else 0.0), -1)),
+                               hold_s=_overlap(a, b, holds)))
     for t0, t1 in dose_events(spray):
         home = next((e for e in eps if e.start - slack <= t0 < e.end + slack), None)
         if home is not None:
@@ -219,7 +244,7 @@ def targeted_again(episodes: Sequence[Episode], snaps: Sequence[contract.Snapsho
                    valid_frac: float = DOSE_VALID_FRAC) -> List[int]:
     """Indices of the episodes that aimed at a TreeMapper id already sprayed: ``sprayed`` in any snapshot before the
     episode start (a completed set_tree_sprayed mark), or an earlier episode on the same id that ended before this
-    start with a valid dose (nozzle open for at least ``valid_frac`` of its SPRAYING time) - independent of the
+    start with a valid dose (nozzle open for at least ``valid_frac`` of its non-hold SPRAYING time) - independent of the
     snapshots, which come once per map period. A short, invalid first dose is the navigator's retry, not a second
     dose. Episodes without an id are not judged; orphan units are no dose episode."""
     ss = sorted(snaps, key=lambda s: s.t)
@@ -692,7 +717,7 @@ def score_run(run_dir: str) -> dict:
     t_end = max([r[0] for r in (b.poses[-1:] + b.phases[-1:] + b.status_states[-1:] + b.spray[-1:])], default=0.0)
     split = time_split(b.phases, b.status_states, t_end)
     events = dose_events(b.spray)
-    episodes = dose_episodes(b.phases, b.targets, b.spray, t_end)
+    episodes = dose_episodes(b.phases, b.targets, b.spray, t_end, holds=hold_intervals(b.status_states, t_end))
     final = parse_deposition(depo) if isinstance(depo, dict) and depo else None
     if not b.deposition:
         errors.append("no /sim/deposition samples in the bag")

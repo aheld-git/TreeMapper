@@ -177,6 +177,35 @@ def test_second_dose_on_a_completed_id_within_one_map_period_is_targeted_again()
     assert ms.targeted_again(eps3, [snap(5.0, sprayed_ids=(5,)), snap(12.0), snap(15.0)]) == [0, 1]
 
 
+def test_hold_inside_spraying_is_not_intended_dose():
+    # final review I2: HOLD keeps /mission_state SPRAYING (spec 4.4) with the nozzle closed; NavStatus shows it. The
+    # intended dose (flow x SPRAYING duration, 16A ruling) and the dose validity are judged on the non-hold time.
+    status = [(0.0, "IDLE"), (9.0, "GLIDE"), (10.0, "DOSE"), (11.0, "HOLD"), (12.0, "DOSE"), (14.5, "GLIDE"),
+              (16.0, "DOSE"), (19.0, "HOLD"), (19.5, "GLIDE"), (25.0, "HOLD"), (26.0, "RETURN")]
+    holds = ms.hold_intervals(status, t_end=30.0)
+    assert holds == [(11.0, 12.0), (19.0, 19.5), (25.0, 26.0)]
+    assert ms.hold_intervals([(0.0, "DOSE"), (3.0, "HOLD")], t_end=4.0) == [(3.0, 4.0)]   # open at the end: t_end
+    phases = [(9.0, "HOPPING"), (10.0, "SPRAYING"), (14.5, "HOPPING"), (16.0, "SPRAYING"), (19.25, "HOPPING")]
+    # open 0.9 s, HOLD 1 s (nozzle closed), open 2.5 s: 3.4 s of 3.5 s non-hold SPRAYING
+    spray = [(10.1, True), (11.0, False), (12.0, True), (14.5, False), (16.1, True), (19.0, False)]
+    eps = ms.dose_episodes(phases, [(0.0, 5)], spray, t_end=30.0, holds=holds)
+    assert [(e.start, e.end) for e in eps] == [(10.0, 14.5), (16.0, 19.25)]
+    assert eps[0].hold_s == pytest.approx(1.0) and eps[0].spraying_s == pytest.approx(3.5)
+    assert eps[1].hold_s == pytest.approx(0.25) and eps[1].spraying_s == pytest.approx(3.0)   # only the overlap
+    flow = 0.1
+    assert [flow * e.spraying_s for e in eps] == [pytest.approx(0.35), pytest.approx(0.30)]
+    assert eps[0].dose_complete()                     # 3.4 / 3.5 >= 0.8 (3.4 / 4.5 would not be)
+    assert ms.targeted_again(eps, []) == [1]          # so the second episode on id 5 is a second dose
+    # without hold information nothing changes
+    plain = ms.dose_episodes(phases, [(0.0, 5)], spray, t_end=30.0)
+    assert plain[0].hold_s == 0.0 and plain[0].spraying_s == pytest.approx(4.5)
+    assert not plain[0].dose_complete()
+    # an orphan unit keeps its open time
+    orphan = ms.dose_episodes([(0.0, "HOPPING")], [(0.0, 5)], [(1.0, True), (2.0, False)], t_end=5.0,
+                              holds=[(0.0, 5.0)])
+    assert orphan[0].orphan and orphan[0].spraying_s == pytest.approx(1.0)
+
+
 def _repo_cfg_value(key):
     path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "corridor_nav.cfg")
     for line in open(path):
@@ -329,7 +358,7 @@ def _msg_classes():
 
 
 def _build_run(root, flow=0.1, deposition=True, tf=True, spray=True, last_state="DONE", counters=None,
-               extra_phases=()):
+               extra_phases=(), extra_status=()):
     rospy = pytest.importorskip("rospy")
     rosbag = pytest.importorskip("rosbag")
     from geometry_msgs.msg import Point, TransformStamped
@@ -401,8 +430,8 @@ def _build_run(root, flow=0.1, deposition=True, tf=True, spray=True, last_state=
             d = {"trees": {"0": 0.18 * f1, "1": 0.05 * f2}, "ground": 0.02 * f1 + 0.15 * f2, "emitted": 0.2 * f1 + 0.2 * f2,
                  "open_time": 2 * f1 + 2 * f2}
             bag.write("/sim/deposition", String(json.dumps(d)), T(t))
-        for t, s in [(0.0, "IDLE"), (1.0, "TAKEOFF"), (3.0, "SCAN_OUT"), (9.0, "GLIDE"), (10.0, "DOSE"),
-                     (12.5, "GLIDE"), (20.0, "DOSE"), (22.5, "RETURN"), (30.0, last_state)]:
+        for t, s in sorted([(0.0, "IDLE"), (1.0, "TAKEOFF"), (3.0, "SCAN_OUT"), (9.0, "GLIDE"), (10.0, "DOSE"),
+                            (12.5, "GLIDE"), (20.0, "DOSE"), (22.5, "RETURN"), (30.0, last_state)] + list(extra_status)):
             st = C["corridor_nav_msgs/NavStatus"]()
             st.header.stamp = T(t)
             st.state = s
@@ -535,6 +564,14 @@ def test_abort_or_hold_timeout_or_error_phase_is_not_completed_even_if_it_ends_i
     assert card["completed"] is False and rc == 2 and any("hold_timeouts 1" in m for m in card["fail_reasons"])
     rc, card, _ = _run_cli(_build_run(str(tmp_path / "c"), extra_phases=[(15.0, "ERROR"), (15.05, "HOPPING")]), capsys)
     assert card["completed"] is False and rc == 2
+
+
+def test_end_to_end_hold_inside_spraying_is_excluded_from_the_intended_dose(tmp_path, capsys):
+    # NavStatus HOLD 20.5 .. 21.0 inside the second SPRAYING interval (20.0 .. 22.5): 2.5 + 2.0 s intended at 0.1 L/s
+    root = _build_run(str(tmp_path / "run_hold"), extra_status=[(20.5, "HOLD"), (21.0, "DOSE")])
+    rc, card, _ = _run_cli(root, capsys)
+    assert rc == 0 and card["errors"] == []
+    assert card["spray"]["intended_l_total"] == pytest.approx(0.45)
 
 
 def test_compare_excludes_incomplete_runs_from_time_metrics():
