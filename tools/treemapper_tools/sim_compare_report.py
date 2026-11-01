@@ -26,6 +26,11 @@ class, in this precedence:
 An episode the scorer could not match to a truth tree (its entry's centre outside every canopy and > 2 m from every
 truth centre) counts as aimed at the nearest truth tree when it lies within that tree's crown radius + r_fp + 0.5 m,
 else as a phantom episode.
+
+Also emitted: the dose aim accuracy (drone's mean xy during each dose vs the centre of the map entry the navigator
+aimed at: the navigator's accuracy, not the map's), the episodes beyond r_fp that still got >= 50 %, the height
+over-estimates > 1.5 m with their along-track position, and (``--trace RUN_DIR:ID,...``) published-height traces of
+chosen map entries. Cost and flight-description counters (``INFO_ONLY``) get an "info only" verdict.
 """
 from __future__ import annotations
 
@@ -116,6 +121,11 @@ STD_GROUP = {"mission_time_s": "efficiency", "path_length_m": "efficiency", "sec
              "nozzle_outside_dose": "safety", "step_mean_ms": "cost", "step_p99_ms": "cost", "sgbm_mean_ms": "cost",
              "detector_mean_ms": "cost", "rtf": "cost"}
 GROUP_ORDER = ("efficiency", "spray", "safety", "guards", "map", "cost")
+# metrics whose difference is reported but is not a quality finding (cost, and counters that only describe how the
+# mission was flown): their verdict reads "<strategy> lower / higher (info only)"
+INFO_ONLY = {"step_mean_ms", "step_p99_ms", "sgbm_mean_ms", "detector_mean_ms", "rtf", "glide_climbs_inserted",
+             "dose_episodes", "guard_blind", "late_trees", "spray_point_raised"}
+HEIGHT_OVER_BIG_M = 1.5        # published height - truth top above this: counted separately, with its along-track range
 
 
 # ----------------------------------------------------------------------------- loading
@@ -324,6 +334,9 @@ def episode_facts(r: dict) -> List[dict]:
     drop = nozzle_drop(spec)
     heading = float((spec.get("rows") or {}).get("heading_rad", 0.0))
     across = (-math.sin(heading), math.cos(heading))
+    along = (math.cos(heading), math.sin(heading))
+    poly = (spec.get("field") or {}).get("polygon") or []
+    along0 = min([p[0] * along[0] + p[1] * along[1] for p in poly]) if poly else 0.0
     t0 = (card.get("efficiency") or {}).get("time_split", {}).get("t_start") or 0.0
     mt = (card.get("efficiency") or {}).get("mission_time_s") or 1.0
     out = []
@@ -343,6 +356,11 @@ def episode_facts(r: dict) -> List[dict]:
         f = {"k": k, "start": e.start, "end": e.end, "tm_id": e.tm_id, "truth_id": int(T["id"]) if T else None,
              "matched": matched, "phantom": T is None, "intended_l": row.get("intended_l"),
              "t_frac": (e.start - t0) / mt if mt else None}
+        dp = mean_pose(poses, pt, e.start, e.end)
+        if dp is not None and ent is not None:
+            # dose aim error: the drone's mean xy during the dose vs the centre of the entry it aimed at (/spray_target
+            # id, its centre in the latest map before the dose) - the navigator's own accuracy, independent of the map
+            f["aim_err"] = math.hypot(dp[0] - ent[0][0], dp[1] - ent[0][1])
         if T is None:
             out.append(f)
             continue
@@ -356,11 +374,11 @@ def episode_facts(r: dict) -> List[dict]:
             f["map_err"] = math.hypot(ex, ey)
             f["err_across"] = ex * across[0] + ey * across[1]
             f["height_err"] = (h - f["top"]) if h is not None else None
-        dp = mean_pose(poses, pt, e.start, e.end)
+        f["along_from_entry"] = T["centre"][0] * along[0] + T["centre"][1] * along[1] - along0
         if dp is not None:
             f["nozzle_above_top"] = dp[2] - drop - f["top"]
             f["r_fp_actual"] = footprint_radius(f["nozzle_above_top"], half)
-            f["drone_err"] = math.hypot(dp[0] - T["centre"][0], dp[1] - T["centre"][1])
+            f["drone_truth_err"] = math.hypot(dp[0] - T["centre"][0], dp[1] - T["centre"][1])
         fi = mi.first.get(e.tm_id) if e.tm_id is not None else None
         if fi is not None:
             p = pose_at(poses, pt, fi[0])
@@ -468,10 +486,78 @@ def pattern_stats(facts: Sequence[dict], r_fp: float, offset_split: float = 5.0)
     thirds = [summ([f for f in fs if f.get("t_frac") is not None and min(2, max(0, int(f["t_frac"] * 3))) == i])
               for i in range(3)]
     hi = [f for f in fs if f.get("height_err") is not None and f["height_err"] > HEIGHT_OVER_M]
+    big_h = [f for f in fs if f.get("height_err") is not None and f["height_err"] > HEIGHT_OVER_BIG_M]
+    hit = [f for f in fs if f.get("frac", 0.0) >= MISS_FRAC]
+    beyond_hit = [f["map_err"] for f in hit if f["map_err"] > r_fp]
+    beyond_miss = [f for f in fs if f.get("frac", 0.0) < MISS_FRAC and f["map_err"] > r_fp]
+    alongs = [f["along_from_entry"] for f in big_h if f.get("along_from_entry") is not None]
     return {"n": len(fs), "near": summ(near), "far": summ(far), "offset_split": offset_split,
+            "beyond_fp_hit": {"n": len(beyond_hit), "min_err": min(beyond_hit) if beyond_hit else None,
+                              "max_err": max(beyond_hit) if beyond_hit else None},
+            "hit_ratio_max": max([f["map_err"] / f["crown_r"] for f in hit], default=None),
+            "beyond_fp_miss_ratio_min": min([f["map_err"] / f["crown_r"] for f in beyond_miss], default=None),
+            "height_over_big": {"n": len(big_h), "along_min": min(alongs) if alongs else None,
+                                "along_max": max(alongs) if alongs else None},
             "big_err": len(big), "big_err_toward_first_track": len(toward),
             "across_share_of_big_err": (float(np.mean([abs(f["err_across"]) / f["map_err"] for f in big])) if big else None),
             "thirds": thirds, "height_over": summ(hi)}
+
+
+def aim_stats(facts: Sequence[dict]) -> dict:
+    """Dose aim error (drone mean xy during a dose vs the aimed entry's centre) over every episode with an entry."""
+    v = sorted(f["aim_err"] for f in facts if f.get("aim_err") is not None)
+    if not v:
+        return {"n": 0, "median": None, "p95": None, "max": None, "share_le_0_1": None}
+    return {"n": len(v), "median": float(np.percentile(v, 50)), "p95": float(np.percentile(v, 95)), "max": v[-1],
+            "share_le_0_1": sum(x <= 0.1 for x in v) / len(v)}
+
+
+def height_trace(run_dir: str, ids: Sequence[int], min_dh: float = 0.25) -> List[dict]:
+    """Published height of the given entries over time, one row whenever the height moved >= ``min_dh`` since the last
+    row (plus the first appearance and the last snapshot), with the mission phase, the target and the drone."""
+    mis = ms._load_json(os.path.join(run_dir, "mission.json"), {}) or {}
+    ph = [(float(t), str(p)) for t, p in mis.get("phases", [])]
+    poses = [tuple(float(v) for v in p) for p in mis.get("pose", [])]
+    pt = [p[0] for p in poses]
+    pht = [p[0] for p in ph]
+    rows: List[dict] = []
+    last: Dict[int, dict] = {}
+    seen: Dict[int, dict] = {}
+    want = set(int(i) for i in ids)
+    with open(os.path.join(run_dir, "map.jsonl")) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            d = json.loads(line)
+            for tr in d.get("trees", []):
+                i = int(tr["id"])
+                if i not in want or tr.get("height") is None:
+                    continue
+                t, h, c = float(d["t"]), float(tr["height"]), tr["centre"]
+                p = pose_at(poses, pt, t)
+                row = {"id": i, "t": t, "height": h, "centre": [float(c[0]), float(c[1])],
+                       "phase": ph[max(0, bisect.bisect_right(pht, t) - 1)][1] if ph else None,
+                       "drone": [p[1], p[2], p[3]] if p else None,
+                       "dist": math.hypot(p[1] - float(c[0]), p[2] - float(c[1])) if p else None}
+                seen[i] = row
+                if i not in last or abs(h - last[i]["height"]) >= min_dh:
+                    rows.append(row)
+                    last[i] = row
+    for i, row in seen.items():
+        if last.get(i) is not row:
+            rows.append(row)
+    return sorted(rows, key=lambda r: (r["id"], r["t"]))
+
+
+def trace_markdown(run_dir: str, rows: Sequence[dict]) -> str:
+    L = ["### Height trace: %s" % run_dir, "", "| Entry | t (s) | Published height (m) | Phase | Drone x, y, z (m) | "
+         "Drone - entry distance (m) |", "|---|---|---|---|---|---|"]
+    for r in rows:
+        L.append("| %d | %.2f | %.2f | %s | %s | %s |" % (
+            r["id"], r["t"], r["height"], r["phase"],
+            "%.1f, %.1f, %.1f" % tuple(r["drone"]) if r["drone"] else "n/a", _f(r["dist"], 1)))
+    return "\n".join(L)
 
 
 # ----------------------------------------------------------------------------- report
@@ -489,7 +575,8 @@ def build(batch_dirs: Sequence[str]) -> dict:
     groups: Dict[Tuple[str, str], List[dict]] = {}
     for r in runs:
         groups.setdefault((spec_name(r["run"]), str(r["run"].get("strategy"))), []).append(r)
-    res = {"groups": {}, "misses": [], "patterns": {}, "setup": [], "phantoms": []}
+    res = {"groups": {}, "misses": [], "patterns": {}, "setup": [], "phantoms": [], "aim": {},
+           "unaligned_runs": []}
     facts_by_spec: Dict[str, List[dict]] = {}
     for (spec, strat), rs in sorted(groups.items()):
         cards = [r["card"] for r in rs]
@@ -507,8 +594,12 @@ def build(batch_dirs: Sequence[str]) -> dict:
         for r in rs:
             facts = episode_facts(r)
             if not r.get("episodes_aligned"):
-                res["misses"].append({"run": "%s/%s/%s" % (spec, strat, r["name"]), "truth_id": None, "class": "e",
-                                      "note": "episodes in mission.json do not align with mission_score.json events"})
+                # the scorer's missed trees still count, under their spec and strategy, unanalysed
+                for tid in (r["card"].get("spray") or {}).get("missed_ids") or []:
+                    res["misses"].append({"spec": spec, "strategy": strat, "run": r["name"], "truth_id": tid,
+                                          "class": "e", "note": "not analysed: the episodes in mission.json do not "
+                                          "align with the events of mission_score.json"})
+                res["unaligned_runs"].append("%s/%s/%s" % (spec, strat, r["name"]))
                 continue
             for f in facts:
                 f["spec"], f["strategy"], f["run"] = spec, strat, r["name"]
@@ -520,6 +611,11 @@ def build(batch_dirs: Sequence[str]) -> dict:
             for m in miss_rows(r, facts):
                 m.update({"spec": spec, "strategy": strat})
                 res["misses"].append(m)
+    all_facts = [f for fs in facts_by_spec.values() for f in fs]
+    res["aim"]["all/all"] = aim_stats(all_facts)
+    for spec, fs in facts_by_spec.items():
+        for strat in sorted(set(f["strategy"] for f in fs)):
+            res["aim"]["%s/%s" % (spec, strat)] = aim_stats([f for f in fs if f["strategy"] == strat])
     for spec, fs in facts_by_spec.items():
         g = next(s for s in res["setup"] if s["spec"] == spec)
         res["patterns"][spec] = {"all": pattern_stats(fs, g["r_fp"][0])}
@@ -563,6 +659,8 @@ def markdown(res: dict) -> str:
             if others:
                 d, floor, txt = verdict(res["groups"][(spec, a_name)][key], res["groups"][(spec, others[0])][key],
                                         bad, a_name, others[0])
+                if key in INFO_ONLY and txt not in ("n/a", "no measurable difference"):
+                    txt = "%s %s (info only)" % (others[0], "lower" if d < 0 else "higher")
                 line += " | %s (%s) | %s |" % (_signed(d), _f(floor), txt)
             else:
                 line += " |"
@@ -611,6 +709,31 @@ def markdown(res: dict) -> str:
                 ("%d, %.0f %%" % (p["height_over"]["n"], 100 * p["height_over"]["share_miss"]))
                 if p["height_over"].get("n") else "0"))
     L.append("")
+    L += ["| Spec | Strategy | Episodes with err > r_fp that still got >= 50 %: n, error range | Max error / crown "
+          "radius of an episode that got >= 50 % | Min error / crown radius of an episode with err > r_fp that got "
+          "< 50 % | Height over-estimate > 1.5 m at spray: n, along-track distance of the tree from the field's entry "
+          "edge |", "|---|---|---|---|---|---|"]
+    for spec in specs:
+        for strat, p in sorted(res["patterns"].get(spec, {}).items()):
+            bh, ho = p["beyond_fp_hit"], p["height_over_big"]
+            L.append("| %s | %s | %d, %s .. %s m | %s | %s | %d, %s .. %s m |" % (
+                spec, strat, bh["n"], _f(bh["min_err"]), _f(bh["max_err"]), _f(p["hit_ratio_max"]),
+                _f(p["beyond_fp_miss_ratio_min"]), ho["n"], _f(ho["along_min"], 1), _f(ho["along_max"], 1)))
+    L.append("")
+    L += ["## Dose aim accuracy", "",
+          "Aim error = distance from the drone's mean xy during a dose episode to the centre of the map entry the "
+          "navigator aimed at (its `/spray_target` id, centre in the latest map before the episode). It measures the "
+          "navigator and the drone, not the map.", "",
+          "| Spec / strategy | Episodes | Median (m) | p95 (m) | Max (m) | Share <= 0.1 m |", "|---|---|---|---|---|---|"]
+    for key in sorted(res["aim"], key=lambda k: (k == "all/all", k)):
+        a = res["aim"][key]
+        L.append("| %s | %d | %s | %s | %s | %s |" % (key, a["n"], _f(a["median"], 3), _f(a["p95"], 3),
+                                                      _f(a["max"], 3), "n/a" if a["share_le_0_1"] is None
+                                                      else "%.1f %%" % (100 * a["share_le_0_1"])))
+    L.append("")
+    if res.get("unaligned_runs"):
+        L += ["Runs not analysed (episodes do not align with the scorer's events; their missed trees are counted as "
+              "(e)): " + ", ".join(res["unaligned_runs"]) + ".", ""]
     if res["phantoms"]:
         L += ["Phantom episodes (dose on an entry that is not a displaced copy of any truth tree): " + ", ".join(
             "%s %s %s id %s at %.0f s" % (p["spec"], p["strategy"], p["run"], p["tm_id"], p["start"])
@@ -629,9 +752,14 @@ def main(argv=None):
     ap.add_argument("batches", nargs="+", help="batch directories (run_1 .. run_N with mission_score.json)")
     ap.add_argument("--out", help="write the markdown here instead of stdout")
     ap.add_argument("--json", help="also write the numbers (groups, misses, patterns) as JSON")
+    ap.add_argument("--trace", action="append", default=[], metavar="RUN_DIR:ID[,ID...]",
+                    help="append the published-height trace of these map entries of one run (repeatable)")
     a = ap.parse_args(argv)
     res = build(a.batches)
     md = markdown(res)
+    for spec_ in a.trace:
+        run_dir, _, ids = spec_.rpartition(":")
+        md += "\n\n" + trace_markdown(run_dir, height_trace(run_dir, [int(i) for i in ids.split(",") if i]))
     if a.out:
         with open(a.out, "w") as f:
             f.write(md + "\n")

@@ -80,18 +80,19 @@ TRUTH = [{"id": 1, "centre": [0.0, 0.0], "outline": sq(0, 0), "top_z": 3.0},
          {"id": 3, "centre": [20.0, 0.0], "outline": sq(20, 0), "top_z": 3.0}]
 
 
-def _flat(mt, on_target, n_sprayed):
+def _flat(mt, on_target, n_sprayed, step_ms=0.01):
     f = {k: 0.0 for k in ms.COMPARE_METRICS}
+    f["step_mean_ms"] = step_ms
     f.update({"mission_time_s": mt, "path_length_m": mt * 2, "on_target_fraction": on_target,
               "n_sprayed": n_sprayed, "n_missed": 3 - n_sprayed, "clearance_min_m": 2.0, "rtf": 1.0})
     return f
 
 
-def make_run(d, strategy, mt, on_target):
+def make_run(d, strategy, mt, on_target, step_ms=0.01, drop_second_dose=False):
     """Tree 1 sprayed; tree 2 aimed at entry 11, 1.5 m off its centre (30 % of the dose); tree 3's entry 12 published
     at 9.5 m (> home 0 + 7 + 2), never targeted, counter target_height_implausible."""
     os.makedirs(d)
-    spec = {"rows": {"heading_rad": 0.0}, "nozzle": {"flow_lps": 0.075, "cone_half_angle_deg": 20,
+    spec = {"rows": {"heading_rad": 0.0}, "field": {"polygon": [[-5, -10], [30, -10], [30, 10], [-5, 10]]}, "nozzle": {"flow_lps": 0.075, "cone_half_angle_deg": 20,
                                                      "offset_body": [0, 0, -0.3]}}
     json.dump({"spec": spec, "spec_file": "/specs/tiny.json", "strategy": strategy, "git_commit": "abcdef0123",
                "git_dirty_files": 0, "seed": 5, "detector_model": "/m/det.onnx", "cfg_overrides": {"strategy": strategy}},
@@ -102,21 +103,24 @@ def make_run(d, strategy, mt, on_target):
         "strategy = %s\nspray_clearance = 2.5\nexpected_canopy_top_max = 7.0\ntarget_height_margin = 2.0\n" % strategy)
     poses = [[t * 0.5, -5.0 + t * 0.5 * 4.0, -6.0, 15.0] for t in range(20)]          # scan along y = -6
     poses[0][3] = 0.0                                                                   # home on the ground
-    poses += [[12.0 + i * 0.5, 0.0, 0.0, 5.5] for i in range(4)]                        # dose tree 1
+    poses += [[12.0 + i * 0.5, 0.2, 0.0, 5.5] for i in range(4)]                        # dose tree 1, 0.2 m off aim
     poses += [[15.0 + i * 0.5, 10.0, -1.5, 5.5] for i in range(4)]                      # dose entry 11
-    json.dump({"phases": [[0, "IDLE"], [1, "SCAN"], [10, "PLANNING"], [11, "HOPPING"], [12, "SPRAYING"],
-                          [14, "HOPPING"], [15, "SPRAYING"], [17, "RETURN"]],
+    phases = [[0, "IDLE"], [1, "SCAN"], [10, "PLANNING"], [11, "HOPPING"], [12, "SPRAYING"], [14, "HOPPING"],
+              [15, "SPRAYING"], [17, "RETURN"]]
+    if drop_second_dose:                                     # mission.json no longer aligns with the 2 scored events
+        phases[6] = [15, "HOPPING"]
+    json.dump({"phases": phases,
                "targets": [[0, -1], [11, 10], [14.5, 11], [17, -1]], "pose": poses},
               open(os.path.join(d, "mission.json"), "w"))
     with open(os.path.join(d, "map.jsonl"), "w") as f:
         for t in (2.0, 5.0, 13.0):
-            trees = [{"id": 10, "outline": sq(0, 0), "centre": [0.0, 0.0], "height": 3.0, "sprayed": t > 14},
+            trees = [{"id": 10, "outline": sq(0, 0), "centre": [0.0, 0.0], "height": 4.8, "sprayed": t > 14},
                      {"id": 11, "outline": sq(10, -1.5), "centre": [10.0, -1.5], "height": 3.0, "sprayed": False},
                      {"id": 12, "outline": sq(20, 0), "centre": [20.0, 0.0], "height": 9.5 if t < 10 else 3.2,
                       "sprayed": False}]
             f.write(json.dumps({"t": t, "frame": "world", "trees": trees}) + "\n")
     card = {"run": {"dir": d, "strategy": strategy, "n_truth_trees": 3}, "completed": True, "all_pass": True,
-            "flat": _flat(mt, on_target, 1),
+            "flat": _flat(mt, on_target, 1, step_ms),
             "efficiency": {"mission_time_s": mt, "time_split": {"t_start": 1.0, "groups": {"scan": 9.0}}},
             "spray": {"missed_ids": [2, 3], "events": [
                 {"event": 0, "target": 1, "intended_l": 0.15, "trees_l": {"1": 0.14}},
@@ -136,8 +140,8 @@ def batches(tmp_path):
     a, b = str(tmp_path / "tiny_corridor"), str(tmp_path / "tiny_field_first")
     make_run(os.path.join(a, "run_1"), "corridor", 100.0, 0.70)
     make_run(os.path.join(a, "run_2"), "corridor", 110.0, 0.72)
-    make_run(os.path.join(b, "run_1"), "field_first", 200.0, 0.71)
-    make_run(os.path.join(b, "run_2"), "field_first", 204.0, 0.74)
+    make_run(os.path.join(b, "run_1"), "field_first", 200.0, 0.71, step_ms=0.02)
+    make_run(os.path.join(b, "run_2"), "field_first", 204.0, 0.74, step_ms=0.02)
     return [a, b]
 
 
@@ -178,3 +182,53 @@ def test_markdown_and_cli(batches, tmp_path):
         assert s in md, s
     doc = json.load(open(js))
     assert "tiny/corridor" in doc["groups"] and len(doc["misses"]) == 8
+
+
+def test_group_stats_rejects_mixed_strategies(batches):
+    cards = [rep.load_run(os.path.join(b, "run_1"))["card"] for b in batches]
+    with pytest.raises(ValueError):
+        rep.group_stats(cards)
+
+
+def test_aim_accuracy_is_against_the_aimed_entry(batches):
+    res = rep.build(batches)
+    a = res["aim"]["all/all"]
+    assert a["n"] == 8                                        # 2 episodes x 4 runs
+    assert a["median"] == pytest.approx(0.1) and a["max"] == pytest.approx(0.2) and a["share_le_0_1"] == 0.5
+    # the tree-2 episode aims at entry 11, 1.5 m off the truth: aim error 0, truth error 1.5
+    f = [x for x in rep.episode_facts(rep.load_run(os.path.join(batches[0], "run_1"))) if x["tm_id"] == 11][0]
+    assert f["aim_err"] == pytest.approx(0.0) and f["drone_truth_err"] == pytest.approx(1.5)
+    assert "## Dose aim accuracy" in rep.markdown(res)
+
+
+def test_threshold_and_height_figures(batches):
+    p = rep.build(batches)["patterns"]["tiny"]["all"]
+    assert p["beyond_fp_hit"]["n"] == 0 and p["hit_ratio_max"] == pytest.approx(0.0)
+    assert p["beyond_fp_miss_ratio_min"] == pytest.approx(1.5 / math.sqrt(9.0 / math.pi))
+    assert p["height_over_big"]["n"] == 4                     # entry 10 at 4.8 m over a 3.0 m top, once per run
+    assert p["height_over_big"]["along_min"] == pytest.approx(5.0)   # x = 0, field entry edge at x = -5
+
+
+def test_info_only_verdict(batches):
+    md = rep.markdown(rep.build(batches))
+    line = next(l for l in md.splitlines() if "Navigator step mean" in l)
+    assert line.endswith("| field_first higher (info only) |")
+
+
+def test_unaligned_run_counts_its_misses_under_its_strategy(batches, tmp_path):
+    c = str(tmp_path / "tiny_x")
+    make_run(os.path.join(c, "run_1"), "field_first", 202.0, 0.72, drop_second_dose=True)
+    res = rep.build(batches + [c])
+    un = [m for m in res["misses"] if "not analysed" in m["note"]]
+    assert len(un) == 2 and all(m["spec"] == "tiny" and m["strategy"] == "field_first" for m in un)
+    assert res["unaligned_runs"] == ["tiny/field_first/run_1"]
+    md = rep.markdown(res)
+    assert "| tiny | field_first | 2 | 0 | 0 | 2 | 2 | 6 |" in md and "| all | all | 4 | 0 | 0 | 4 | 2 | 10 |" in md
+
+
+def test_height_trace(batches, tmp_path):
+    rows = rep.height_trace(os.path.join(batches[0], "run_1"), [12])
+    assert [r["height"] for r in rows] == [9.5, 3.2] and rows[0]["phase"] == "SCAN"
+    out = str(tmp_path / "t.md")
+    assert rep.main(batches + ["--out", out, "--trace", os.path.join(batches[0], "run_1") + ":12"]) == 0
+    assert "### Height trace" in open(out).read()
