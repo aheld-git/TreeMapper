@@ -165,7 +165,9 @@ class Navigator {
   void pollMark(const Inputs& in, Outputs& out);
   void sendMark(treemapper::TreeId id, double t, Outputs& out);
   void abandonMark();
-  bool resolveTarget();        ///< re-resolves a vanished target_; false (counted dropped) if nothing stands for it
+  /// Re-resolves a vanished target_; false (counted dropped) if nothing stands for it, or if what stands for it is
+  /// implausibly high (counted by plausible(), as in advance()).
+  bool resolveTarget();
   bool keepTarget(double t);   ///< resolveTarget(), and advance() if it was dropped
   treemapper::TreeId reresolve(const treemapper::Point2& centre) const;   ///< kNoTree if none or already done
   void planToTarget(double t, const char* replan_why);   ///< glide from here; counts a re-plan if `replan_why`

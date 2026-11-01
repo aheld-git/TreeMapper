@@ -879,6 +879,48 @@ TEST(Navigator, TargetVanishingMidGlideIsReresolvedOrDropped) {
   }
 }
 
+// Final review M6: a vanished target re-resolved to an entry published implausibly high (here 13+ m against the 9 m
+// limit) is treated as any implausible target: never glided to, dosed or marked, counted target_height_implausible
+// once. Both re-resolve paths: mid-GLIDE (keepTarget) and before the retry of an invalid dose (failAttempt).
+TEST(Navigator, ReresolvedImplausibleTargetIsSkipped) {
+  const Config cfg;
+  for (const bool in_dose : {false, true}) {
+    const std::size_t k = in_dose ? 1 : 4;
+    const TreeId id = FakeWorld::idOf(k);
+    std::vector<TruthTree> trees = grid({6, 12, 18});
+    if (in_dose) trees[k].dose_push = 0.5;   // the dose is invalid: failAttempt re-resolves before retrying
+    FakeWorld w = world(cfg, trees);
+    Navigator nav(cfg, field30x24(), fov90());
+    std::size_t at = 0;
+    w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+      const NavState when = in_dose ? NavState::kDose : NavState::kGlide;
+      if (at == 0 && n.state() == when && n.status().target == id) {
+        fw.trees[k].published_id = 50;   // merged / split: a new id at the same place, published 9 m too high
+        fw.trees[k].height_bias = 9.0;
+        in.map = MapSnapshot{in.t, fw.map()};
+        at = fw.samples.size();
+      }
+    };
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim)) << "in_dose " << in_dose;
+    ASSERT_GT(at, 0u);
+    for (const Sample& s : w.samples) EXPECT_NE(s.target, 50) << "in_dose " << in_dose << " t=" << s.t;
+    EXPECT_EQ(countRequests(w, 50), 0u);
+    EXPECT_EQ(countRequests(w, id), 0u);
+    EXPECT_EQ(w.trees[k].spray_calls, 0);
+    EXPECT_EQ(counter(nav, "target_height_implausible"), 1u) << "in_dose " << in_dose;
+    EXPECT_EQ(counter(nav, "ids_reresolved"), 1u);
+    EXPECT_EQ(counter(nav, "glide_replans"), 0u);
+    EXPECT_EQ(counter(nav, "dose_retries"), 0u);
+    EXPECT_EQ(counter(nav, "trees_skipped"), 0u);
+    for (std::size_t j = 0; j < w.trees.size(); ++j) {
+      if (j != k) {
+        EXPECT_EQ(w.trees[j].spray_calls, 1) << "tree " << j + 1;
+      }
+    }
+    EXPECT_EQ(nav.status().remaining, 0u);
+  }
+}
+
 TEST(Navigator, GuardGivesUpAStuckAttempt) {
   // the guard reads 1.0 m whenever tree 2 is the target: the climb is capped at scan altitude, and an attempt with no
   // clear reading for hold_timeout_s fails like an invalid dose (one retry, skip, once more from cleanup)

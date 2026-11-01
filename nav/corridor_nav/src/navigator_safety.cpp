@@ -198,6 +198,10 @@ bool Navigator::resolveTarget() {
   count(counters_, id == kNoTree ? "ids_dropped_vanished" : "ids_reresolved");
   if (log_) log_("target " + std::to_string(target_) + " vanished -> " + std::to_string(id));
   if (id == kNoTree) return false;
+  // the entry now standing for the tree passes the same height check as any target advance() picks: an implausible
+  // one (a phantom published far too high) is passed over and counted, never glided to or dosed
+  const TreeEntry* tr = tree(id);
+  if (!tr || !plausible(*tr)) return false;
   target_ = id;
   return true;
 }
