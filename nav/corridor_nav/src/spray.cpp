@@ -14,6 +14,7 @@ double doseTime(double outline_area_m2, const Config& cfg) {
 void DoseTracker::start(double t, double dose_s) {
   t0_ = t;
   dose_s_ = dose_s;
+  paused_s_ = 0.0;
   last_t_ = t;
   last_open_ = false;
   open_s_ = 0.0;
@@ -22,11 +23,15 @@ void DoseTracker::start(double t, double dose_s) {
 void DoseTracker::update(double t, bool nozzle_open) {
   if (last_open_) {
     const double from = std::max(last_t_, t0_);
-    const double to = std::min(t, t0_ + dose_s_);
+    const double to = std::min(t, end());
     if (to > from) open_s_ += to - from;
   }
   last_t_ = std::max(last_t_, t);   // a clock step back never re-credits time
   last_open_ = nozzle_open;
+}
+
+void DoseTracker::pause(double dt) {
+  if (dt > 0.0) paused_s_ += dt;
 }
 
 double DoseTracker::openFraction() const {

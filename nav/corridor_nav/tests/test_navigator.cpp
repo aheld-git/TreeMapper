@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -497,8 +498,57 @@ TEST(Navigator, PoseLossHolds) {
   EXPECT_NEAR(w.samples[h2].t, invalid_t, 1e-9);   // valid = false holds at once
   EXPECT_EQ(counter(nav, "hold_no_pose"), 2u);
   EXPECT_EQ(counter(nav, "hold_timeouts"), 0u);
+  EXPECT_EQ(counter(nav, "dose_retries"), 0u);   // the hold in DOSE paused the dose (final review I2)
   for (const TruthTree& t : w.trees) EXPECT_TRUE(t.sprayed);
   for (const Sample& s : w.samples) EXPECT_FALSE(s.state == NavState::kHold && s.nozzle);
+}
+
+// Final review I2: a pose dropout in the middle of a dose holds (nozzle closed) and the dose resumes after it: the hold
+// does not run the dose timer down, so there is no "dose invalid" retry and the tree gets one dose, as long as the others.
+TEST(Navigator, PoseDropoutMidDoseResumesTheDose) {
+  const Config cfg;
+  FakeWorld w = world(cfg, grid({6, 12, 18}));
+  Navigator nav(cfg, field30x24(), fov90());
+  double dose_t = -1.0, invalid_t = -1.0;
+  TreeId held = treemapper::kNoTree;
+  w.before_step = [&](FakeWorld&, const Navigator& n, Inputs& in) {
+    if (dose_t < 0.0 && n.state() == NavState::kDose && n.status().sprayed >= 1) {
+      dose_t = in.t;
+      held = n.status().target;
+    }
+    if (invalid_t < 0.0 && dose_t >= 0.0 && in.t >= dose_t + 0.6) invalid_t = in.t;   // 0.6 s into the dose
+    if (invalid_t >= 0.0 && in.t < invalid_t + 0.55) in.pose.valid = false;              // no pose for 0.55 s
+  };
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  ASSERT_GE(invalid_t, 0.0);
+  ASSERT_NE(held, treemapper::kNoTree);
+
+  const std::size_t h = findSample(w, [&](const Sample& s) { return s.state == NavState::kHold && s.t >= invalid_t; });
+  ASSERT_LT(h, w.samples.size());
+  EXPECT_EQ(w.samples[h - 1].state, NavState::kDose);   // the hold interrupted the dose
+  EXPECT_EQ(w.samples[h - 1].target, held);
+  const std::size_t r = findSample(w, [](const Sample& s) { return s.state != NavState::kHold; }, h);
+  ASSERT_LT(r, w.samples.size());
+  EXPECT_EQ(w.samples[r].state, NavState::kDose);       // and the dose resumed
+  EXPECT_EQ(counter(nav, "hold_no_pose"), 1u);
+  EXPECT_EQ(counter(nav, "dose_retries"), 0u);
+  EXPECT_EQ(counter(nav, "trees_skipped"), 0u);
+  for (std::size_t i = 0; i < w.trees.size(); ++i) EXPECT_EQ(w.trees[i].spray_calls, 1) << "tree " << i + 1;
+  EXPECT_EQ(countRequests(w, held), 1u);
+
+  // one glide -> dose per tree, and the held tree's nozzle-open time is that of an undisturbed tree (same outline)
+  std::map<TreeId, int> doses;
+  std::map<TreeId, double> open;
+  for (std::size_t i = 1; i < w.samples.size(); ++i) {
+    const Sample &a = w.samples[i - 1], &b = w.samples[i];
+    if (b.state == NavState::kDose && a.state == NavState::kGlide) ++doses[b.target];
+    if (b.nozzle) open[b.target] += kDt;
+  }
+  EXPECT_EQ(doses[held], 1);
+  const TreeId other = held == FakeWorld::idOf(0) ? FakeWorld::idOf(1) : FakeWorld::idOf(0);
+  ASSERT_GT(open[other], 0.0);
+  EXPECT_NEAR(open[held], open[other], 2 * kDt + 1e-9);
+  EXPECT_GE(open[held], cfg.dose_valid_frac * open[other]);
 }
 
 TEST(Navigator, GuardClimbsAndBlocksDescent) {

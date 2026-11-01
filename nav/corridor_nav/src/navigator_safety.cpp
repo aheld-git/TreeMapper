@@ -57,6 +57,9 @@ void Navigator::updateHold(const Inputs& in) {
     state_t_ = held_state_t_ + held;   // the state's own timers exclude the hold
     settle_gain_t_ += held;
     guard_ok_t_ += held;
+    // A dose interrupted by the hold resumes: the nozzle was closed throughout (finish() gates it), so the hold must
+    // not run the dose down into "dose invalid" and a full re-dose. The tracker still integrates the published nozzle.
+    if (held_state_ == NavState::kDose && dose_running_) dose_.pause(held);
     return;
   }
   if (held < cfg_.hold_timeout_s) return;

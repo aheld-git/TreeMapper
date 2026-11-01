@@ -84,3 +84,33 @@ TEST(Spray, DoseStartResetsAndZeroDoseIsInvalid) {
   d.start(0.0, 0.0);
   EXPECT_DOUBLE_EQ(d.openFraction(), 0.0);
 }
+
+// Final review I2: a HOLD (nozzle closed) pauses the dose: its end moves later by the hold time, the open time already
+// credited stays, and validity is still open time / dose_s.
+TEST(Spray, DosePauseMovesTheEndAndKeepsTheOpenTime) {
+  DoseTracker d(0.8);
+  d.start(0.0, 2.0);
+  d.update(0.0, true);
+  d.update(0.6, false);        // open 0..0.6, then HOLD with the nozzle closed until 1.15
+  d.update(1.15, false);
+  d.pause(0.55);
+  EXPECT_FALSE(d.done(2.0));
+  EXPECT_FALSE(d.done(2.5));
+  EXPECT_TRUE(d.done(2.55));
+  d.update(1.2, true);         // open again 1.2..2.55 = 1.35 s
+  d.update(2.55, false);
+  EXPECT_NEAR(d.openFraction(), (0.6 + 1.35) / 2.0, 1e-9);
+  EXPECT_TRUE(d.valid());
+  d.update(3.0, true);
+  d.update(4.0, false);        // past the paused end: not counted
+  EXPECT_NEAR(d.openFraction(), (0.6 + 1.35) / 2.0, 1e-9);
+
+  DoseTracker e(0.8);          // pause(<= 0) changes nothing; start() clears an earlier pause
+  e.start(0.0, 2.0);
+  e.pause(-1.0);
+  e.pause(0.0);
+  EXPECT_TRUE(e.done(2.0));
+  e.pause(1.0);
+  e.start(10.0, 2.0);
+  EXPECT_TRUE(e.done(12.0));
+}

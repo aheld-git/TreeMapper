@@ -10,7 +10,8 @@ namespace corridor_nav {
 double doseTime(double outline_area_m2, const Config& cfg);
 
 /// Integrates how long the nozzle was open during one dose. `update(t, open)` credits the interval since the previous
-/// `update` (or `start`) with the PREVIOUS open flag, then stores `open`; time after t0 + dose_s is not counted.
+/// `update` (or `start`) with the PREVIOUS open flag, then stores `open`; time after the end (t0 + dose_s + the paused
+/// time) is not counted.
 class DoseTracker {
  public:
   explicit DoseTracker(double valid_frac) : valid_frac_(valid_frac) {}
@@ -19,8 +20,11 @@ class DoseTracker {
   /// `update`.
   void start(double t, double dose_s);
   void update(double t, bool nozzle_open);
-  /// True once t >= t0 + dose_s.
-  bool done(double t) const { return t >= t0_ + dose_s_; }
+  /// The dose was interrupted for `dt` s with the nozzle closed (a HOLD): its end moves `dt` later, so the
+  /// interruption does not count against it. The open time already credited is kept; dt <= 0 changes nothing.
+  void pause(double dt);
+  /// True once t >= t0 + dose_s + the paused time.
+  bool done(double t) const { return t >= end(); }
   /// openFraction() >= valid_frac (never true for an empty dose).
   bool valid() const { return dose_s_ > 0.0 && openFraction() >= valid_frac_; }
   /// Integrated open time / dose_s, in [0, 1]; 0 for an empty dose.
@@ -28,7 +32,9 @@ class DoseTracker {
 
  private:
   double valid_frac_;
-  double t0_{0.0}, dose_s_{0.0};
+  double end() const { return t0_ + dose_s_ + paused_s_; }
+
+  double t0_{0.0}, dose_s_{0.0}, paused_s_{0.0};
   double last_t_{0.0};
   bool last_open_{false};
   double open_s_{0.0};
