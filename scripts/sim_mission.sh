@@ -14,13 +14,16 @@
 #   --detector-model ONNX model, container path (default /data/work/models/yolox_s_isaac/yolox_s_isaac_epoch190_416_static.onnx)
 #   --timeout S      sim seconds from ~start to DONE before ~abort (default 1800)
 #   --record-images  also record the left image at 0.2 Hz on /rec/left_0p2hz (default off: disk)
-#   --record-frames  also record what TreeMapper consumes (/disparity_image_down_float, the left / right half camera_info;
-#                    ~1 MB per disparity image at 10 Hz, default off: disk). After the run is scored it is converted to
-#                    <run>/frames.bin + frames.bin.meta.json (tools/treemapper_tools/sim_frames.py, the replay input of
-#                    treemapper_replay) and checked (a frame was paired with a disparity, pose coverage). Only if the
-#                    check passes is mission.bag replaced by a copy without the disparity / camera_info topics (the run
-#                    then looks like a normal one; mission_score --run works on it). A failed conversion or check fails
-#                    that run (exit 1) and keeps the full bag. Needs the work drive to stay above the 8 GB floor.
+#   --record-frames  also record what TreeMapper consumes: the left / right half camera_info and /rec/disparity_grid, the
+#                    pixels the TreeMapper node samples from /disparity_image_down_float (made by a recording-only node,
+#                    ~64 kB per image instead of ~1 MB; the full image is not recorded; default off). The Noetic
+#                    packages must be rebuilt once (no --no-build: treemapper_msgs has a new message). After the run is
+#                    scored it is converted to <run>/frames.bin + frames.bin.meta.json (tools/treemapper_tools/
+#                    sim_frames.py, the replay input of treemapper_replay) and checked (>= 80 % of the detection frames
+#                    paired with a disparity, no rejected disparity, pose coverage). Only if the check passes is
+#                    mission.bag replaced by a copy without the disparity grid / camera_info topics (the run then looks
+#                    like a normal one; mission_score --run works on it). A failed conversion or check fails that run
+#                    (exit 1) and keeps the full bag. The work drive must stay above the 8 GB floor.
 #   --no-build       skip the catkin build of the Noetic packages
 #   --force-clean    an --out that already holds run_* directories (or compare.md) is refused unless this is given;
 #                    then only the files a run writes (RUN_FILES in this script) are deleted, in a container (they belong to

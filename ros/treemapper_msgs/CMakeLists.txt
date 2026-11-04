@@ -13,6 +13,7 @@ add_message_files(FILES
   Health.msg
   DropCounters.msg
   StageTiming.msg
+  DisparityGrid.msg
 )
 add_service_files(FILES
   GetTrees.srv

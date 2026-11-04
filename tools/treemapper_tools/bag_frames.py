@@ -119,15 +119,24 @@ def boxes_from_bounding_boxes(msg) -> np.ndarray:
                     dtype=np.float32).reshape(-1, 6)
 
 
+def clean_disparity(grid) -> np.ndarray:
+    """Sampled disparity values -> float32 grid, invalid (non-finite or <= 0) = NaN (``sampleDisparity``)."""
+    d = np.asarray(grid, dtype=np.float32)
+    return np.where(np.isfinite(d) & (d > 0), d, np.nan).astype(np.float32)
+
+
 def pair_frames(messages, make, stride=4, nearest_tol=0.02, boxes_of=boxes_from_bounding_boxes, expect_wh=None,
-                disp_topic=DISP):
+                disp_topic=DISP, disparity_of=None):
     """Pair detections with disparity images by exact header stamp (then the nearest stamp within ``nearest_tol``).
 
     ``messages`` yields ``(topic, msg, t)`` in receive order, ``t`` in seconds; every topic but ``disp_topic`` is a
     detection stream (``boxes_of(msg)`` -> (N, 6) x, y, w, h, score, label). Returns ``(frames, counts)`` where
     ``frames`` are the paired ``Frame`` records in completion order and ``counts`` a ``collections.Counter``.
     ``expect_wh = (width, height)``: a disparity image of another size is rejected (``disparity_rejected_resolution``),
-    as treemapper_node does; ``None`` keeps the old Isaac bags' behaviour (no size check)."""
+    as treemapper_node does; ``None`` keeps the old Isaac bags' behaviour (no size check).
+    ``disparity_of(msg) -> (status, grid)``: for a disparity topic that does not carry a ``sensor_msgs/Image`` (the recorded
+    decimated grid); ``status`` is ``"ok"`` (``grid`` = the sampled raw values), ``"malformed"`` or ``"resolution"``
+    (rejected and counted as ``disparity_rejected_<status>``). ``None`` = the message is a full image, sampled here."""
     o = stride // 2
     cnt = collections.Counter()
     disp_by_stamp = collections.OrderedDict()
@@ -151,17 +160,25 @@ def pair_frames(messages, make, stride=4, nearest_tol=0.02, boxes_of=boxes_from_
         st = round(msg.header.stamp.to_sec(), 6)
         if topic == disp_topic:
             cnt["disparity_msgs"] += 1
-            if msg.encoding != "32FC1" or msg.step != 4 * msg.width or len(msg.data) != msg.step * msg.height:
-                cnt["disparity_rejected_malformed"] += 1
-                continue
-            if expect_wh is not None and (msg.width, msg.height) != tuple(expect_wh):
-                cnt["disparity_rejected_resolution"] += 1
-                continue
+            if disparity_of is None:
+                if msg.encoding != "32FC1" or msg.step != 4 * msg.width or len(msg.data) != msg.step * msg.height:
+                    cnt["disparity_rejected_malformed"] += 1
+                    continue
+                if expect_wh is not None and (msg.width, msg.height) != tuple(expect_wh):
+                    cnt["disparity_rejected_resolution"] += 1
+                    continue
+                grid = None
+            else:
+                status, grid = disparity_of(msg)
+                if status != "ok":
+                    cnt["disparity_rejected_" + status] += 1
+                    continue
             if st in disp_by_stamp:
                 cnt["disparity_duplicate"] += 1
                 continue
-            d = np.frombuffer(msg.data, dtype="<f4").reshape(msg.height, msg.width)[o::stride, o::stride]
-            d = np.where(np.isfinite(d) & (d > 0), d, np.nan).astype(np.float32)
+            if grid is None:
+                grid = np.frombuffer(msg.data, dtype="<f4").reshape(msg.height, msg.width)[o::stride, o::stride]
+            d = clean_disparity(grid)
             disp_by_stamp[st] = d
             while len(disp_by_stamp) > 400:
                 disp_by_stamp.popitem(last=False)

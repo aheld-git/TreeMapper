@@ -5,13 +5,17 @@ Runs inside the Noetic image (``rosbag``), after ``mission_score`` has scored th
     python3 -m treemapper_tools.sim_frames --run <run dir> [--out <run dir>/frames.bin] [--filter-bag]
 
 The run was recorded with ``scripts/sim_mission.sh --record-frames``: ``<run>/mission.bag`` holds, besides the normal
-allow-list, ``/disparity_image_down_float`` and the left / right ``camera_info``. Output: ``frames.bin`` (TMF1, replayed by
+allow-list, ``/rec/disparity_grid`` (``treemapper_msgs/DisparityGrid``: only the pixels the node samples, ~64 kB instead of
+the ~1 MB image, made by ``sim_perception/disparity_grid_node.py``) and the left / right ``camera_info``. A bag that holds the
+full ``/disparity_image_down_float`` instead (older recordings, tests) is read as well; the frames are identical. Output: ``frames.bin`` (TMF1, replayed by
 ``treemapper_replay``) and ``frames.bin.meta.json`` with ``frames``, ``frames_with_disparity``, ``pose_invalid``,
 ``disparity_rejected``, ``t_start``, ``t_end`` (+ counts and provenance). Exit status 0 = written and ``check()`` passed,
-1 = written but ``check()`` failed (the reasons go to stderr), 2 = could not convert.
+1 = written but ``check()`` failed (the reasons go to stderr), 2 = could not convert. ``check()`` fails on: no frames, no
+detection paired with a disparity, fewer than 80 % of the detection frames paired, any rejected (malformed / wrong-size)
+disparity, more than 1 % of the frames without a pose.
 
-``--filter-bag``: only when ``check()`` passed, ``mission.bag`` is replaced by a copy without the disparity and
-camera_info topics (a normal run bag again: ``mission_score --run`` works on it unchanged). Any failure keeps the bag.
+``--filter-bag``: only when ``check()`` passed, ``mission.bag`` is replaced by a copy without the disparity (grid or
+image) and camera_info topics (a normal run bag again: ``mission_score --run`` works on it unchanged). Any failure keeps the bag.
 
 How the live node's inputs are mirrored (``ros/treemapper_ros/src/treemapper_node.cpp``, ``input_sync.cpp``):
 
@@ -24,7 +28,9 @@ How the live node's inputs are mirrored (``ros/treemapper_ros/src/treemapper_nod
   ``/disparity_image_down_float`` by exact header stamp, else the nearest stamp within 20 ms, by ``bag_frames.pair_frames``
   (the same rules as ``FrameSync``); a disparity of another size or a malformed one is rejected and counted, as the node does.
 * the disparity is sampled on the stride-4 grid at ``(r*4 + 2, c*4 + 2)`` like ``sampleDisparity``; no offset is subtracted
-  (``disparity_offset: none`` in the sim launch).
+  (``disparity_offset: none`` in the sim launch). From a ``DisparityGrid`` the same values come from the recorded samples; its
+  ``src_*`` fields (the image's own size, encoding, step, endianness) give the node's malformed / wrong-size verdict, so
+  ``disparity_rejected`` is the same as from the full images.
 * pose = ``/tf`` world -> body interpolated at the image stamp; phase and hop target = the ``/mission_state`` and
   ``/spray_target`` values in force when the detection was received (``mission.json`` of the run dir if present, else
   derived from the bag the same way ``mission_score`` does).
@@ -53,15 +59,17 @@ from .frames import Calibration
 
 DET = "/object_detection/detections"
 DISP = "/disparity_image_down_float"
+GRID = "/rec/disparity_grid"
 LEFT_INFO = "/cam/bottom/left/half/camera_info"
 RIGHT_INFO = "/cam/bottom/right/half/camera_info"
 TF = "/tf"
 TF_STATIC = "/tf_static"
 STATE = "/mission_state"
 TARGET = "/spray_target"
-DROP_TOPICS = (DISP, LEFT_INFO, RIGHT_INFO)       # recorded only by --record-frames; not in the normal allow-list
+DROP_TOPICS = (GRID, DISP, LEFT_INFO, RIGHT_INFO)  # recorded only by --record-frames; not in the normal allow-list
 CAMERA_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "sim", "specs", "camera.json")
 MAX_POSE_INVALID_FRACTION = 0.01
+MIN_PAIRED_FRACTION = 0.8
 BODY = "body"
 WORLD = "world"
 
@@ -79,6 +87,13 @@ def check(meta: dict) -> List[str]:
     if with_disp == 0:
         out.append("frames_with_disparity == 0: no detection was paired with a disparity image "
                    "(was the run recorded with --record-frames?)")
+    detections = int(meta.get("detection_frames", 0) or 0)
+    if with_disp > 0 and detections > 0 and with_disp < MIN_PAIRED_FRACTION * detections:
+        out.append("only %d of %d detection frames (%.0f %% < %.0f %%) were paired with a disparity image"
+                   % (with_disp, detections, 100.0 * with_disp / detections, 100.0 * MIN_PAIRED_FRACTION))
+    if int(meta.get("disparity_rejected", 0) or 0) > 0:
+        out.append("disparity_rejected %d: malformed or wrong-size disparity images (there should be none)"
+                   % int(meta["disparity_rejected"]))
     if frames > 0 and pose_invalid > MAX_POSE_INVALID_FRACTION * frames:
         out.append("pose_invalid %d of %d frames (%.1f %% > %.0f %%): /tf world -> body does not cover the frames"
                    % (pose_invalid, frames, 100.0 * pose_invalid / frames, 100.0 * MAX_POSE_INVALID_FRACTION))
@@ -157,6 +172,26 @@ def load_mission(run_dir: str, scan: BagScan) -> contract.Mission:
     return contract.Mission(list(scan.phases), list(scan.targets), _downsample_poses(poses))
 
 
+def grid_disparity_of(stride: int, expect_wh):
+    """``pair_frames`` hook for ``/rec/disparity_grid`` messages: the node's verdict from the source image's own fields
+    (``sampleDisparity``: malformed, then wrong size), then the recorded samples."""
+    def of(msg):
+        w, h = int(msg.src_width), int(msg.src_height)
+        if (msg.src_encoding != "32FC1" or msg.src_is_bigendian or w == 0 or h == 0 or msg.src_step != 4 * w
+                or msg.src_data_size != msg.src_step * h):
+            return "malformed", None
+        if expect_wh is not None and (w, h) != tuple(expect_wh):
+            return "resolution", None
+        if int(msg.stride) != stride:
+            raise ValueError("DisparityGrid stride %d, expected %d" % (msg.stride, stride))
+        gh, gw = len(range(stride // 2, h, stride)), len(range(stride // 2, w, stride))
+        if (msg.grid_height, msg.grid_width) != (gh, gw) or len(msg.data) != gh * gw:
+            raise ValueError("DisparityGrid %dx%d with %d values does not fit a %dx%d image at stride %d"
+                             % (msg.grid_width, msg.grid_height, len(msg.data), w, h, stride))
+        return "ok", np.asarray(msg.data, dtype=np.float32).reshape(gh, gw)
+    return of
+
+
 def mount_mismatch(scan: BagScan, frame_id: str, mount: List[float]) -> Optional[float]:
     """Largest component difference between the mount and /tf_static body -> camera, None if /tf_static has none."""
     got = scan.static.get(frame_id.lstrip("/"))
@@ -199,10 +234,14 @@ def convert(run_dir: str, out: Optional[str] = None, bag: Optional[str] = None, 
     make = FrameMaker(mission, tf_t, tf_rows)
 
     with rosbag.Bag(bag_path) as b:
+        topics = b.get_type_and_topic_info().topics
+        disp_topic = GRID if GRID in topics else DISP
+        expect_wh = (cal.width, cal.height)
+        hook = grid_disparity_of(stride, expect_wh) if disp_topic == GRID else None
         msgs = ((topic, msg, bt.to_sec()) for topic, msg, bt in
-                b.read_messages(topics=[DET, DISP], start_time=_rostime(t_cal)))
+                b.read_messages(topics=[DET, disp_topic], start_time=_rostime(t_cal)))
         frames, cnt = pair_frames(msgs, make, stride, nearest_tol, boxes_of=boxes_from_detection_array,
-                                  expect_wh=(cal.width, cal.height), disp_topic=DISP)
+                                  expect_wh=expect_wh, disp_topic=disp_topic, disparity_of=hook)
     if frames:
         t_lo, t_hi = time_range(t_cal, None, mission, frames)
         if heartbeat > 0:
@@ -220,7 +259,7 @@ def convert(run_dir: str, out: Optional[str] = None, bag: Optional[str] = None, 
             "disparity_rejected": int(cnt["disparity_rejected_malformed"] + cnt["disparity_rejected_resolution"]),
             "t_start": t_lo, "t_end": t_hi,
             "detection_frames": int(cnt["detection_msgs"]), "heartbeat_frames": int(cnt["heartbeat_frames"]),
-            "counts": dict(cnt), "t_calibration": t_cal, "source": os.path.abspath(bag_path),
+            "disparity_topic": disp_topic, "counts": dict(cnt), "t_calibration": t_cal, "source": os.path.abspath(bag_path),
             "calibration": cal.to_json(), "mount_vs_tf_static_max_diff": mismatch,
             "run": {"spec_file": run.get("spec_file"), "strategy": run.get("strategy"), "seed": run.get("seed"),
                     "git_commit": run.get("git_commit")}}
@@ -286,7 +325,8 @@ def main(argv=None) -> int:
     ap.add_argument("--nearest-tol", type=float, default=0.02)
     ap.add_argument("--heartbeat", type=float, default=0.2, help="s; 0 = no heartbeat frames")
     ap.add_argument("--filter-bag", action="store_true",
-                    help="after a passing check, replace the bag by a copy without the disparity / camera_info topics")
+                    help="after a passing check, replace the bag by a copy without the disparity grid / image and "
+                         "camera_info topics")
     a = ap.parse_args(argv)
     bag = a.bag or os.path.join(a.run, "mission.bag")
     try:
@@ -297,7 +337,7 @@ def main(argv=None) -> int:
     keys = ("frames", "frames_with_disparity", "pose_invalid", "disparity_rejected", "t_start", "t_end")
     print("sim_frames: " + ", ".join("%s %s" % (k, meta[k]) for k in keys))
     if meta["disparity_rejected"]:
-        print("sim_frames: WARNING %d disparity messages rejected (malformed or wrong size)" % meta["disparity_rejected"],
+        print("sim_frames: %d disparity messages rejected (malformed or wrong size)" % meta["disparity_rejected"],
               file=sys.stderr)
     if meta["mount_vs_tf_static_max_diff"] is not None and meta["mount_vs_tf_static_max_diff"] > 1e-4:
         print("sim_frames: WARNING /tf_static body -> camera differs from camera.json mount by %.3g"

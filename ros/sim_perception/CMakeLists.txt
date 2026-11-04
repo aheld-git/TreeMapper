@@ -7,7 +7,7 @@ catkin_python_setup()
 
 catkin_package(CATKIN_DEPENDS rospy sensor_msgs message_filters treemapper_msgs)
 
-catkin_install_python(PROGRAMS scripts/stereo_sgbm_node.py scripts/detector_node.py
+catkin_install_python(PROGRAMS scripts/stereo_sgbm_node.py scripts/detector_node.py scripts/disparity_grid_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 

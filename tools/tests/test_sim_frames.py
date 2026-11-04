@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "ros", "sim_perception", "src"))
 
 rosbag = pytest.importorskip("rosbag")
 import genpy.dynamic  # noqa: E402  (ships with rosbag)
@@ -25,6 +26,7 @@ from tf2_msgs.msg import TFMessage  # noqa: E402
 
 from treemapper_tools import sim_frames as sf  # noqa: E402
 from treemapper_tools import sim_inputs as si  # noqa: E402
+from sim_perception import disparity_grid as dgrid  # noqa: E402  (the recording node's decimation, no ROS needed)
 from treemapper_tools.frames import read_frames  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
@@ -46,6 +48,34 @@ def det_array_class():
 Det2DArray = det_array_class()
 
 
+def disparity_grid_class():
+    def text(name):
+        return open(os.path.join(MSG_DIR, name + ".msg")).read()
+    full = text("DisparityGrid") + "=" * 80 + "\nMSG: std_msgs/Header\n" + HEADER_TXT
+    return genpy.dynamic.generate_dynamic("treemapper_msgs/DisparityGrid", full)["treemapper_msgs/DisparityGrid"]
+
+
+DisparityGrid = disparity_grid_class()
+
+
+def grid_of(img):
+    """What sim_perception's disparity_grid_node publishes for the Image ``img``."""
+    f = dgrid.grid_fields(img.width, img.height, img.step, img.encoding, img.is_bigendian, img.data, 4)
+    m = DisparityGrid()
+    m.header = img.header
+    for k, v in f.items():
+        setattr(m, k, v)
+    return m
+
+
+def write_disparity(bag, img, t, mode):
+    """mode: 'grid' = what --record-frames records, 'full' = the full image (older bags), 'both'."""
+    if mode in ("full", "both"):
+        bag.write("/disparity_image_down_float", img, T(t))
+    if mode in ("grid", "both"):
+        bag.write("/rec/disparity_grid", grid_of(img), T(t))
+
+
 def T(sec):
     return rospy.Time.from_sec(sec)
 
@@ -60,12 +90,17 @@ def cam_info(side, stamp, w=W, h=H):
     return m
 
 
-def disparity(stamp, value=8.0, w=W, h=H, encoding="32FC1", step=None, bad_pixels=True):
+def disparity(stamp, value=8.0, w=W, h=H, encoding="32FC1", step=None, bad_pixels=True, unique=False):
     m = Image()
     m.header.stamp = T(stamp)
     m.header.frame_id = "bottom_left_camera"
     m.width, m.height, m.encoding = w, h, encoding
     d = np.full((h, w), value, np.float32)
+    if unique:           # every pixel different (stamp-dependent), a few NaN / zero / negative ones: any wrong sample shows
+        d = (1.0 + (np.arange(w * h, dtype=np.float32).reshape(h, w) % 977) / 16.0 + stamp).astype(np.float32)
+        d[5::7, 5::11] = np.nan
+        d[2::8, 2::8] = 0.0
+        d[6::8, 6::8] = -1.5
     if bad_pixels:
         d[0::4, 0::4] = np.nan          # a column of grid pixels the sampler must mark invalid
         d[2::4, 2::4][:, :5] = 0.0
@@ -102,7 +137,7 @@ def tf_msg(t, x, y=0.0, z=5.0, parent="world", child="body"):
     return TFMessage(transforms=[tr])
 
 
-def make_run(tmp_path, n=3, t0=10.0, with_disparity=True, phases=(("SCAN", 9.0), ("PLANNING", 10.12)),
+def make_run(tmp_path, n=3, t0=10.0, with_disparity=True, disp="grid", unique=False, phases=(("SCAN", 9.0), ("PLANNING", 10.12)),
              targets=((-1, 9.0), (4, 10.12)), tf_from=9.0, tf_to=11.0, info_t=9.5, extra=None):
     """A run dir with a bag of n detection+disparity pairs 0.1 s apart (stamp t0 + 0.1 k, disparity received 0.04 s
     after the stamp, the detection 0.05 s after), /tf at 100 Hz (x = t, z = 5), phases and targets."""
@@ -123,7 +158,7 @@ def make_run(tmp_path, n=3, t0=10.0, with_disparity=True, phases=(("SCAN", 9.0),
         for k in range(n):
             stamp = round(t0 + 0.1 * k, 6)
             if with_disparity:
-                bag.write("/disparity_image_down_float", disparity(stamp), T(stamp + 0.04))
+                write_disparity(bag, disparity(stamp, unique=unique), stamp + 0.04, disp)
             bag.write("/object_detection/detections", detections(stamp), T(stamp + 0.05))
         if extra:
             extra(bag)
@@ -137,8 +172,9 @@ def frames_of(run, name="frames.bin"):
 
 # ---------------------------------------------------------------------------------------------------- pairing, pose
 
-def test_sim_frames_pairs_and_poses(tmp_path):
-    run = make_run(tmp_path)
+@pytest.mark.parametrize("mode", ["grid", "full"])
+def test_sim_frames_pairs_and_poses(tmp_path, mode):
+    run = make_run(tmp_path, disp=mode)
     meta = sf.convert(str(run), heartbeat=0.0)
     cal, _, frames = frames_of(run)
     assert len(frames) == 3 and meta["frames"] == 3 and meta["frames_with_disparity"] == 3
@@ -193,13 +229,26 @@ def test_sim_closed_loop_launch_records_the_frame_topics_only_on_request():
     arg = [a for a in root.iter("arg") if a.get("name") == "record_frames"]
     assert len(arg) == 1 and arg[0].get("default") == "false"
     when = [a for a in root.iter("arg") if a.get("name") == "rec_frame_topics" and a.get("if") == "$(arg record_frames)"]
-    assert len(when) == 1 and when[0].get("value").split() == ["/disparity_image_down_float",
+    # the decimated grid and the two camera_info; the full ~1 MB image is NOT recorded
+    assert len(when) == 1 and when[0].get("value").split() == ["/rec/disparity_grid",
                                                                "/cam/bottom/left/half/camera_info",
                                                                "/cam/bottom/right/half/camera_info"]
     unless = [a for a in root.iter("arg") if a.get("name") == "rec_frame_topics" and a.get("unless")]
     assert len(unless) == 1 and unless[0].get("unless") == "$(arg record_frames)" and unless[0].get("value") == ""
     rec = [n for n in root.iter("node") if n.get("name") == "mission_recorder"][0]
-    assert "$(arg rec_frame_topics)" in rec.get("args")
+    assert "$(arg rec_frame_topics)" in rec.get("args") and "/disparity_image_down_float" not in rec.get("args")
+    # the recording-only decimation node exists only with record_frames, reading the full image, stride 4
+    node = [n for n in root.iter("node") if n.get("type") == "disparity_grid_node.py"]
+    assert len(node) == 1 and node[0].get("pkg") == "sim_perception" and node[0].get("if") == "$(arg record_frames)"
+    params = {p.get("name"): p.get("value") for p in node[0].iter("param")}
+    assert params == {"in_topic": "/disparity_image_down_float", "out_topic": "/rec/disparity_grid", "stride": "4"}
+
+
+def test_grid_node_script_is_installed_and_the_message_is_registered():
+    cm = open(os.path.join(ROOT, "ros", "sim_perception", "CMakeLists.txt")).read()
+    assert "scripts/disparity_grid_node.py" in cm
+    assert os.access(os.path.join(ROOT, "ros", "sim_perception", "scripts", "disparity_grid_node.py"), os.X_OK)
+    assert "DisparityGrid.msg" in open(os.path.join(ROOT, "ros", "treemapper_msgs", "CMakeLists.txt")).read()
 
 
 # ---------------------------------------------------------------------------------------------------- the live node's rules
@@ -218,11 +267,12 @@ def test_missing_disparity_gives_frames_without_it(tmp_path):
     assert meta["frames"] == 3 and meta["frames_with_disparity"] == 0
 
 
-def test_malformed_and_wrong_size_disparity_are_rejected_and_counted(tmp_path):
+@pytest.mark.parametrize("mode", ["grid", "full"])
+def test_malformed_and_wrong_size_disparity_are_rejected_and_counted(tmp_path, mode):
     def extra(bag):
-        bag.write("/disparity_image_down_float", disparity(10.0, step=W), T(10.041))              # step = width
-        bag.write("/disparity_image_down_float", disparity(10.1, w=320, h=200), T(10.141))         # other size
-    run = make_run(tmp_path, extra=extra)
+        write_disparity(bag, disparity(10.0, step=W), 10.041, mode)                    # step = width
+        write_disparity(bag, disparity(10.1, w=320, h=200), 10.141, mode)               # other size
+    run = make_run(tmp_path, extra=extra, disp=mode)
     meta = sf.convert(str(run), heartbeat=0.0)
     assert meta["disparity_rejected"] == 2 and meta["frames_with_disparity"] == 3
     assert meta["counts"]["disparity_rejected_malformed"] == 1
@@ -273,6 +323,44 @@ def test_meta_keys_and_run_provenance(tmp_path):
 def test_check_flags_missing_disparity():
     bad = sf.check({"frames": 3, "frames_with_disparity": 0, "pose_invalid": 0, "disparity_rejected": 0})
     assert len(bad) == 1 and "disparity" in bad[0]
+
+
+def test_check_flags_rejected_disparity():
+    ok = {"frames": 100, "detection_frames": 100, "frames_with_disparity": 100, "pose_invalid": 0, "disparity_rejected": 0}
+    assert sf.check(ok) == []
+    bad = sf.check(dict(ok, disparity_rejected=1))
+    assert len(bad) == 1 and "disparity_rejected 1" in bad[0]
+
+
+def test_check_flags_fewer_than_80_percent_of_detection_frames_paired():
+    # 10 detection frames + 5 heartbeats (heartbeats have no disparity and do not count)
+    meta = {"frames": 15, "detection_frames": 10, "frames_with_disparity": 8, "pose_invalid": 0, "disparity_rejected": 0}
+    assert sf.check(meta) == []                                         # exactly 80 %: allowed
+    bad = sf.check(dict(meta, frames_with_disparity=7))
+    assert len(bad) == 1 and "7 of 10" in bad[0]
+
+
+def test_convert_reports_detection_frames_for_the_pairing_check(tmp_path):
+    run = make_run(tmp_path)
+    meta = sf.convert(str(run))                                          # heartbeats on
+    assert meta["detection_frames"] == 3 and meta["frames"] > 3 and sf.check(meta) == []
+
+
+def test_cli_fails_when_a_disparity_is_rejected_and_keeps_the_bag(tmp_path, capsys):
+    run = make_run(tmp_path, extra=lambda bag: write_disparity(bag, disparity(10.1, w=320, h=200), 10.141, "grid"))
+    before = bag_counts(str(run / "mission.bag"))
+    assert sf.main(["--run", str(run), "--filter-bag"]) == 1
+    assert "disparity_rejected 1" in capsys.readouterr().err
+    assert bag_counts(str(run / "mission.bag")) == before
+
+
+def test_cli_fails_when_too_few_detections_have_a_disparity(tmp_path, capsys):
+    def extra(bag):          # 10 more detections without any disparity image
+        for k in range(10):
+            bag.write("/object_detection/detections", detections(round(20.0 + 0.1 * k, 6)), T(20.05 + 0.1 * k))
+    run = make_run(tmp_path, extra=extra, tf_to=22.0)
+    assert sf.main(["--run", str(run), "--heartbeat", "0"]) == 1
+    assert "3 of 13 detection frames" in capsys.readouterr().err
 
 
 def test_check_flags_pose_invalid_above_one_percent_and_empty():
@@ -331,7 +419,7 @@ def test_filter_bag_drops_only_the_frame_topics_and_replaces_after_check(tmp_pat
     before = bag_counts(str(run / "mission.bag"))
     assert sf.main(["--run", str(run), "--filter-bag"]) == 0
     after = bag_counts(str(run / "mission.bag"))
-    dropped = {"/disparity_image_down_float", "/cam/bottom/left/half/camera_info", "/cam/bottom/right/half/camera_info"}
+    dropped = {"/rec/disparity_grid", "/cam/bottom/left/half/camera_info", "/cam/bottom/right/half/camera_info"}
     assert set(after) == set(before) - dropped
     assert all(after[t] == before[t] for t in after)                       # every kept message is still there
     assert sorted(os.listdir(str(run))) == ["frames.bin", "frames.bin.meta.json", "mission.bag"]   # no temp file left
@@ -339,6 +427,13 @@ def test_filter_bag_drops_only_the_frame_topics_and_replaces_after_check(tmp_pat
     with rosbag.Bag(str(run / "mission.bag")) as b:
         msgs = list(b.read_messages(topics=["/mission_state", "/tf"]))
     assert len(msgs) == before["/mission_state"] + before["/tf"]
+
+
+def test_filter_bag_drops_the_full_image_as_well_when_it_is_there(tmp_path):
+    run = make_run(tmp_path, disp="both")
+    assert sf.main(["--run", str(run), "--filter-bag"]) == 0
+    assert not {"/rec/disparity_grid", "/disparity_image_down_float", "/cam/bottom/left/half/camera_info"} & set(
+        bag_counts(str(run / "mission.bag")))
 
 
 def test_filter_bag_function_is_a_byte_faithful_message_copy(tmp_path):
@@ -351,6 +446,58 @@ def test_filter_bag_function_is_a_byte_faithful_message_copy(tmp_path):
         ka = [(t, rospy_ser(m), bt.to_sec()) for t, m, bt in a.read_messages(topics=keep)]
         kb = [(t, rospy_ser(m), bt.to_sec()) for t, m, bt in b.read_messages(topics=keep)]
     assert ka == kb and len(ka) > 100                      # same messages, same order, same times
+
+
+# ---------------------------------------------------------------------------------------------------- full image vs grid
+
+def record_region(path):
+    """The bytes of a TMF1 file after its header (calibration block + all frame records)."""
+    import struct
+    b = open(path, "rb").read()
+    (n,) = struct.unpack("<I", b[4:8])
+    return b[8 + n:]
+
+
+def test_frames_from_the_decimated_grid_equal_frames_from_the_full_image(tmp_path):
+    """One synthetic full disparity image per stamp, recorded once as the full image and once as the grid message the
+    recording node publishes: identical frames (every field, every disparity value, the record bytes), identical counts."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    runs = {}
+    for name, mode in (("a", "full"), ("b", "grid")):
+        def extra(bag, mode=mode):
+            write_disparity(bag, disparity(10.0, step=W), 10.041, mode)
+            write_disparity(bag, disparity(10.1, w=320, h=200), 10.141, mode)
+            write_disparity(bag, disparity(10.2, unique=True), 10.243, mode)       # duplicate stamp, ignored
+        runs[name] = make_run(tmp_path / name, n=5, unique=True, disp=mode, extra=extra)
+    ma = sf.convert(str(runs["a"]))
+    mb = sf.convert(str(runs["b"]))
+    assert ma["disparity_topic"] == "/disparity_image_down_float" and mb["disparity_topic"] == "/rec/disparity_grid"
+    _, _, fa = frames_of(runs["a"])
+    _, _, fb = frames_of(runs["b"])
+    assert len(fa) == len(fb) > 5
+    for x, y in zip(fa, fb):
+        assert (x.t, x.stamp, x.pose, x.pose_valid, x.phase, x.target_id) == (y.t, y.stamp, y.pose, y.pose_valid, y.phase, y.target_id)
+        assert np.array_equal(x.boxes, y.boxes)
+        assert (x.disparity is None) == (y.disparity is None)
+        if x.disparity is not None:
+            assert np.array_equal(x.disparity, y.disparity, equal_nan=True)
+    assert record_region(str(runs["a"] / "frames.bin")) == record_region(str(runs["b"] / "frames.bin"))
+    keys = ("frames", "frames_with_disparity", "pose_invalid", "disparity_rejected", "detection_frames", "t_start", "t_end")
+    assert {k: ma[k] for k in keys} == {k: mb[k] for k in keys}
+    assert ma["counts"] == mb["counts"] and ma["disparity_rejected"] == 2
+    # the sampled values are real (not all NaN) and include the NaN / zero / negative source pixels as invalid
+    d = next(f.disparity for f in fa if f.disparity is not None)
+    assert np.isfinite(d).sum() > 0.3 * d.size and np.isnan(d).sum() > 0
+
+
+def test_a_grid_message_is_much_smaller_than_the_full_image():
+    img = disparity(10.0, unique=True)
+    from io import BytesIO
+    full, grid = BytesIO(), BytesIO()
+    img.serialize(full)
+    grid_of(img).serialize(grid)
+    assert len(full.getvalue()) > 1_000_000 and len(grid.getvalue()) < 64_300       # 160 x 100 float32 + header
 
 
 # ---------------------------------------------------------------------------------------------------- harness flag

@@ -15,9 +15,11 @@
      /tf_static, /corridor_nav/setpoint, the plan markers, /sim/truth, the detections and the perception counters.
      record_images:=true adds the left image throttled to 0.2 Hz on /rec/left_0p2hz.
      record_frames:=true adds what treemapper_node consumes besides the detections, /tf and the phase / target topics
-     above: /disparity_image_down_float and the left / right half-resolution camera_info (~1 MB per disparity image at
-     10 Hz). The harness option record-frames of scripts/sim_mission.sh sets it, converts the bag to frames.bin with
-     tools/treemapper_tools/sim_frames.py and then replaces the bag by a copy without these topics. -->
+     above: the left / right half-resolution camera_info and /rec/disparity_grid, made by sim_perception's
+     disparity_grid_node from /disparity_image_down_float. That node republishes only the stride-4 pixels the TreeMapper
+     node samples (~64 kB instead of ~1 MB per image); the full image is NOT recorded, and the TreeMapper node keeps
+     consuming the full image. The harness option record-frames of scripts/sim_mission.sh sets it, converts the bag to
+     frames.bin with tools/treemapper_tools/sim_frames.py and then replaces the bag by a copy without these topics. -->
 <launch>
   <arg name="run_dir"/>
   <arg name="detector_model"/>
@@ -62,9 +64,15 @@
   <arg if="$(arg record_images)" name="rec_image_topic" value="/rec/left_0p2hz"/>
   <arg unless="$(arg record_images)" name="rec_image_topic" value=""/>
   <arg if="$(arg record_frames)" name="rec_frame_topics"
-       value="/disparity_image_down_float /cam/bottom/left/half/camera_info /cam/bottom/right/half/camera_info"/>
+       value="/rec/disparity_grid /cam/bottom/left/half/camera_info /cam/bottom/right/half/camera_info"/>
   <arg unless="$(arg record_frames)" name="rec_frame_topics" value=""/>
   <group if="$(arg record)">
+    <node if="$(arg record_frames)" pkg="sim_perception" type="disparity_grid_node.py" name="disparity_grid"
+          output="$(arg output)">
+      <param name="in_topic" value="/disparity_image_down_float"/>
+      <param name="out_topic" value="/rec/disparity_grid"/>
+      <param name="stride" value="4"/>
+    </node>
     <node if="$(arg record_images)" pkg="topic_tools" type="throttle" name="rec_left_throttle"
           args="messages /cam/bottom/left/half/image_raw 0.2 /rec/left_0p2hz"/>
     <!-- SIGINT from roslaunch's shutdown closes the bag (sim_mission.sh stops the launch before the containers) -->
