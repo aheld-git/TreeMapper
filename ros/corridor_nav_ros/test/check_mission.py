@@ -38,6 +38,7 @@ from treemapper_msgs.msg import TreeMap
 CLEARANCE_RADIUS = 1.3   # m xy: a setpoint this close to a tree centre is "over" the tree
 CLEARANCE_MIN = 1.5      # m above the canopy top
 NOZZLE_CLEARANCE_TOL = 0.2   # m: the true clearance with the nozzle open may sit this far below the cfg min_clearance
+FLOAT_TOL = 1e-9         # m: a clearance sitting exactly on the bound (1.3 vs 1.5 - 0.2) must not fail on float rounding
 PHASE_SLACK_S = 0.15     # s: spray and /mission_state are separate topics, one control tick apart at most
 HOME = (0.0, -2.0)       # field_lite.yaml
 
@@ -209,7 +210,7 @@ class MissionCheck(unittest.TestCase):
             self.assertIsNotNone(c, "tree %d: no nozzle clearance recorded" % t["id"])
             rospy.loginfo("tree %d: lowest true clearance with the nozzle open %.2f m (floor %.2f - %.1f)",
                           t["id"], c, min_clearance, NOZZLE_CLEARANCE_TOL)
-            self.assertGreaterEqual(c, min_clearance - NOZZLE_CLEARANCE_TOL,
+            self.assertGreaterEqual(c, min_clearance - NOZZLE_CLEARANCE_TOL - FLOAT_TOL,
                                     "tree %d sprayed from %.2f m above its canopy (min_clearance %.2f - %.1f)" % (
                                         t["id"], c, min_clearance, NOZZLE_CLEARANCE_TOL))
 
