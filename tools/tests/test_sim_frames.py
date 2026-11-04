@@ -530,6 +530,27 @@ def test_filter_bag_drops_the_full_image_as_well_when_it_is_there(tmp_path):
         bag_counts(str(run / "mission.bag")))
 
 
+def test_filter_failure_removes_the_partial_copy_and_keeps_the_bag(tmp_path, capsys, monkeypatch):
+    # the filter dies half way (here: after writing part of the copy): main fails loudly, the partial
+    # mission.bag.filtered is removed and mission.bag is byte-for-byte what it was
+    run = make_run(tmp_path)
+    bag = run / "mission.bag"
+    before_bytes = bag.read_bytes()
+
+    def broken_filter(src, dst, drop=sf.DROP_TOPICS):
+        with open(dst, "wb") as f:
+            f.write(b"#ROSBAG V2.0\n partial")
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(sf, "filter_bag", broken_filter)
+    assert sf.main(["--run", str(run), "--filter-bag"]) == 2
+    err = capsys.readouterr().err
+    assert "cannot filter" in err and "kept as it is" in err and "disk full" in err
+    assert not (run / "mission.bag.filtered").exists()
+    assert bag.read_bytes() == before_bytes
+    assert (run / "frames.bin").exists()                   # the conversion itself had passed its check
+
+
 def test_filter_bag_function_is_a_byte_faithful_message_copy(tmp_path):
     run = make_run(tmp_path)
     dst = str(tmp_path / "copy.bag")
