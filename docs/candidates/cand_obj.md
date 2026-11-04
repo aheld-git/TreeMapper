@@ -56,7 +56,7 @@ A confirmed instance is never deleted; it can only be absorbed by a merge during
 
 **Extent.** Per-cell evidence with a permanent latch. The outline may grow whenever the phase policy allows the instance
 to change (SCAN, SCAN_APPROACH, ERROR, unknown: all; PLANNING: confirmed instances; HOPPING: the target only; the post-spray
-climb: the target only; SPRAYING/IDLE/RETURN: asleep). It never shrinks: the published outline is monotone under inclusion
+climb, until 2 m from the hover point or SCAN, SCAN_APPROACH included (D67): the target only; SPRAYING/IDLE/RETURN: asleep). It never shrinks: the published outline is monotone under inclusion
 of every earlier one. Hovering cannot inflate it beyond cells that are canopy in a majority of judged frames.
 
 **Height (M4).** Every latched cell carries a fused surface height (weighted running mean of its per-frame median z,
@@ -85,7 +85,7 @@ fragment inside a large tree merge easily, while two large trees would need half
 | 5 sprayed protected | sprayed instances get no crowns, no evidence, no merges; crowns inside a sprayed outline never seed | `SprayedTreesFrozenAndProtected` |
 | 6 fail loudly | see the gate table below; every trigger is counted and the first occurrence logged | `HeartbeatsHoldsAndSleepAreCounted`, descent test |
 | 7 every drop counted | `counters()` (points, cells, crowns, height samples, instances; listed below) | all tests read counters |
-| sec. 6 phases | `phasePolicy()` (shared pure function) + post-spray hold | `NoNewTreesAfterScanning`, `OnlyTargetChangesDuringDescentAndPostSprayClimb` |
+| sec. 6 phases | `phasePolicy()` (shared pure function) + post-spray hold | `NoNewTreesAfterScanning`, `OnlyTargetChangesDuringDescentAndPostSprayClimb`, `PostSprayHoldOutlastsScanApproachUntilTheDroneLeaves` |
 
 **Gates and their failure direction (rule 6):**
 
@@ -94,7 +94,7 @@ fragment inside a large tree merge easily, while two large trees would need half
 | mission phase | unknown / none | open (behave as SCAN) | warn once; `frames_total` |
 | drone pose | invalid | closed (hold everything) | warn once; `frames_held_no_pose` |
 | hop target in HOPPING | none | closed (freeze every tree) | warn once; `crowns_dropped_non_target_frozen` |
-| post-spray climb | hover position unknown | closed until the first valid pose after SPRAYING, then until 2 m away | `frames_post_spray_hold`, `post_spray_holds_started` |
+| post-spray climb | hover position unknown | closed until the first valid pose after SPRAYING, then until 2 m away from it or SCAN starts; SCAN_APPROACH does not end it (D67) | `frames_post_spray_hold`, `post_spray_holds_started` |
 | ground plane | fit rejected (slope > 0.3, degenerate) | open with a flat ground at the lowest decile | warn once; `frames_ground_plane_fallback` |
 | disparity | missing / wrong size | closed for the frame | `frames_dropped_no_disparity`, `frames_dropped_bad_disparity_size` |
 | detections | crown top in no box | closed for that crown | `crowns_dropped_unboxed` |

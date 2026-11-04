@@ -656,3 +656,43 @@ of centre RMSE (held-out easy 0.133 -> 0.147 m, t +2.2; suite_v2 easy +0.014 m, 
 (3) the real-flight "max centre drift from first publication" grows 2.586 -> 3.455 m (real profile; sim profile 3.342 -> 4.246 m),
 because the centre now travels toward the crown. Raised to the user (spec section 6).
 
+**D67. The post-spray hold lasts until the drone has left the hover point, not until SCAN_APPROACH** (Task 7 review I1,
+rulings R23 and R25; evidence `results/miss_reduction.md` "TreeMapper regression check" and
+`results/miss_reduction/regression/climbout.txt`). The gap: after SPRAYING cand_obj freezes every non-target tree until the
+drone is `post_spray_hold_radius` (2.0 m, both profiles) from the hover point, as `docs/candidates/cand_obj.md` documents
+("until 2 m away"). Since M3 (`94abc70`) the code also ended the hold on SCAN **or SCAN_APPROACH**. The scorer's safety rule
+R3 counts any non-target change within 1.5 m of the hover point after a spray, whatever the phase, and in corridor mode the
+drone climbs from the hover point straight into SCAN_APPROACH, still low over the sprayed tree: SCAN_APPROACH starts inside
+that 1.5 m window after 7 of 27 sprays (5x5 corridor), 9 of 86 (rows corridor) and 1 of 7 (recorded Isaac mission), never
+in field_first mode. Evidence: the Task 7 run (D66 addendum) showed `SAFETY total violations` 0 -> 1 on the recorded Isaac
+mission, a 1 - 2 cm centre move of non-target entry 7 at t = 169.2 s in SCAN_APPROACH inside that window; D66 had only made a
+centre move there more likely (centre churn 2.13 -> 4.74 % of entry-snapshots). Change: SCAN_APPROACH no longer ends the
+hold; it ends when the drone is more than `post_spray_hold_radius` from the hover point, or on SCAN (kept so that a real
+scan never runs with its trees frozen; fail-open as before). An unknown hover position is unchanged (closed until the first
+valid pose). SCAN never starts inside the scorer window on any of the five missions; the closest SCAN start is 5.07 m from
+the hover point (5x5 corridor; rows corridor 5.93 m, Isaac 10.6 m), so the SCAN release never cuts the window short. Test
+`CandObjRules.PostSprayHoldOutlastsScanApproachUntilTheDroneLeaves` (25 SCAN_APPROACH frames 0.7 m from the hover point
+leave the neighbour's outline, centre and height unchanged and count 25 `frames_post_spray_hold`; leaving to 2.5 m
+releases the hold; SCAN within the radius releases it at once).
+Result: recorded Isaac mission SAFETY 0 -> 0 again (be0e5bd -> D67; non-target changes in descent 0), centre RMSE 0.255 m as
+with D66 alone; held frames 1491 -> 1496. suite_v2 (15 missions, both repeats), the held-out suite (30) and the real log
+(both profiles) are identical to the D66-only run: the build `be0e5bd` + this one line gives maps identical to `be0e5bd` on
+all of them, and the real log has no mission phases, so no hold ever starts there. The four miss-reduction replays: field_first
+byte-identical; on the corridor replays the hold now lasts through the SCAN_APPROACH climb (held frames 255 -> 767 on 5x5
+corridor, 1140 -> 1810 on rows corridor).
+Accepted cost (ruling R25, narrows R18 "A1 / A2 not worse than the baseline" for this one count): on the 5x5 corridor replay
+the A1 count of lock + dose values over 1.5 m goes 6 -> 8 (lock 3 -> 4, dose 3 -> 4); the maximum is unchanged (3.63 m) and
+A2 is identical. The new value is entry 46 (truth 7, a pre-existing rule 4 duplicate of entry 8): lock `dh` +1.454 ->
++2.454 m, dose `dh` +1.454 -> +2.178 m. Cause: no evidence reaches the other instances during the now frozen climbs; the
+first map difference is at t 81.65 s (entry 8 frozen in the climb after the 72.2 s spray), and entry 46 is confirmed 0.6 s
+later (126.45 s instead of 125.85 s), at a moment when its first published height is 9.22 m (3.70 m before): one garbage
+latched cell, the parked height-runaway mechanism (`results/miss_reduction.md` "Height"). The height then falls at 0.5 m/s
+and the lock at 135.03 s takes 4.86 m (4.10 m before). Too high is the flight-safe direction, and the height fix will
+remove it; the hold change alone (without D66) gives the same values. Rows corridor: entry 111 lock / dose `dh` -0.055 ->
+-0.258 m (lower, not below -0.3 m; A2 share and worst value unchanged). A3 still holds: 5x5 corridor far 0.133 m, none
+beyond 0.8 m (0.099 with D66 alone), near 0.095 m; rows corridor far 0.108 m, near 0.137 m; at the start of the dosing leg
+5x5 corridor far 0.472 m with 2 of 13 beyond 0.8 m (0.452 m with D66 alone). Cost if wrong: one more tree published 2.45 m
+too high at its lock in the closed loop on 5x5 corridor (a possible extra miss in Task 8).
+Real-flight profile: same code, same radius. After each spray the neighbours are not updated until the drone is 2 m from
+the hover point even when `/mission_state` already reports SCAN_APPROACH; they are re-observed on the transit and in the next
+scan. No config key; rollback is the one release condition in `CandObj::integrate`.

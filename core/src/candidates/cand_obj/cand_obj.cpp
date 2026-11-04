@@ -971,9 +971,11 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
                            " after the tree list was locked: no new trees, no merges until SCAN (sticky lock)");
   }
   if (!pol.awake) { count("crowns_dropped_sleeping", crowns.size()); return; }
-  // post-spray climb hold (see process()): freeze non-targets until the drone has left the hover point
+  // post-spray climb hold (see process()): freeze non-targets until the drone has left the hover point. SCAN ends it
+  // too (a real scan never runs with its trees frozen); SCAN_APPROACH does not (D67: corridor mode flies from the
+  // hover point straight into SCAN_APPROACH, still low over the sprayed tree).
   if (hold_after_spray_) {
-    const bool scanning = phase == MissionPhase::kScan || phase == MissionPhase::kScanApproach;
+    const bool scanning = phase == MissionPhase::kScan;
     if (!hover_known_) { if (pose.valid) { hover_x_ = pose.x; hover_y_ = pose.y; hover_known_ = true; } }
     const bool away = hover_known_ && pose.valid && std::hypot(pose.x - hover_x_, pose.y - hover_y_) > cfg_.post_spray_hold_radius;
     if (away || scanning) {

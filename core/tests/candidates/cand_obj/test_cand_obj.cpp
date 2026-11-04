@@ -363,6 +363,55 @@ TEST(CandObjRules, OnlyTargetChangesDuringDescentAndPostSprayClimb) {
   EXPECT_GT(area(*find(m.publishedTrees(), other)), area(*find(pre, other)) + 0.5);
 }
 
+// D67: the post-spray hold lasts until the drone has left the hover point. SCAN_APPROACH right after a dose (corridor
+// mode flies HOPPING -> SCAN_APPROACH from the hover point) does not end it; leaving the radius, or SCAN, does.
+TEST(CandObjRules, PostSprayHoldOutlastsScanApproachUntilTheDroneLeaves) {
+  auto sprayed = [](CandObj& m, double& t, TreeId* other) {
+    addTree(m, t, 0, 0, 2.0);
+    addTree(m, t, 8, 0, 2.0);
+    const auto trees = m.publishedTrees();
+    ASSERT_EQ(trees.size(), 2u) << dump(m);
+    *other = trees[1].id;
+    FrameInput f;
+    f.phase = MissionPhase::kSpraying; f.hop_target = trees[0].id; f.pose = poseAt(0, 0, 7.0); f.t = t += 0.1;
+    m.process(f);
+    f.phase = MissionPhase::kScanApproach; f.hop_target = kNoTree; f.t = t += 0.1;
+    m.process(f);  // heartbeat (no disparity): SPRAYING has ended, the hold starts
+  };
+  auto same = [](const TreeEntry& a, const TreeEntry& b) {
+    return a.outline.size() == b.outline.size() && std::fabs(area(a) - area(b)) < 1e-12 && a.centre.x == b.centre.x &&
+           a.centre.y == b.centre.y && a.height == b.height;
+  };
+  {  // SCAN_APPROACH within the radius: the neighbour stays frozen; leaving the radius releases it
+    CandObj m;
+    double t = 0;
+    TreeId other = kNoTree;
+    sprayed(m, t, &other);
+    const TreeEntry pre = *find(m.publishedTrees(), other);
+    const auto held0 = cnt(m, "frames_post_spray_hold");
+    for (int i = 0; i < 25; ++i)
+      step(m, t, MissionPhase::kScanApproach, kNoTree, {disc(8.6, 0.4, 3.0, 4.0)}, poseAt(0.7, 0, 9.0));
+    EXPECT_TRUE(same(*find(m.publishedTrees(), other), pre)) << dump(m);
+    EXPECT_EQ(cnt(m, "frames_post_spray_hold"), held0 + 25u);
+    for (int i = 0; i < 40; ++i)
+      step(m, t, MissionPhase::kScanApproach, kNoTree, {disc(8.6, 0.4, 3.0, 4.0)}, poseAt(2.5, 0, 12.0));
+    EXPECT_GT(area(*find(m.publishedTrees(), other)), area(pre) + 0.5) << dump(m);
+    EXPECT_EQ(cnt(m, "frames_post_spray_hold"), held0 + 25u);
+  }
+  {  // SCAN releases it even within the radius (a real scan never runs with its trees frozen)
+    CandObj m;
+    double t = 0;
+    TreeId other = kNoTree;
+    sprayed(m, t, &other);
+    const TreeEntry pre = *find(m.publishedTrees(), other);
+    const auto held0 = cnt(m, "frames_post_spray_hold");
+    for (int i = 0; i < 40; ++i)
+      step(m, t, MissionPhase::kScan, kNoTree, {disc(8.6, 0.4, 3.0, 4.0)}, poseAt(0.7, 0, 9.0));
+    EXPECT_GT(area(*find(m.publishedTrees(), other)), area(pre) + 0.5) << dump(m);
+    EXPECT_EQ(cnt(m, "frames_post_spray_hold"), held0);
+  }
+}
+
 // Rule 5: sprayed trees stop changing; a crown inside one never creates a new tree.
 TEST(CandObjRules, SprayedTreesFrozenAndProtected) {
   CandObj m;

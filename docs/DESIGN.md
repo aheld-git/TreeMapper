@@ -184,7 +184,7 @@ on whole missions). Each test fails if its rule is broken.
 | drone pose | not available at the frame stamp / invalid | closed: hold all processing (start-up artefacts, brief section 8) | `pose_unavailable`, `frames_held_no_pose`, HOLDING |
 | mission phase | none at all / unknown string | open: behave as SCAN | warn once, `~health` warning "no mission_state received: permissive" |
 | hop target in HOPPING / post-spray climb | none (-1) | closed: freeze every tree | warn once, `crowns_dropped_non_target_frozen` |
-| post-spray climb | hover position unknown | closed until a valid pose, then until 2 m away | `frames_post_spray_hold`, `post_spray_holds_started` |
+| post-spray climb | hover position unknown | closed until a valid pose, then until 2 m away or SCAN (D67) | `frames_post_spray_hold`, `post_spray_holds_started` |
 | ground plane | fit rejected | open with a flat ground at the lowest decile | warn once, `frames_ground_plane_fallback` |
 | disparity | missing / wrong size / malformed | closed for the frame | `frames_dropped_no_disparity`, `disparity_rejected_*`, `sync_frames_without_disparity` |
 | detection box | crown top in no box | closed for that crown | `crowns_dropped_unboxed` |
@@ -208,7 +208,7 @@ trees nor retire a planned ID (counter `frames_locked_after_planning`, one warni
 | ERROR / unknown / SCAN_APPROACH **after a lock** (sticky lock, until SCAN) | awake | no (and no tentative may confirm) | no | every confirmed tree may grow | no |
 | PLANNING | awake | no (and no tentative may confirm) | no | every confirmed tree may grow | no |
 | HOPPING | awake | no | no | **only the hop target** (no target: nothing) | no |
-| post-spray climb (after SPRAYING, until 2 m from the hover point or SCAN) | awake | no | no | only the target | no |
+| post-spray climb (after SPRAYING, until 2 m from the hover point or SCAN; SCAN_APPROACH does not end it, D67) | awake | no | no | only the target | no |
 | SPRAYING, IDLE, RETURN | asleep (frames skipped, counted) | no | no | nothing | no |
 
 - **Descent.** `/mission_state` has no descent value, and the transit altitude is below the scan altitude, so the
@@ -216,6 +216,11 @@ trees nor retire a planned ID (counter `frames_locked_after_planning`, one warni
   the brief requires (it allows existing trees to grow while hopping) and was chosen because a low-angle look at a
   neighbour during transit is exactly the damage the freeze is for. Planning frames still grow locked trees.
   Test: `CandObjRules.OnlyTargetChangesDuringDescentAndPostSprayClimb`, `CandObjRules.NoNewTreesAfterScanning`.
+- **Post-spray climb.** After SPRAYING every non-target stays frozen until the drone is `post_spray_hold_radius` (2 m)
+  from the hover point. SCAN also ends the hold (a real scan never runs with its trees frozen); SCAN_APPROACH does not
+  (D67): in corridor mode the drone climbs from the hover point straight into SCAN_APPROACH, still low over the sprayed
+  tree, and the scorer counts any non-target change within 1.5 m of the hover point whatever the phase.
+  Test: `CandObjRules.PostSprayHoldOutlastsScanApproachUntilTheDroneLeaves`.
 - **Sticky lock.** Tests: `CandObjFinal.StickyLockAfterPlanningUntilScan` (ERROR / unknown / SCAN_APPROACH after
   HOPPING publish 1 tree, not 2; an explicit SCAN unlocks), `CandObjFinal.NoMergeWhileTheListIsLocked` (PLANNING and
   ERROR-after-lock keep both planned IDs; the same frames in SCAN do merge). Not exercised by any recorded or synthetic
