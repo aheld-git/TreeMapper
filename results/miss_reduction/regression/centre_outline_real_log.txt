@@ -1,0 +1,20 @@
+== sim_before
+snapshots 2559, entry-snapshots 137092, entries ever 111
+centre outside own outline: 0 entry-snapshots (0.000 %), 0 distinct entries; outside distance median 0.000 p90 0.000 max 0.000 m
+centre inside ANOTHER entry's outline: 20 distinct (entry, other) pairs, 21 episodes, 2022 snapshots with at least one; entry-snapshots in a pair 11551
+counters: centre_clamped_to_outline = 0 ; centre_support_fallback_latched = 0
+== sim_after
+snapshots 2559, entry-snapshots 137092, entries ever 111
+centre outside own outline: 857 entry-snapshots (0.625 %), 6 distinct entries; outside distance median 0.113 p90 0.366 max 1.000 m
+centre inside ANOTHER entry's outline: 28 distinct (entry, other) pairs, 34 episodes, 2000 snapshots with at least one; entry-snapshots in a pair 9104
+counters: centre_clamped_to_outline = 19 ; centre_support_fallback_latched = 13907
+== real_before
+snapshots 2559, entry-snapshots 89602, entries ever 68
+centre outside own outline: 0 entry-snapshots (0.000 %), 0 distinct entries; outside distance median 0.000 p90 0.000 max 0.000 m
+centre inside ANOTHER entry's outline: 0 distinct (entry, other) pairs, 0 episodes, 0 snapshots with at least one; entry-snapshots in a pair 0
+counters: centre_clamped_to_outline = 0 ; centre_support_fallback_latched = 0
+== real_after
+snapshots 2559, entry-snapshots 89602, entries ever 68
+centre outside own outline: 0 entry-snapshots (0.000 %), 0 distinct entries; outside distance median 0.000 p90 0.000 max 0.000 m
+centre inside ANOTHER entry's outline: 2 distinct (entry, other) pairs, 2 episodes, 16 snapshots with at least one; entry-snapshots in a pair 16
+counters: centre_clamped_to_outline = 0 ; centre_support_fallback_latched = 342

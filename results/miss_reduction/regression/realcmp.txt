@@ -1,0 +1,12 @@
+== real
+final trees old 63 new 63 common 63; outline+height identical 63
+centre shift new-old: median 0.48 p90 1.18 max 3.17 m
+old: centre inside own outline 63/63; distance to the stereo crown peak (in its outline): median 1.55 p90 3.02 mean 1.76 m
+new: centre inside own outline 63/63; distance to the stereo crown peak (in its outline): median 1.53 p90 2.66 mean 1.63 m
+max per-snapshot centre step old 0.265 new 0.264 m
+== sim
+final trees old 101 new 101 common 101; outline+height identical 101
+centre shift new-old: median 0.40 p90 1.19 max 3.26 m
+old: centre inside own outline 101/101; distance to the stereo crown peak (in its outline): median 1.94 p90 4.25 mean 2.40 m
+new: centre inside own outline 100/101; distance to the stereo crown peak (in its outline): median 1.82 p90 4.43 mean 2.35 m
+max per-snapshot centre step old 0.300 new 0.301 m

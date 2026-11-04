@@ -1,0 +1,6 @@
+real/runs/sim_before: max step 0.300 m; entry-snapshots with centre move > 1 mm: 1915 of 136981 (1.40 %); snapshots with at least one: 1440 of 2559
+real/runs/sim_after: max step 0.301 m; entry-snapshots with centre move > 1 mm: 5314 of 136981 (3.88 %); snapshots with at least one: 2266 of 2559
+real/runs/real_before: max step 0.265 m; entry-snapshots with centre move > 1 mm: 1693 of 89534 (1.89 %); snapshots with at least one: 1369 of 2559
+real/runs/real_after: max step 0.264 m; entry-snapshots with centre move > 1 mm: 3978 of 89534 (4.44 %); snapshots with at least one: 2118 of 2559
+suite_v2_before/runs/cand_obj/isaac_2026-10-23-15-34-29: max step 0.182 m; entry-snapshots with centre move > 1 mm: 171 of 8043 (2.13 %); snapshots with at least one: 118 of 1410
+suite_v2_after/runs/cand_obj/isaac_2026-10-23-15-34-29: max step 0.182 m; entry-snapshots with centre move > 1 mm: 381 of 8043 (4.74 %); snapshots with at least one: 310 of 1410

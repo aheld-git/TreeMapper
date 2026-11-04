@@ -480,3 +480,95 @@ unchanged (0.26 / 0.30 m, the rate limit). With the outline clamp the real profi
 leaves its outline on the whole log); two centres pass briefly through a touching neighbour's outline (2.4 s and 0.4 s,
 none before). The sim profile on the real log: the clamp acts 19 times, largest distance outside 1.000 m; centres inside
 another entry's outline in 28 pairs (20 before).
+
+## TreeMapper regression check
+
+Spec section 6 (A6) and the section 3 anti-goal "regressing the real-flight profile". The height fix is parked, so the only
+TreeMapper behaviour change is the centre fix (D66). **Before** = `be0e5bd` (the commit before the centre fix; the core is
+identical to `294254f` / `7284ba6`), **after** = `1cab792`. Each is a clean `git archive` export built with
+`cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo` under `/data/work/mr_t7/{before,after}`, build dirs `/data/work/mr_t7/build_{before,after}`.
+`tools/` is identical in both (the scorer is the same). Raw outputs under `/data/work/eval/mr_t7/`; the small result files and the
+scripts are kept in `results/miss_reduction/regression/` (named below).
+
+**Noise floor and how "beyond noise" is decided.** Every run is deterministic: `TM_REPEAT=2` on the synthetic suite gives a
+run-to-run difference of 0 for every metric in both builds, so a difference between builds on one dataset is real. What
+decides whether a difference matters is the dataset-to-dataset spread of the paired difference (the paired rows of
+`evaluate.py`: t = mean diff / (std diff / sqrt n), |t| < 2 is within seed noise, W / L / T counted per dataset). A single
+dataset (the recorded Isaac mission) has no spread; there it is compared with the paired spread of the synthetic suites
+(std of the per-dataset centre RMSE difference 0.047 - 0.056 m) and every discrete counter change is reported as it is.
+`evaluate.py` timing fields (`stage_ms`) are wall clock and differ between any two runs; map comparisons drop them.
+
+### Commands
+
+```
+# 1 synthetic suite_v2 + recorded Isaac mission, both builds (cwd = the build's own export; 15 datasets x 2 repeats)
+cd /data/work/mr_t7/<before|after> && TM_BUILD=/data/work/mr_t7/build_<before|after> \
+  TM_OUT=/data/work/eval/mr_t7/suite_v2_<before|after> TM_REPEAT=2 ./scripts/evaluate.sh cand_obj suite_v2
+# 2 held-out suite (30 missions), as results/cand_obj_m4_holdout.md ran it
+cd /ws/tools && TM_REPLAY=/data/work/mr_t7/build_<before|after>/core/treemapper_replay python3 -m treemapper_tools.evaluate \
+  --system cand_obj --suite /data/work/holdout/suite_holdout --runs /data/work/eval/mr_t7/holdout_<before|after>/runs \
+  --out-md .../holdout_<before|after>.md --out-json .../holdout_<before|after>.json
+# 3 real flight scorecard, as results/real_flight_scorecard.md ran it (real_score), sim and real profile, both builds
+python3 -m treemapper_tools.real_score --dataset /data/work/extracted/real_farm --replay <after binary> \
+  --systems "sim_before=cand_obj@<before bin>,sim_after=cand_obj@<after bin>,sim_after_off=cand_obj@<after bin>,real_before=...,real_after=...,real_after_off=...,existing" \
+  --set real_<x>.<key>=<value> for every key of that build's config/cand_obj_real.cfg ... --runs /data/work/eval/mr_t7/real/runs
+```
+The exact job lines are `results/miss_reduction/regression/stage2.sh`. Paired tables: `compare.py` (`compare_suite_v2.md`,
+`compare_isaac.md`, `compare_holdout.md`, same folder). The built-in defaults equal `config/cand_obj.cfg` (the sim profile).
+
+### Result per evaluation
+
+| Evaluation | Before | After | Difference against its noise floor | Verdict |
+|---|---|---|---|---|
+| Synthetic suite_v2, 15 missions, run-to-run noise 0 (`compare_suite_v2.md`) | recall 0.954, precision 0.991, IoU 0.773, swallowed 1.067, height RMSE 0.155, sprayed 4.867, SAFETY 0 | the same for every metric but one | centre RMSE 0.426 -> 0.420 m: -0.005 m, t -0.4, 9 better / 6 worse; easy group 0.140 -> 0.154 (+0.014, t +1.7, 4 worse / 1 better), medium -0.009, hard -0.021 | no regression |
+| Held-out suite, 30 missions (`compare_holdout.md`) | centre RMSE 0.443 m, sprayed 4.867, all else as after | centre RMSE 0.425 m, sprayed 4.933 | centre RMSE -0.018 m (t -1.8, 19 better / 11 worse); easy 0.133 -> 0.147 (+0.015, t +2.2, 6 worse / 4 better); medium 0.441 -> 0.395 (-0.046, t -2.3); hard -0.023 (t -1.2); sprayed +0.067 (2 / 0 / 28). Recall, precision, IoU, swallowed, split, heights, jumps, SAFETY: 0 difference on all 30 | no regression; easy scenes +1.5 cm (see concerns) |
+| Recorded Isaac mission, 9 trees, 1 dataset (`compare_isaac.md`) | recall 1, precision 1, IoU 0.867 / min 0.817, centre RMSE 0.191 m (max 0.311), SAFETY 0 | same, but centre RMSE 0.255 m (max 0.472), SAFETY 1 | centre RMSE +0.064 m: 4 trees closer (-0.04 to -0.09), 5 farther (+0.025 to +0.18); about 1.2 x the synthetic paired spread. SAFETY 0 -> 1: one non-target change in a climb-out window, entry 7 at t = 169.196 s (no target, SCAN_APPROACH), its centre moved 0.01-0.02 m (the scorer's threshold is 1 mm) | **regression**: discrete safety counter, see below |
+| Real-flight scorecard, real profile (`cand_obj_real.cfg`; `real/real_score.json`) | 63 trees, 68 IDs, area p10/50/90 21.94 / 37.84 / 47.30, vanished 5, jumps 0, implausible-height frames 59, max centre drift from first 2.586 m | identical trees, IDs, outlines, heights, counters; max centre drift from first 3.455 m; nearest-crown-peak distance p10 / p50 5.76 / 7.46 -> 4.26 / 7.83 | outlines, heights, IDs byte-identical for all 63 trees; centre drift from first publication +0.87 m (the centre now travels toward the crown, jumps stay 0, per-snapshot step 0.265 -> 0.264 m) | no regression in a bounded quantity |
+| Real-flight scorecard, sim profile | 101 trees, 111 IDs, drift 3.342 m | 101, 111, drift 4.246 m | same pattern (+0.90 m drift), outline / heights identical | as above |
+
+The scorecard of the real flight has no ground truth, no phases: recall, centre error, spray outcome and the locked-phase
+rules are n/a there (as in `results/real_flight_scorecard.md`). The earlier numbers are reproduced: sim profile before = 101
+final trees / 111 IDs (as `results/real_flight_scorecard.md` after the S8 guard), real profile 63 / 68.
+
+### Rollback: `centre_from_support = false` reproduces the before build
+
+* Synthetic: the after build with `--config centre_from_support=false` on all 15 suite_v2 datasets: `map.jsonl` identical to the
+  before build's (without `stage_ms`) and `targets.json` byte-identical on 15 of 15 (`rollback.txt`).
+* Real log, both profiles: `sim_before` = `sim_after_off`, `real_before` = `real_after_off`, 2559 of 2559 snapshots identical
+  (`maps_equal.txt`); the same stability, crown and cost summaries in `real_score.json`.
+* The fix is not vacuous: with it on, the map differs from snapshot 81 (sim) / 87 (real).
+* (The four Isaac replays were shown byte-identical earlier, section "Centre / result".)
+
+### Real log, every published snapshot (2559 snapshots; `centre_outline_real_log.txt`, script `centre_outline.py`)
+
+| | sim before | sim after | real before | real after |
+|---|---|---|---|---|
+| entry-snapshots | 137092 | 137092 | 89602 | 89602 |
+| centre outside its own outline | 0 | 857 (0.625 %), 6 entries | 0 | 0 |
+| distance outside: median / p90 / max | - | 0.113 / 0.366 / 1.000 m | - | - |
+| `centre_clamped_to_outline` (counter, frames) | 0 | 19 | 0 | 0 |
+| `centre_support_fallback_latched` | 0 | 13907 | 0 | 342 |
+| centre inside ANOTHER entry's outline: pairs / episodes | 20 / 21 | 28 / 34 | 0 / 0 | 2 / 2 (16 entry-snapshots; 2.4 s and 0.4 s) |
+| snapshots with at least one such pair | 2022 | 2000 | 0 | 16 |
+
+So with the real profile no centre is ever outside its outline over the whole log and the clamp never acts; the sim profile
+reproduces the Task 6 review values exactly (20 -> 28 pairs, 19 clamps, maximum outside 1.000 m, which is `centre_max_outside`).
+Final trees (`realcmp.txt`): real profile centres shift by a median 0.48 m (p90 1.18, max 3.17), distance to the stereo
+crown peak mean 1.76 -> 1.63 m, p90 3.02 -> 2.66; sim profile 2.40 -> 2.35 m, p90 4.25 -> 4.43 m.
+Centre churn (`churn.txt`, `churn.py`): entry-snapshots in which the published centre moves by more than 1 mm:
+sim profile 1.40 % -> 3.88 %, real profile 1.89 % -> 4.44 %, recorded Isaac 2.13 % -> 4.74 %; the largest single step is
+unchanged (0.30 / 0.265 / 0.182 m, the rate limit).
+
+### Verdict
+
+* Detection, outlines, heights, IDs, jumps, every other safety counter, the real-flight maps (except the centre) and the cost
+  per frame: no change beyond the noise floor on any evaluation (45 synthetic missions with a zero difference on everything but
+  the centre RMSE, which improves by 0.005 - 0.018 m on average).
+* Two things do get worse and are the price of the fix, not fixed in this task (the fix is not local: it is the centre now
+  following the observation support, which also moves a little more often):
+  1. **Recorded Isaac mission:** `SAFETY total violations` 0 -> 1 (a 1 - 2 cm centre move of a non-target tree during a
+     climb-out) and centre RMSE 0.191 -> 0.255 m (5 of 9 trees farther). The scorer counts any centre move above 1 mm; centre
+     moves now occur twice as often. No synthetic mission shows a non-target change (0 of 45).
+  2. **Easy scenes:** the centre RMSE is 1.4 - 1.5 cm worse (easy group, 0.133 -> 0.147 m on the held-out suite, t +2.2; suite_v2
+     +0.014 m, t +1.7). Medium / hard scenes improve by 0.01 - 0.05 m.
+* Raised to the controller (spec section 6); numbers also in `docs/DECISIONS.md` (addendum to D66).

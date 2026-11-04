@@ -637,3 +637,22 @@ Over the whole log no centre leaves its outline (the clamp never acts); two cent
 neighbour's outline (2.4 s and 0.4 s; 0 before). The section 6 regression check (Task 7) has to confirm it;
 `centre_from_support = false` restores the M4 centre (`CandObj.CentreFromSupportOffIsTheLatchedCentroid`; on the four
 replays it reproduces the baseline map streams, targets, counters and `metrics.json` byte for byte).
+
+**D66 addendum (Task 7 regression check, 2026-11-04; evidence `results/miss_reduction.md` "TreeMapper regression check").**
+The centre fix was run against the evaluations that existed before it (before `be0e5bd`, after `1cab792`; the runs are
+deterministic, so the noise floor is the paired dataset-to-dataset spread). No change beyond noise in detection, outlines,
+heights, IDs, jumps or safety counters on suite_v2 (15 missions, `TM_REPEAT=2`, run-to-run 0), the held-out suite (30) and the
+real log with either profile (outlines, heights, IDs byte-identical for all 63 / 101 final trees); centre RMSE -0.005 m
+(suite_v2) and -0.018 m (held-out). `centre_from_support = false` reproduces the before build exactly (15 of 15 suite_v2 maps,
+both profiles on the real log, 2559 of 2559 snapshots). Real log, every snapshot: with the real profile no centre is ever outside
+its outline and the clamp never acts; two centres pass through a touching neighbour's outline (16 entry-snapshots; 0 before);
+sim profile on the same log: 857 of 137092 entry-snapshots outside (max 1.000 m), 19 clamps, 20 -> 28 inside-another pairs.
+Accepted costs, not fixed (the cause is the centre now following the support, so it moves about twice as often: 1.4 -> 3.9 %
+of entry-snapshots on the real log with the sim profile, 1.9 -> 4.4 % with the real profile, largest step unchanged at the rate
+limit): (1) on the recorded Isaac mission (9 trees, used in tuning) `SAFETY total violations` 0 -> 1, one 1 - 2 cm centre move of
+a non-target tree (entry 7, t = 169.2 s, climb-out, no target), and centre RMSE 0.191 -> 0.255 m (4 trees closer, 5 farther,
+largest 0.311 -> 0.472 m); no synthetic mission shows a non-target change (0 of 45); (2) easy synthetic scenes lose 1.4 - 1.5 cm
+of centre RMSE (held-out easy 0.133 -> 0.147 m, t +2.2; suite_v2 easy +0.014 m, t +1.7), while medium / hard improve by 0.01 - 0.05 m;
+(3) the real-flight "max centre drift from first publication" grows 2.586 -> 3.455 m (real profile; sim profile 3.342 -> 4.246 m),
+because the centre now travels toward the crown. Raised to the user (spec section 6).
+
