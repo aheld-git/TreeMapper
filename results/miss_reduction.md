@@ -43,7 +43,7 @@ never matches a truth tree; the same in live and replay).
   `cmake -S core -B /data/work/build_mr_core -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build /data/work/build_mr_core --target treemapper_replay -j4`.
 * Config: exactly the file the closed-loop node loaded. `treemapper_sim.launch` loads `ros/treemapper_ros/config/treemapper.yaml`
   (`mapper: cand_obj`, `mapper_config_file: config/core/cand_obj.cfg`, `mapper_overrides: {}`); `config/core` is a symlink to the
-  repository's `config/`, so it is `config/cand_obj.cfg`, **unchanged** (last commit `c375a5a`, 45 keys). Every run's `ros.log`
+  repository's `config/`, so it is `config/cand_obj.cfg`, **unchanged** (last commit `960ccb7`, 45 keys). Every run's `ros.log`
   reads `treemapper_node: mapper 'cand_obj' (config .../config/core/cand_obj.cfg, 45 keys)` and contains no override line. The
   launch passes no `mapper_config_file` argument. The `.cfg` is given to the replay as the `k=v;k=v` string
   (comments and spaces stripped, 45 pairs; stored next to each output as `config_kv.txt`).
@@ -108,8 +108,9 @@ and dose, so fixes can be developed on the replay.
 ## Baseline (the "today" values of A1-A3)
 
 `replay_metrics --md` summaries of the replay map (`/data/work/replay/baseline/<ds>/metrics.md`); the closed-loop `live_metrics.md`
-has the same values to the printed digits, except three rows-corridor figures that differ in the last digit (live A3 far / near
-mean `dc` 0.349 / 0.366 m, worst `dh` -0.638 m).
+has the same values to the printed digits, except three figures that differ in the last digit: rows corridor, A3 far / near mean
+`dc` (live 0.349 / 0.366 m vs replay 0.347 / 0.365 m); rows field_first, A2 worst `dh` (live -0.638 m vs replay -0.637 m). Rows
+corridor's worst `dh` is -0.596 m in both.
 
 | Metric | 5x5 corridor | 5x5 field_first | rows corridor | rows field_first |
 |---|---|---|---|---|
@@ -148,12 +149,53 @@ What the baseline shows against the spec's "today" column:
   is 1.04 m / 59 %) and 1.061 m / 70 % (field_first); near entries are 0.22 / 0.34 m. On rows_8x12 it is mild (0.35 / 0.45 m,
   7 % / 14 %), and A3 only applies to 5x5 anyway.
 
-## Reproducing
+## Reproducing and pinning
 
-```
-# replay + both scorings + equivalence per dataset (scratch scripts, not in the repository):
-/data/work/replay/process_one.sh <ds>      # replay_one.sh, score_one.sh, equiv.py, trace_diff.py
-```
-`equiv.py` pairs entries (truth tree, rank by first publication), takes each entry's last snapshot value against the run's
-`truth.json` (`mission_score._tree_top` / `_tree_centre`) and the lock / dose values from the two `metrics.json`; `trace_diff.py`
-does the time-aligned comparison. Both import only the reviewed tools and write nothing into the repository.
+The replay metrics that later tasks diff against are committed byte for byte as
+`results/miss_reduction/baseline/<dataset>/metrics.json` (output of `replay_metrics --replay --targets ... --json`, per-entry
+lock and dose values plus the `a1` / `a2` / `a3` summaries). The frame files and the scratch scripts live only under `/data/work`;
+these hashes pin them (`sha256sum <file>`):
+
+| File | sha256 |
+|---|---|
+| `/data/work/sim_runs/mr_frames_5x5_tropical_corridor/run_1/frames.bin` | `b267923d2cc1c35bd14a139976cf85e8fd55b7128511c9e576ec85f222092b7b` |
+| `/data/work/sim_runs/mr_frames_5x5_tropical_field_first/run_1/frames.bin` | `24e438d92cb0bc8a63e3fdb624700912ed78e520fe9a3d8a8e9ccd754f153163` |
+| `/data/work/sim_runs/mr_frames_rows_8x12_corridor/run_1/frames.bin` | `2a70367e5ef514a9af126fcc8b021c21ed2303f15ed1532d20bd76b3f5b66d32` |
+| `/data/work/sim_runs/mr_frames_rows_8x12_field_first/run_1/frames.bin` | `9873721ff4fdddd2343ac8ffe77a621919982106bf0a40436b15e1df6e4ad4eb` |
+| `results/miss_reduction/baseline/mr_frames_5x5_tropical_corridor/metrics.json` | `5d95548ad2cdef0c3675091c14f1c01642ed4694e40c86cbc696592db6e09103` |
+| `results/miss_reduction/baseline/mr_frames_5x5_tropical_field_first/metrics.json` | `1ca4bc65d0f455cc4a44a3f912ac9384efe270daf3a04129e8163ba2085ebd6c` |
+| `results/miss_reduction/baseline/mr_frames_rows_8x12_corridor/metrics.json` | `2776bb665c8348f5de6a4cad7b3ba21ae1075ab5bf417844fff54232b87c91e2` |
+| `results/miss_reduction/baseline/mr_frames_rows_8x12_field_first/metrics.json` | `58bb6e92a12bc7f7f614411cf064684f38ebe6dced6dff4b2ba3f63518b821e6` |
+| `/data/work/replay/replay_one.sh` | `18779292e11d60cc0dbf42015162486e2e4f12692163ce53c1e7b44a523bea9b` |
+| `/data/work/replay/score_one.sh` | `6c4735c614440b765426ee9a7843844fb293fcca4c9ea358d604d616fd1e6c44` |
+| `/data/work/replay/process_one.sh` | `65fab91612db57f554b024846532dfde8cc2558385e4e93610718fbec28d2d17` |
+| `/data/work/replay/equiv.py` | `ebb401561f3e0ac172c36599b96b846a8d2f89f819fdf2c3387b57a8237163fc` |
+| `/data/work/replay/trace_diff.py` | `7df715333b125f51c0738b4378a1e03d224424be13889e3c4c455786693f7c1c` |
+
+Re-running (inside the work container, cwd = repository root, `PYTHONPATH=tools`): `/data/work/replay/process_one.sh <ds>` runs
+`replay_one.sh` (the replay command above), `score_one.sh` (both scorings above), `equiv.py` and `trace_diff.py`. The replay
+metrics regenerated from the pinned `frames.bin` and the HEAD `7284ba6` binary must hash to the committed `metrics.json`.
+
+### Appendix: the equivalence gate, enough to re-implement it
+
+Inputs: the closed loop's `metrics.json` (`replay_metrics` on the run's `map.jsonl`, no `--replay`) and the replay's `metrics.json`
+(`--replay --targets <its own out-targets>`), both against the run's `truth.json` and `mission.json`; plus the two map streams.
+
+1. **Pairing.** Each `metrics.json` lists entries (map ids matched to a truth tree, sticky at first match; see the
+   `replay_metrics` docstring). Group the entries of each side by `truth_id`, sort each group by `first_pub_t`, and pair the
+   k-th live entry with the k-th replay entry of the same truth tree. An entry left over on either side is a gate failure. (Entry ids
+   are the mapper's own; they are reported as equal or not, but pairing does not use them.)
+2. **Values compared.**
+   * Final `dh` / `dc`: for each entry, its last snapshot in its own map stream (live `map.jsonl` / replay `map.jsonl`):
+     `dh` = published height - true top (`mission_score._tree_top` of the paired truth tree), `dc` = distance from the published
+     centre to the truth centre (`mission_score._tree_centre`). A pair is within tolerance when `|dh_replay - dh_live| <= 0.15 m`
+     (resp. `dc`); an undefined height counts as a failure.
+   * Lock `dh` of the ramping entries: the pairs whose live lock `dh` (`entries[].lock.dh`, the lock rule of the
+     `replay_metrics` docstring) exceeds 1.5 m; the replay's lock `dh` must be within 0.3 m.
+   * Attached dose episodes: `n_dose_episodes_attached` of the two `metrics.json` must be equal.
+3. **Pass rule.** At least 90 % of the pairs within 0.15 m on `dh` and at least 90 % on `dc` (computed separately), every ramping
+   pair within 0.3 m, equal attached-dose counts, no unpaired entry. All four datasets pass: 100 % / 100 %, ramping differences 0.0 m,
+   attached doses equal.
+4. **Diagnostic, not a gate (`trace_diff.py`).** At every replay snapshot stamp `t`, compare each entry id present in both streams with
+   the live stream's latest snapshot with stamp <= `t`: share of identical (height and centre) entry-snapshots, max `|dh|`, max `dc`.
+   Values in the table of the previous section.
