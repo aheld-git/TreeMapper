@@ -805,6 +805,9 @@ def score_run(run_dir: str) -> dict:
                    "ids_reresolved": counters.get("ids_reresolved", 0),
                    "ids_dropped_vanished": counters.get("ids_dropped_vanished", 0),
                    "late_trees": counters.get("late_trees", 0), "counters": counters},
+        "navigator": {"implausible": {   # trees skipped for an implausible published height and their cleanup retry
+            "skipped": counters.get("target_height_implausible", 0), "retried": counters.get("implausible_retried", 0),
+            "recovered": counters.get("implausible_recovered", 0), "dropped": counters.get("implausible_dropped", 0)}},
         "cost": cost,
     }
     if snaps:
@@ -899,6 +902,7 @@ def _pf(v) -> str:
 def card_markdown(card: dict) -> str:
     r, e, s, sf, g, c = (card[k] for k in ("run", "efficiency", "spray", "safety", "guards", "cost"))
     sp = e["time_split"]
+    imp = (card.get("navigator") or {}).get("implausible") or {}   # older scorecards have no navigator group
     L = ["# Mission scorecard: %s" % os.path.basename(r["dir"].rstrip("/")), ""]
     if card.get("errors"):
         L += ["## ERRORS: this scorecard is not valid", ""] + ["- " + m for m in card["errors"]] + [""]
@@ -924,7 +928,9 @@ def card_markdown(card: dict) -> str:
          "| Off-target litres (on the ground: %s) | %s |" % (_f(s["ground_l"], 4), _f(s["off_target_l"], 4)),
          "| Episodes with no matched truth target | %d of %d |" % (s["unmatched_events"], s["n_events"]),
          "| Skipped trees (navigator) | %s |" % _f(s.get("nav_trees_skipped")),
-         "| Trees remaining (navigator) | %s |" % _f(s.get("nav_trees_remaining")), "",
+         "| Trees remaining (navigator) | %s |" % _f(s.get("nav_trees_remaining")),
+         "| Implausible height: skipped / retried / recovered / dropped | %s |" % " / ".join(
+             str(imp.get(k, 0)) for k in ("skipped", "retried", "recovered", "dropped")), "",
          "## Safety (must pass)", "", "| Check | Value | Result |", "|---|---|---|",
          "| Mission completed (DONE, no abort or hold timeout, never ERROR) | %s, aborts %s, hold timeouts %s%s | %s |" % (
              card.get("end_state"), card.get("aborts", 0), card.get("hold_timeouts", 0),

@@ -489,6 +489,22 @@ def test_end_to_end_synthetic_run(tmp_path, capsys):
     assert "Mission comparison" in printed and "corridor (2 runs)" in printed
 
 
+def test_navigator_implausible_counters_in_scorecard(tmp_path):
+    root = _build_run(str(tmp_path / "run_1"), counters={"target_height_implausible": 2, "implausible_retried": 1,
+                                                          "implausible_recovered": 1, "implausible_dropped": 1})
+    out = str(tmp_path / "card.md")
+    assert ms.main(["--run", root, "--out", out]) == 0
+    card = json.load(open(os.path.join(root, "mission_score.json")))
+    assert card["navigator"]["implausible"] == {"skipped": 2, "retried": 1, "recovered": 1, "dropped": 1}
+    md = open(out).read()
+    assert "| Implausible height: skipped / retried / recovered / dropped | 2 / 1 / 1 / 1 |" in md
+    # a run without those counters reads zeros
+    root2 = _build_run(str(tmp_path / "run_2"))
+    assert ms.main(["--run", root2]) == 0
+    card2 = json.load(open(os.path.join(root2, "mission_score.json")))
+    assert card2["navigator"]["implausible"] == {"skipped": 0, "retried": 0, "recovered": 0, "dropped": 0}
+
+
 # ----------------------------------------------------------------------------- failure modes (end to end)
 
 def _run_cli(root, capsys):
