@@ -28,14 +28,17 @@
 // the latched centroid but the centroid of the cells the instance's OBSERVATION-WEIGHTED evidence currently calls
 // its canopy (each frame counts min(point weight, 1) x frame quality, so a far, oblique view counts ~0.15 of a
 // near-nadir one): once near views exist the far view's ghost band drops out and the unlatched far half of the
-// crown comes in. The outline (latched hull) and everything that matches or merges instances are unchanged. Rule 3: published only once enough latched cells carry a finite height. Identity:
-// IDs are monotonic; a merge keeps the better-established instance's ID (rule 4); sprayed instances never
-// change (rule 5). Every drop is counted by reason (rule 7).
+// crown comes in. The outline (latched hull) and everything that matches or merges instances are unchanged.
+//
+// Rule 3: published only once enough latched cells carry a finite height. Identity: IDs are monotonic; a merge
+// keeps the better-established instance's ID (rule 4); sprayed instances never change (rule 5). Every drop is
+// counted by reason (rule 7).
 #pragma once
 
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -113,7 +116,8 @@ struct Config {
                                     ///< support (true) or of the latched cells (false: the M4 centre)
   double centre_support_ratio{0.5};  ///< a cell supports the centre while its observation-weighted canopy evidence is
                                      ///< >= this share of all its weighted evidence and >= latch_frames weighted frames;
-                                     ///< fewer than min_height_cells such cells: the latched centroid (counted)
+                                     ///< fewer than min_height_cells such cells, or a hull of < 3 points: the
+                                     ///< latched centroid (counted)
   double centre_max_outside{1.0};   ///< m, the supported centroid is held within this distance of the latched outline
                                     ///< (counted): the navigator accepts a clearance-guard release over the target only
                                     ///< within drone_radius + lateral_margin (1.3 m) of its outline
@@ -178,6 +182,10 @@ class CandObj : public Mapper {
   /// (0..1, from the rotation rate) weights this frame's evidence.
   void integrate(double t, MissionPhase phase, TreeId hop_target, const DronePose& pose, const FrameView& view,
                  std::vector<Crown>& crowns, double quality = 1.0);
+
+  /// Exposed for tests: where instance `id`'s published centre is heading (the supported centroid, else the latched
+  /// centroid), tentative instances included; nullopt for an unknown id.
+  std::optional<Point2> centreTargetOf(TreeId id) const;
 
   State state() const { return state_; }
   const Config& config() const { return cfg_; }

@@ -765,9 +765,15 @@ void CandObj::refreshCentreSupport(Instance& in) {
   // oblique first view latched (displaced toward that track) and misses the far half of the crown that this view
   // judged ground. The centroid of the cells whose observation-weighted evidence currently says "this tree's
   // canopy" follows the better (nearer, more nadir) views instead. Fails open to the latched centroid (counted)
-  // while fewer than min_height_cells cells qualify.
+  // while fewer than min_height_cells cells qualify, and while the hull has fewer than 3 points (e.g. 3 collinear
+  // latched cells with hull_cell_corners = false): there is no outline to hold the target within, and the latched
+  // centroid lies on the latched cells.
   in.has_centre_support = false;
   if (!cfg_.centre_from_support) return;
+  if (in.hull.size() < 3) {
+    if (in.confirmed) count("centre_support_fallback_no_outline");
+    return;
+  }
   const float wmin = static_cast<float>(cfg_.latch_frames);
   const float ratio = static_cast<float>(cfg_.centre_support_ratio);
   double sx = 0.0, sy = 0.0;
@@ -790,7 +796,7 @@ void CandObj::refreshCentreSupport(Instance& in) {
   // Centre and outline are separate quantities, but the navigator ignores a clearance-guard release over its target
   // more than drone_radius + lateral_margin (1.3 m) outside the target's outline: the target is held within
   // centre_max_outside of the (convex, grow-only) outline, so the outline still describes where the drone doses.
-  if (in.hull.size() >= 3 && !pointInPolygon(in.hull, c)) {
+  if (!pointInPolygon(in.hull, c)) {
     const Point2 q = nearestOnBoundary(in.hull, c);
     const double d = dist(c, q);
     if (d > cfg_.centre_max_outside) {
@@ -1064,6 +1070,13 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
       if (in.n_good_height_cells < cfg_.min_height_cells) { count("instances_waiting_untruncated_height"); stepPublished(in, t); continue; }
       in.confirmed = true;
       in.height_pub = in.height_target;  // first publication: no previous value to rate-limit from
+      // The support target was held against an outline the current one contains (the hull only grows), so it is
+      // within centre_max_outside of it. Checked anyway: the first publication is not rate-limited.
+      if (in.has_centre_support && !pointInPolygon(in.hull, in.centre_support) &&
+          dist(in.centre_support, nearestOnBoundary(in.hull, in.centre_support)) > cfg_.centre_max_outside + 1e-6) {
+        in.has_centre_support = false;
+        count("centre_support_fallback_unclamped_at_confirm");
+      }
       in.centre_pub = centreTarget(in);
       in.last_step_t = t;
       count("instances_confirmed");
@@ -1086,6 +1099,13 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
 }
 
 // ------------------------------------------------------------------------------------------ navigation API
+
+std::optional<Point2> CandObj::centreTargetOf(TreeId id) const {
+  for (const auto& in : instances_) {
+    if (in.id == id) return centreTarget(in);
+  }
+  return std::nullopt;
+}
 
 std::vector<TreeEntry> CandObj::publishedTrees() const {
   std::vector<TreeEntry> out;

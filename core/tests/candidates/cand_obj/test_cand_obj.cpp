@@ -6,6 +6,7 @@
 #include <cmath>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -826,6 +827,57 @@ TEST(CandObj, CentreFromSupportOffIsTheLatchedCentroid) {
   EXPECT_NEAR(trees[0].centre.y, -1.4521739130434776, 1e-9);
   EXPECT_EQ(cnt(m, "centre_support_fallback_latched"), 0u);
   EXPECT_EQ(cnt(m, "centre_clamped_to_outline"), 0u);
+}
+
+// Final review (Minor 4): with fewer than 3 hull points (here 3 collinear latched cells, hull_cell_corners = false,
+// so the hull is a 2-point segment) there is no outline to hold the supported centroid within centre_max_outside,
+// so the centre target falls back to the latched centroid. Here cells 3.2 m off the line carry weighted support
+// (weighted evidence: 5 near views against 3 low-weight ground views) but are not latched (npos 5 of 8 judged
+// frames < latch_ratio 0.75): the supported centroid lies 1.6 m from the segment. The instance is then grown to a
+// full crown and published; at no published frame is the centre more than centre_max_outside outside the outline.
+TEST(CandObj, CentreFallsBackToLatchedCentroidWithoutAnOutline) {
+  CandObj m;
+  ASSERT_FALSE(m.config().hull_cell_corners);
+  double t = 0;
+  Crown line;
+  for (int i = 0; i < 3; ++i) line.cells.emplace_back(i, 0);   // centres (0.2 .. 1.0, 0.2): collinear
+  line.peak = {0.6, 0.2};
+  line.peak_z = 4.0;
+  line.boxed = true;
+  std::vector<std::pair<int, int>> off;
+  for (int i = 0; i < 3; ++i) off.emplace_back(i, 8);          // centres (0.2 .. 1.0, 3.4)
+  auto frame = [&](bool off_positive) {
+    Crown c = line;
+    if (off_positive) c.cells.insert(c.cells.end(), off.begin(), off.end());
+    std::vector<Crown> crowns{c};
+    FrameView v = viewOf(crowns);
+    v.hwt.assign(v.state.size(), 1.0f);
+    if (!off_positive) {   // the off-line cells judged ground, from a poor (low-weight) view
+      for (const auto& ij : off) v.hwt[static_cast<std::size_t>((ij.second - v.j0) * v.w + (ij.first - v.i0))] = 0.01f;
+    }
+    m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, poseAt(0.6, 0.2), v, crowns);
+  };
+  for (int k = 0; k < 3; ++k) frame(false);
+  for (int k = 0; k < 5; ++k) frame(true);
+  ASSERT_EQ(cnt(m, "instances_created"), 1u) << dump(m);
+  ASSERT_EQ(cnt(m, "cells_latched"), 3u) << dump(m);   // only the line
+  EXPECT_TRUE(m.publishedTrees().empty());
+  const std::optional<Point2> target = m.centreTargetOf(0);
+  ASSERT_TRUE(target.has_value());
+  EXPECT_NEAR(target->x, 0.6, 1e-9);   // the latched centroid, not the supported (0.6, 1.8)
+  EXPECT_NEAR(target->y, 0.2, 1e-9);
+
+  // grown to a full crown and published: the centre is within centre_max_outside of the outline at every frame
+  int published = 0;
+  for (int k = 0; k < 40; ++k) {   // (its cells were judged ground 8 times: latch_ratio needs 24 positive frames)
+    step(m, t, MissionPhase::kScan, kNoTree, {disc(0.6, 1.2, 1.6)}, poseAt(0.6, 0.2));
+    const auto trees = m.publishedTrees();
+    if (trees.empty()) continue;
+    ASSERT_EQ(trees.size(), 1u) << dump(m);
+    ++published;
+    EXPECT_LE(outside(trees[0].outline, trees[0].centre), m.config().centre_max_outside + 1e-6) << "frame " << k;
+  }
+  EXPECT_GT(published, 0) << dump(m);
 }
 
 // ------------------------------------------------------------------------------- final review (S4, S6, S8, S12)
