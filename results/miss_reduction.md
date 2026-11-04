@@ -306,3 +306,150 @@ moves, a real surface does not. Alternatively, it needs a ruling on how A1 treat
 behind environment flags. Apply it with `git apply results/miss_reduction/height_experiments.patch` on `294254f`. hgsupcap is
 `TM_EXP_HGATE=1 TM_EXP_CH4=1 TM_EXP_SUP=1 TM_EXP_HCAP=1`; with no flags set the build equals the baseline byte for byte.
 Re-applied and re-run, the four hgsupcap `metrics.json` are byte-identical to the ones the table was made from.
+
+## Centre
+
+Task 6 (spec section 4.3). Diagnosed on the 5x5 replay datasets, fixed in `cand_obj` (D66), measured on all four.
+
+### Centre / diagnosis
+
+Method: temporary instrumentation in a scratch copy of `cand_obj` (not committed: no new drop reason). For every
+instance it logged each latch (cell, drone pose, the cell's mean pixel and height above ground in that frame), each
+crown credited (cells, peak, drone pose), and at the dose the instance's whole evidence grid; for a few far entries
+also every per-cell, per-frame judgement (canopy of this tree / ground / another tree's canopy). With the logging the
+four `metrics.json` are byte-identical to the baseline. Scripts: `/data/work/replay/t6/scripts/` (`latched.py`,
+`evid.py`, `farlatch.py`, `grid.py`, `passmap.py`, `agg.py`).
+
+Camera geometry that matters here: 640 x 400 px, fy 454, rows of the image across track, so the half field of view
+across track is 24.8 deg and a crown 12.5 m below the camera is in view to about 5.8 m either side of the track. A tree
+first published 8 m across track is first seen at the image edge, at about 15 m range along an oblique ray. Baseline
+0.16 m: one pixel of disparity is about 3 m of range there.
+
+**Which latched cells pull the centre, and from which views.** The published centre is the mean of the latched cells,
+and latching is permanent. For the far entries (first published >= 5 m across track) of the 5x5 datasets, almost every
+latched cell latched while the drone was on the first, far track; those cells sit outside the true crown, displaced
+toward that track:
+
+| Latched cells of far entries, by the drone's across-track distance when they latched | 5x5 corridor | 5x5 field_first | rows corridor | rows field_first |
+|---|---|---|---|---|
+| drone 0-3 / 3-5 m across: share of the latched cells | 0.01 / 0.01 | 0.01 / 0.00 | 0.12 / 0.05 | 0.12 / 0.06 |
+| ... their mean offset from the truth centre toward the drone (m) | +0.33 / +0.02 | +0.01 / -0.48 | -1.25 / -1.06 | -0.96 / -0.92 |
+| drone 5-7 m across: share / outside the truth crown / offset toward the drone | 0.48 / 0.23 / +0.22 | 0.69 / 0.55 / +1.17 | 0.57 / 0.30 / +0.15 | 0.49 / 0.28 / +0.05 |
+| drone >= 7 m across: share / outside the truth crown / offset toward the drone | 0.50 / 0.58 / +1.47 | 0.29 / 0.59 / +1.12 | 0.26 / 0.32 / +1.04 | 0.32 / 0.37 / +0.87 |
+| latched centroid error at the dose, far / near entries (m) | 1.01 / 0.22 | 1.06 / 0.34 | 0.35 / 0.37 | 0.45 / 0.24 |
+
+Two entries in detail (5x5 corridor):
+
+- **Entry 59 (truth 12, first published 8.4 m across).** 21 latched cells, all latched from the track at y = 6.87; 14 lie
+  outside the crown, south of it. At the latch their mean pixel row was v = 79 (the image edge) and their height above
+  ground 3.9 m, above the true top of 2.77 m: points moved back along the oblique ray toward the camera (a range
+  under-estimate) land both higher and closer to the drone. The near views later judge these cells ground (final
+  evidence 19.6 positive against 30.8 negative frames on average), but they stay latched. Of the 44 cells of the true
+  crown, 37 never latch: 26.7 positive against 18.5 negative frames is 0.59 < `latch_ratio` 0.75. The negative frames
+  come from the far view (it sees the true crown's north half as ground, the crown being drawn 1.5 m south) and from the
+  near pass itself: in that pass (3.7 m across) truth tree 17 is 7.9 m across, and its own displaced crown, credited to
+  its instance (85), lands on tree 12's north half ("another tree's canopy"). Centre at the dose 1.53 m off.
+- **Entry 8 (truth 7, first published 9.0 m across).** 54 latched cells, 52 latched from the first track; 43 outside the
+  crown (mean pixel row 118, height above ground 3.0 m against a 2.65 m top), later judged ground in 42.8 frames against
+  16.5. 31 of the 42 truth-crown cells never latch (21.3 positive / 25.1 negative). Centre 2.0 m off.
+
+So the designer's guess holds, with one addition: the far view does not only latch a ghost band toward its track, its
+(equal-weight) ground judgements on the true far half keep that half from ever latching once near views see it.
+Both come from treating a far, oblique frame at the image edge as one full frame of evidence. The cause in the stereo
+(range error at the image edge on foliage) is outside this work; the same edge views are what Task 5 found behind the
+height bursts.
+
+**Why rows_8x12 shows it less.**
+- Its far entries are less far: 27 of 45 (corridor) and 27 of 51 (field_first) far entries with a dose were first
+  published 5-7 m across, against 5 of 13 and 5 of 10 on 5x5, and on rows the 5-7 m band is only mildly displaced
+  (+0.15 / +0.05 m).
+- Near views still latch cells on rows far entries: 17-18 % of their latched cells latch from 0-5 m, and those lie on
+  the far side of the crown (-0.9 to -1.25 m), pulling the centroid back. On 5x5 near views latch 1-2 %. The rows
+  crowns are taller (true top 4.0 m against 2.7 m) and larger (radius 1.8 against 1.6 m), so more of a crown is in view
+  and better resolved from the near track. This last point is consistent with the data, not separately proven.
+- Rows outside cells are spread round the crown (28 % outside for far and near entries alike), not on one side.
+
+### Centre / fix (D66)
+
+The published centre is now the centroid of the cells whose **observation-weighted** evidence currently says "this
+tree's canopy", instead of the centroid of the latched cells.
+
+- Each instance keeps a second pair of evidence counts per cell, `wpos` / `wneg`, from the same per-frame judgements as
+  `npos` / `nneg`. Each frame counts min(the cell's mean point weight, 1) x frame quality. The point weight is the
+  existing `(z_ref / Z)^4 / (1 + lateral_k rho^2)`, so a far, oblique view at the image edge counts about 0.15 and a
+  near-nadir view about 1.
+- A cell supports the centre while `wpos >= latch_frames` and `wpos >= centre_support_ratio (0.5) x (wpos + wneg)`.
+  Unlatched cells count (the far half of the crown), latched cells that the better views call ground drop out.
+- Fewer than `min_height_cells` supported cells: the latched centroid, as before (fails open, counted
+  `centre_support_fallback_latched`).
+- The published centre still moves toward its target at `max_centre_rate`; the rate limiter is unchanged.
+- **Unchanged:** latching, the outline (convex hull of the latched cells, grow-only, rule 2), heights, the internal centre
+  used for matching, merges, the spill guard and the sprayed checks. Two new keys, `centre_from_support` (true) and
+  `centre_support_ratio` (0.5), in both profiles.
+
+Checked on the four replays: every map snapshot is identical to the baseline except the centre (outline, height, id and
+`sprayed` of all 40 532 / 43 554 / 287 942 / 363 793 entry-snapshots), the targets files are identical, the counters
+differ only in `centre_steps_clamped` and the new `centre_support_fallback_latched`.
+
+### Centre / result
+
+Replay, `replay_metrics --replay --targets <own>` against the committed baseline (`results/miss_reduction/centre_fix/<ds>/metrics.json`):
+
+| Metric | 5x5 corridor | 5x5 field_first | rows corridor | rows field_first |
+|---|---|---|---|---|
+| A3 far: mean `dc` at dose (m), before -> after | 1.008 -> **0.099** | 1.061 -> **0.114** | 0.347 -> 0.116 | 0.445 -> 0.128 |
+| A3 far: share `dc` > 0.8 m | 0.615 -> **0.000** | 0.700 -> **0.000** | 0.067 -> 0.000 | 0.137 -> 0.000 |
+| A3 near: mean `dc` at dose (m) | 0.220 -> 0.106 | 0.337 -> 0.089 | 0.365 -> 0.140 | 0.237 -> 0.102 |
+| A3 near: share `dc` > 0.8 m | 0.000 -> 0.000 | 0.067 -> 0.000 | 0.098 -> 0.000 | 0.028 -> 0.000 |
+| A1 max `dh` lock / dose (m), n over 1.5 m | 3.63 / 3.63, 6 (unchanged) | 6.54 / 0.88, 1 (unchanged) | 4.96 / 4.96, 2 (unchanged) | 1.81 / 1.81, 2 (unchanged) |
+| A2 share below -0.3 m / worst `dh` | 0.000 / -0.189 (unchanged) | 0.038 / -0.344 (unchanged) | 0.349 / -0.596 (unchanged) | 0.460 / -0.637 (unchanged) |
+
+A3 holds on both 5x5 datasets (target: far <= 0.5 m and <= 0.15 beyond 0.8 m; near not worse). A1 and A2 are
+identical to the baseline entry by entry (every lock and dose `dh`): the fix does not touch heights. Every 5x5 far
+entry is within 0.22 m at its dose; before, 8 of 13 (corridor) and 7 of 10 (field_first) were beyond the 0.8 m footprint.
+
+**Where the correction happens.** The navigator plans the glide to the target's centre when it starts the leg and
+replans only when a height changes (`needsReplan`) or the clearance guard releases; it does not follow a centre that
+moves during the leg. The centre at the start of the HOPPING leg that ends in each dose is therefore the better guess of
+where the closed-loop drone will dose:
+
+| `dc` at the start of the dosing leg, far / near (mean, share > 0.8 m) | 5x5 corridor | 5x5 field_first | rows corridor | rows field_first |
+|---|---|---|---|---|
+| baseline | 1.018, 0.615 / 0.221, 0.000 | 1.066, 0.700 / 0.337, 0.067 | 0.367, 0.067 / 0.377, 0.098 | 0.446, 0.137 / 0.237, 0.028 |
+| fix | 0.452, 0.154 / 0.151, 0.000 | 0.172, 0.000 / 0.121, 0.000 | 0.146, 0.000 / 0.167, 0.024 | 0.154, 0.000 / 0.117, 0.000 |
+
+On 5x5 corridor two far entries are still beyond 0.8 m at the start of their leg: entry 59 (1.53 m) and entry 8
+(1.27 m). Both are corridor pairs where the tree's own pass is also the far pass of the next row's tree, whose ghost
+covers the crown's far half (see entry 59 above); their centres converge only from the views on the way to the dose
+(entry 59: 1.53 m at 211.8 s, 0.12 m at the dose, 214.3 s). In the closed loop the drone would dose where it planned
+unless a height replan picks up the new centre. That is a navigator question (replan on a centre move), outside this task.
+
+**Centre and outline are now separate.** The outline still holds the far view's latched ghost band (grow-only), so a
+corrected centre can lie outside it: 5 of 27 doses on 5x5 corridor (up to 0.82 m outside) and 1 of 86 on rows corridor
+(0.99 m); none on the field_first datasets. All are within the navigator's 1.3 m reach (`drone_radius + lateral_margin`)
+that `raiseSprayFloor` uses to accept a guard release over the target.
+
+**Alternatives measured** (scratch build, env flags; outputs `/data/work/replay/t6/<ds>/<variant>/`):
+
+| Variant | 5x5 corridor far | 5x5 field_first far | Why not |
+|---|---|---|---|
+| support over latched cells only (centre stays inside the outline) | 0.470 / 0.077 | 0.250 / 0.000 | passes with no margin on corridor; the far half of the crown never latches, so it cannot come in |
+| as the fix, but also as the internal centre (matching, merges) | 0.093 / 0.000 | 0.118 / 0.000 | changes matching: A1 count 6 -> 8 on 5x5 corridor, near entries change |
+| weighted evidence as a second latch path | 0.829 / 0.462 | 1.028 / 0.636 | new latched cells feed the height: 5x5 field_first A1 dose 0.88 -> 5.72 m |
+| the fix with unweighted (frame-quality) evidence | 0.220 / 0.000 | 0.167 / 0.000 | works, but the weighting halves the far error |
+
+Sensitivity of the fix (far mean / share): `centre_support_ratio` 0.4 / 0.5 / 0.6 / 0.75 gives 0.191 / 0.099 / 0.116 /
+0.382 m on 5x5 corridor (share 0.077 / 0 / 0 / 0.154), rows unaffected within 0.05 m; a minimum of 3 or 10 weighted
+frames instead of `latch_frames` (5) changes the far means by less than 0.01 m (3 changes which entries the
+navigation emulator resolves on 5x5 corridor).
+
+**Determinism.** 5x5 corridor and rows field_first replayed twice: `targets.json`, `counters.json`, `metrics.json`
+byte-identical, `map.jsonl` identical once `stage_ms` is removed.
+
+**Real flight (no truth; the section 6 check is Task 7).** The real farm log replayed with both profiles, old and new
+binary. Real profile: 63 final trees, outlines and heights identical, every centre inside its own outline; final
+centres move by a median 0.48 m (p90 1.18, max 3.17); distance from the centre to the stereo crown peak inside its
+outline (`results/real_flight_crowns.json`, a proxy: a crown's top is not its centre) mean 1.76 -> 1.63 m, p90 3.02 ->
+2.66 m, 22 trees closer by more than 0.3 m and 11 farther. Sim profile on the same log: 101 trees, mean 2.40 -> 2.35 m,
+p90 4.25 -> 4.43 m, 23 closer and 15 farther, 100 of 101 centres inside their outline. Largest per-snapshot centre step
+unchanged (0.26 / 0.30 m, the rate limit).
