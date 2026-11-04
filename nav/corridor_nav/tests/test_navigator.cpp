@@ -957,27 +957,155 @@ TEST(Navigator, ImplausibleTreeRetriedInCleanupOnceHeightIsPlausible) {
 }
 
 TEST(Navigator, ImplausibleStillHighInCleanupIsDropped) {
+  for (const Strategy strategy : {Strategy::kCorridor, Strategy::kFieldFirst}) {
+    Config cfg;
+    cfg.strategy = strategy;
+    const std::size_t k = 1;
+    std::vector<TruthTree> trees = grid({6, 12, 18});
+    trees[k].height_bias = 9.0;   // stays 9 m too high for the whole run
+    FakeWorld w = world(cfg, trees);
+    Navigator nav(cfg, field30x24(), fov90());
+    const std::string label = strategy == Strategy::kCorridor ? "corridor" : "field_first";
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim)) << label;
+    EXPECT_EQ(nav.state(), NavState::kDone) << label;
+    EXPECT_EQ(w.trees[k].spray_calls, 0) << label;
+    EXPECT_EQ(countRequests(w, FakeWorld::idOf(k)), 0u) << label;
+    for (const Sample& s : w.samples) EXPECT_NE(s.target, FakeWorld::idOf(k)) << label;
+    EXPECT_EQ(counter(nav, "target_height_implausible"), 1u) << label;
+    EXPECT_EQ(counter(nav, "implausible_retried"), 0u) << label;
+    EXPECT_EQ(counter(nav, "implausible_recovered"), 0u) << label;
+    EXPECT_EQ(counter(nav, "implausible_dropped"), 1u) << label;
+    for (std::size_t j = 0; j < w.trees.size(); ++j) {
+      if (j != k) {
+        EXPECT_EQ(w.trees[j].spray_calls, 1) << label << " tree " << j + 1;
+      }
+    }
+    EXPECT_EQ(nav.status().sprayed, 11u) << label;
+    EXPECT_EQ(nav.status().remaining, 0u) << label;
+  }
+}
+
+// Final review (Important 1): the implausible population holds duplicates. Entry 55 of the 5x5 field_first Isaac run
+// was a second entry of truth 12, which was dosed under entry 119; 55's centre lay 0.75 m outside 119's outline. Here
+// a twin of tree k (centre 0.5 m outside k's outline, 2 m from its centre) is published 9 m too high, parked, and
+// turns plausible before cleanup, after k itself was sprayed: the retry is dropped (implausible_dropped), the twin is
+// never targeted or dosed, and k is dosed once. Both strategies.
+TEST(Navigator, ImplausibleDuplicateOfASprayedTreeIsNotRetried) {
+  for (const Strategy strategy : {Strategy::kCorridor, Strategy::kFieldFirst}) {
+    Config cfg;
+    cfg.strategy = strategy;
+    const std::size_t k = 1;   // (12, 6), r 1.5
+    std::vector<TruthTree> trees = grid({6, 12, 18});
+    trees.push_back(tree(12.0, 8.0, 1.0, 4.0));
+    trees.back().height_bias = 9.0;
+    const std::size_t twin = trees.size() - 1;
+    const TreeId twin_id = FakeWorld::idOf(twin);
+    FakeWorld w = world(cfg, trees);
+    Navigator nav(cfg, field30x24(), fov90());
+    bool healed = false;
+    w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+      if (!healed && counter(n, "target_height_implausible") > 0) {   // parked: plausible from now on
+        fw.trees[twin].height_bias = 0.0;
+        in.map = MapSnapshot{in.t, fw.map()};
+        healed = true;
+      }
+    };
+    const std::string label = strategy == Strategy::kCorridor ? "corridor" : "field_first";
+    ASSERT_TRUE(w.run(nav, kDt, kMaxSim)) << label;
+    ASSERT_TRUE(healed) << label;
+    for (const Sample& s : w.samples) EXPECT_NE(s.target, twin_id) << label << " t=" << s.t;
+    EXPECT_EQ(w.trees[twin].spray_calls, 0) << label;
+    EXPECT_EQ(countRequests(w, twin_id), 0u) << label;
+    EXPECT_EQ(w.trees[k].spray_calls, 1) << label;
+    EXPECT_EQ(counter(nav, "target_height_implausible"), 1u) << label;
+    EXPECT_EQ(counter(nav, "implausible_retried"), 0u) << label;
+    EXPECT_EQ(counter(nav, "implausible_recovered"), 0u) << label;
+    EXPECT_EQ(counter(nav, "implausible_dropped"), 1u) << label;
+    for (std::size_t j = 0; j < twin; ++j) EXPECT_EQ(w.trees[j].spray_calls, 1) << label << " tree " << j + 1;
+    EXPECT_EQ(nav.status().sprayed, 12u) << label;
+    EXPECT_EQ(nav.status().remaining, 0u) << label;
+  }
+}
+
+// As above, but the sprayed tree appears only after the cleanup list was built (here: tree O, hidden until cleanup
+// starts, then published as sprayed), so the retry passes the build and is dropped when advance() picks it.
+TEST(Navigator, ImplausibleRetryNextToATreeSprayedDuringCleanupIsDroppedAtPick) {
+  const Config cfg;
+  std::vector<TruthTree> trees = grid({6, 12, 18});
+  trees.push_back(tree(27.5, 2.0, 1.2, 4.1));
+  trees.back().publish_in_corridor = 1;   // late tree L: the first cleanup target (far from home)
+  const TreeId late = FakeWorld::idOf(trees.size() - 1);
+  trees.push_back(tree(2.0, 1.5, 1.0, 4.0));   // O
+  trees.back().hidden = true;
+  const std::size_t o = trees.size() - 1;
+  trees.push_back(tree(2.0, 3.0, 0.8, 4.0));   // its twin T: centre 0.5 m outside O's outline, published 9 m too high
+  trees.back().height_bias = 9.0;
+  const std::size_t twin = trees.size() - 1;
+  const TreeId twin_id = FakeWorld::idOf(twin);
+  FakeWorld w = world(cfg, trees);
+  std::vector<std::string> logs;
+  Navigator nav(cfg, field30x24(), fov90(), [&](const std::string& m) { logs.push_back(m); });
+  bool healed = false, shown = false;
+  w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+    if (!healed && counter(n, "target_height_implausible") > 0) {   // parked: plausible from now on
+      fw.trees[twin].height_bias = 0.0;
+      healed = true;
+    }
+    if (!shown && n.status().cleanup) {   // the cleanup list is built: O shows up, already sprayed
+      ASSERT_EQ(n.status().target, late);
+      fw.trees[o].hidden = false;
+      fw.trees[o].published = true;
+      fw.trees[o].sprayed = true;
+      shown = true;
+    }
+    in.map = MapSnapshot{in.t, fw.map()};
+  };
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  ASSERT_TRUE(healed);
+  ASSERT_TRUE(shown);
+  for (const Sample& s : w.samples) EXPECT_NE(s.target, twin_id) << "t=" << s.t;
+  EXPECT_EQ(w.trees[twin].spray_calls, 0);
+  EXPECT_EQ(countRequests(w, twin_id), 0u);
+  EXPECT_EQ(w.trees[o].spray_calls, 0);
+  EXPECT_EQ(counter(nav, "target_height_implausible"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_retried"), 0u);
+  EXPECT_EQ(counter(nav, "implausible_dropped"), 1u);
+  const std::string at_pick = "tree " + std::to_string(twin_id) + ": implausible retry next to a sprayed tree, dropped";
+  EXPECT_EQ(std::count(logs.begin(), logs.end(), at_pick), 1);
+  EXPECT_EQ(w.trees[twin - 2].spray_calls, 1);   // L
+  for (std::size_t j = 0; j + 3 < w.trees.size(); ++j) EXPECT_EQ(w.trees[j].spray_calls, 1) << "tree " << j + 1;
+  EXPECT_EQ(nav.status().remaining, 0u);
+}
+
+// Final review (Minor 3): a parked tree dropped when cleanup is built (still too high) leaves the cleanup list. Here it
+// turns plausible while cleanup doses a late tree; the next cleanup build must not pick it as a plain cleanup target.
+TEST(Navigator, DroppedImplausibleRetryIsNotPickedByALaterCleanupBuild) {
   const Config cfg;
   const std::size_t k = 1;
   std::vector<TruthTree> trees = grid({6, 12, 18});
-  trees[k].height_bias = 9.0;   // stays 9 m too high for the whole run
+  trees[k].height_bias = 9.0;
+  trees.push_back(tree(27.5, 2.0, 1.2, 4.1));
+  trees.back().publish_in_corridor = 1;   // corridor 0's tree, published while corridor 1 scans: on the cleanup list
+  const TreeId late = FakeWorld::idOf(trees.size() - 1);
   FakeWorld w = world(cfg, trees);
   Navigator nav(cfg, field30x24(), fov90());
+  bool healed = false;
+  w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+    if (!healed && n.status().cleanup && n.status().target == late) {   // the retry was dropped when cleanup began
+      fw.trees[k].height_bias = 0.0;
+      in.map = MapSnapshot{in.t, fw.map()};
+      healed = true;
+    }
+  };
   ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
-  EXPECT_EQ(nav.state(), NavState::kDone);
+  ASSERT_TRUE(healed);
+  EXPECT_EQ(counter(nav, "late_trees"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_dropped"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_retried"), 0u);
   EXPECT_EQ(w.trees[k].spray_calls, 0);
   EXPECT_EQ(countRequests(w, FakeWorld::idOf(k)), 0u);
-  for (const Sample& s : w.samples) EXPECT_NE(s.target, FakeWorld::idOf(k));
-  EXPECT_EQ(counter(nav, "target_height_implausible"), 1u);
-  EXPECT_EQ(counter(nav, "implausible_retried"), 0u);
-  EXPECT_EQ(counter(nav, "implausible_recovered"), 0u);
-  EXPECT_EQ(counter(nav, "implausible_dropped"), 1u);
-  for (std::size_t j = 0; j < w.trees.size(); ++j) {
-    if (j != k) {
-      EXPECT_EQ(w.trees[j].spray_calls, 1) << "tree " << j + 1;
-    }
-  }
-  EXPECT_EQ(nav.status().sprayed, 11u);
+  for (const Sample& s : w.samples) EXPECT_NE(s.target, FakeWorld::idOf(k)) << "t=" << s.t;
+  EXPECT_EQ(w.trees.back().spray_calls, 1);
   EXPECT_EQ(nav.status().remaining, 0u);
 }
 

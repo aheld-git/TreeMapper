@@ -463,21 +463,28 @@ void Navigator::advance(double t) {
       // a retry of an implausible-height skip (spec 4.4): it ends as retried (picked) or dropped (it cannot be)
       const bool is_retry = implausible_retry_.erase(tg.id) > 0 || implausible_taken_.count(tg.id) > 0;
       const bool first_retry = is_retry && implausible_taken_.count(tg.id) == 0;
-      const auto no_retry = [&] {
+      // a dropped retry is counted once and leaves the cleanup list for good (dropRetry)
+      const auto no_retry = [&](TreeId now) {
         if (first_retry) count(counters_, "implausible_dropped");
+        if (is_retry) dropRetry(tg.id, now);
       };
       if (!tree(id)) {   // merged or split away since it was planned
         id = reresolve(tg.centre);
         count(counters_, id == kNoTree ? "ids_dropped_vanished" : "ids_reresolved");
         if (log_) log_("tree " + std::to_string(tg.id) + " vanished -> " + std::to_string(id));
         if (id == kNoTree) {
-          no_retry();
+          no_retry(id);
           continue;
         }
       }
       const TreeEntry* tr = tree(id);
       if (!tr || tr->sprayed || attempted_.count(id)) {   // never spray twice
-        no_retry();
+        no_retry(id);
+        continue;
+      }
+      if (is_retry && nearSprayed(tr->centre)) {   // a sprayed tree's duplicate: dosing it would dose that tree twice
+        if (log_) log_("tree " + std::to_string(id) + ": implausible retry next to a sprayed tree, dropped");
+        no_retry(id);
         continue;
       }
       if (!plausible(*tr)) {   // a phantom: never visited, never marked
@@ -489,7 +496,7 @@ void Navigator::advance(double t) {
             assignment_.cleanup.push_back(id);
           }
         } else {
-          no_retry();
+          no_retry(id);
         }
         continue;
       }
@@ -602,13 +609,37 @@ void Navigator::collectImplausibleRetries(std::vector<TreeId>& ids) {
     if (!tr || tr->sprayed || attempted_.count(id) || !support::heightPlausible(*tr, home_.z, cfg_)) {
       count(counters_, "implausible_dropped");   // still too high at cleanup, or gone: no retry
       if (log_) log_("tree " + std::to_string(parked.first) + ": still implausible or gone in cleanup, dropped");
+      dropRetry(parked.first, id);
       continue;
     }
-    // keyed by the parked id; picked via the entry that stands for it now
+    if (nearSprayed(tr->centre)) {   // a duplicate of a tree already dosed under another entry: no retry
+      count(counters_, "implausible_dropped");
+      if (log_) log_("tree " + std::to_string(parked.first) + ": next to a sprayed tree in cleanup, dropped");
+      dropRetry(parked.first, id);
+      continue;
+    }
+    // keyed by the id that stands for the parked tree now (the parked id, or the entry re-resolved from its centre);
+    // advance() picks the retry under that id
     implausible_retry_.insert(id);
     if (std::find(ids.begin(), ids.end(), id) == ids.end()) ids.push_back(id);
   }
   implausible_parked_.clear();
+}
+
+bool Navigator::nearSprayed(const Point2& p) const {
+  for (const TreeEntry& t : map_) {
+    if (t.sprayed && distanceToPolygon(t.outline, p) <= cfg_.reresolve_radius) return true;
+  }
+  return false;
+}
+
+void Navigator::dropRetry(TreeId parked, TreeId id) {
+  for (const TreeId x : {parked, id}) {
+    if (x == kNoTree) continue;
+    assignment_.cleanup.erase(std::remove(assignment_.cleanup.begin(), assignment_.cleanup.end(), x),
+                              assignment_.cleanup.end());
+    attempted_.insert(x);
+  }
 }
 
 std::set<TreeId> Navigator::treesInCorridor(int k) const {
