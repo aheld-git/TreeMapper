@@ -1,7 +1,7 @@
 """Replay metrics: TreeMapper's published height and centre against Isaac truth, per tree, at the lock and at every dose.
 
     python3 -m treemapper_tools.replay_metrics --map M.jsonl --truth truth.json --mission mission.json
-        [--targets targets.json] [--heading-rad H] [--before before.json] [--json out.json] [--md out.md]
+        [--replay] [--targets targets.json] [--heading-rad H] [--before before.json] [--json out.json] [--md out.md]
 
 ``M.jsonl`` is a map stream in the contract format (``contract.py``): a closed loop's ``map.jsonl`` and the stream
 ``treemapper_replay --out-map`` writes are the same format (same keys; ``treemapper_replay`` writes ``"height":null``
@@ -14,6 +14,11 @@ A replay has no mission of its own: the phases and the drone track come from the
 ``/spray_target`` ids in it, however, are the recorded navigation's, not the replayed mapper's: ``treemapper_replay``
 resolves each recorded target to *its own* id (navigation emulator) and writes that timeline to ``--out-targets``.
 For a replay map pass that file as ``--targets`` (``targets_json``); it replaces ``mission.json``'s ``targets``.
+``--replay`` (``replay=True``) makes ``--targets`` mandatory (CLI usage error / ``ValueError``). Whatever the flag,
+every dose episode is accounted for (``n_dose_episodes`` = attached + without a target id + unattached, the latter
+broken down in ``unattached_breakdown``) and ``problems()`` flags the result when the unattached share of the episodes
+with a target id exceeds ``UNATTACHED_MAX_SHARE``: the CLI then prints it on stderr, writes it into the output
+(``problems``) and exits 3, so a replay scored with the recorded navigation's ids cannot pass unnoticed.
 
 Definitions (controller rulings for the miss-reduction work, Task 3):
 * ``dh`` = published height - true top (m, + = too high); ``dc`` = distance published centre - truth centre (m).
@@ -59,6 +64,7 @@ FAR_M = 5.0            # first-publication across-track offset that splits far f
 OVER_M = 1.5           # A1: height more than this above the true top
 UNDER_M = 0.3          # A2: height more than this below the true top
 FOOTPRINT_M = 0.8      # A3: spray footprint radius (m)
+UNATTACHED_MAX_SHARE = 0.10   # unattached share of dose episodes with a target id; the 12 cmp16c closed-loop runs give 0-4 % (phantom entries)
 MOTION_WINDOWS_S = (2.0, 5.0)
 MOTION_MIN_M = 0.5
 
@@ -110,7 +116,10 @@ def _planning_starts(phases: Sequence[Tuple[float, str]]) -> List[float]:
 # ----------------------------------------------------------------------------- compute
 
 def compute(map_jsonl: str, truth_json: str, mission_json: str, targets_json: Optional[str] = None,
-            heading_rad: Optional[float] = None) -> dict:
+            heading_rad: Optional[float] = None, replay: bool = False) -> dict:
+    if replay and not targets_json:
+        raise ValueError("a replay map must be scored with its own --out-targets (targets_json): mission.json's "
+                         "/spray_target ids belong to the recorded navigation, not to the replayed mapper")
     snaps = contract.read_snapshots(map_jsonl)
     truth = _load_truth(truth_json)
     by_truth = {ms._tree_id(t): t for t in truth}
@@ -162,7 +171,7 @@ def compute(map_jsonl: str, truth_json: str, mission_json: str, targets_json: Op
         return (None if h is None else h - ms._tree_top(tt)), math.hypot(cx - tc[0], cy - tc[1]), True
 
     entries = []
-    skipped_doses = 0
+    not_in_snapshot = 0
     for i in sorted(identity):
         tt = by_truth[identity[i]]
         t_first = first_pub[i][0]
@@ -170,7 +179,7 @@ def compute(map_jsonl: str, truth_json: str, mission_json: str, targets_json: Op
         for e in sorted(doses_of.get(i, []), key=lambda e: e.start):
             dh, dc, present = errors_at(i, e.start, tt)
             if not present:
-                skipped_doses += 1
+                not_in_snapshot += 1
                 continue
             doses.append({"t": e.start, "dh": dh, "dc": dc})
         if doses_of.get(i):
@@ -193,13 +202,40 @@ def compute(map_jsonl: str, truth_json: str, mission_json: str, targets_json: Op
         entries.append({"id": i, "truth_id": identity[i], "first_pub_t": t_first, "first_pub_offset_m": offset,
                         "lock": lock, "doses": doses})
 
+    # every dose episode is accounted for: no target id, attached to a matched entry, or unattached (and why)
+    eps = [e for e in episodes if not e.orphan]
+    n_attached = sum(len(e["doses"]) for e in entries)
+    n_no_target = sum(1 for e in eps if e.tm_id is None)
+    breakdown = {"id_not_in_map": sum(1 for e in eps if e.tm_id is not None and e.tm_id not in first_pub),
+                 "entry_unmatched": sum(1 for e in eps if e.tm_id in first_pub and e.tm_id not in identity),
+                 "entry_not_in_snapshot": not_in_snapshot}
+    n_unattached = sum(breakdown.values())
+    n_with_target = len(eps) - n_no_target
+    assert n_attached + n_unattached == n_with_target
     res = {"entries": entries,
            "unmatched_entries": sorted(i for i in seen_unmatched if i not in identity),
-           "n_dose_episodes": sum(1 for e in episodes if not e.orphan),
-           "n_dose_episodes_without_target": sum(1 for e in episodes if not e.orphan and e.tm_id is None),
-           "n_doses_entry_not_in_map": skipped_doses}
+           "n_dose_episodes": len(eps), "n_dose_episodes_attached": n_attached,
+           "n_dose_episodes_without_target": n_no_target, "n_dose_episodes_unattached": n_unattached,
+           "unattached_breakdown": breakdown,
+           "unattached_share": (n_unattached / n_with_target) if n_with_target else None}
     res.update(_summaries(entries))
     return res
+
+
+def problems(res: dict, replay: bool = False) -> List[str]:
+    """Reasons the metrics cannot be trusted (empty = fine): the share of dose episodes with a target id that could not
+    be attached to a truth-matched entry of the map exceeds ``UNATTACHED_MAX_SHARE``. Scoring a replay map with the
+    recorded navigation's target ids (instead of the replay's own ``--out-targets``) shows up here."""
+    share = res.get("unattached_share")
+    if share is None or share <= UNATTACHED_MAX_SHARE:
+        return []
+    b = res["unattached_breakdown"]
+    return ["%d of %d dose episodes with a target id (%.0f %% > %.0f %%) are not attached to a matched map entry "
+            "(id not in map %d, entry unmatched to truth %d, entry not in the snapshot at the dose %d)%s" % (
+                res["n_dose_episodes_unattached"], res["n_dose_episodes"] - res["n_dose_episodes_without_target"],
+                100 * share, 100 * UNATTACHED_MAX_SHARE, b["id_not_in_map"], b["entry_unmatched"],
+                b["entry_not_in_snapshot"],
+                "; is --targets the replay's own --out-targets?" if replay else "")]
 
 
 def _summaries(entries: Sequence[dict]) -> dict:
@@ -240,7 +276,8 @@ def _rows(res: dict) -> List[Tuple[str, Optional[float]]]:
     a1, a2, a3 = res["a1"], res["a2"], res["a3"]
     out = [("A1 max dh at lock (m)", a1["max_dh_at_lock"]), ("A1 max dh at dose (m)", a1["max_dh_at_dose"]),
            ("A1 n over 1.5 m (lock + dose values)", a1["n_over_1p5"]),
-           ("A2 share of entries below -0.3 m", a2["share_below_0p3"]), ("A2 worst dh (m)", a2["worst_dh"])]
+           ("A2 share of entries below -0.3 m", a2["share_below_0p3"]), ("A2 entries (denominator)", a2["n_entries"]),
+           ("A2 worst dh (m)", a2["worst_dh"])]
     for g in ("far", "near"):
         out += [("A3 %s: entries with a dose" % g, a3[g]["n"]),
                 ("A3 %s: mean dc at dose (m)" % g, a3[g]["mean_dc_at_dose"]),
@@ -287,10 +324,14 @@ def compare(before: dict, after: dict) -> str:
 def to_markdown(res: dict) -> str:
     lines = ["# Replay metrics against truth", "", "| Metric | Value |", "|---|---|"]
     lines += ["| %s | %s |" % (name, _f(v)) for name, v in _rows(res)]
-    lines += ["", "%d entries matched to truth; unmatched entries (left out): %s; %d dose episodes, %d without a "
-              "target id, %d whose entry was not in the map" % (
+    b = res["unattached_breakdown"]
+    lines += ["", "%d entries matched to truth; unmatched entries (left out): %s. Dose episodes: %d, attached %d, "
+              "without a target id %d, unattached %d (id not in map %d, entry unmatched to truth %d, entry not in the "
+              "snapshot at the dose %d)." % (
                   len(res["entries"]), res["unmatched_entries"] or "none", res["n_dose_episodes"],
-                  res["n_dose_episodes_without_target"], res["n_doses_entry_not_in_map"]),
+                  res["n_dose_episodes_attached"], res["n_dose_episodes_without_target"],
+                  res["n_dose_episodes_unattached"], b["id_not_in_map"], b["entry_unmatched"],
+                  b["entry_not_in_snapshot"]),
               "", "| Entry | Truth | First published (s) | Offset (m) | Lock dh | Lock dc | Doses (t: dh / dc) |",
               "|---|---|---|---|---|---|---|"]
     for e in res["entries"]:
@@ -309,16 +350,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--truth", required=True, help="truth.json (top_z) or a contract ground_truth.json (height)")
     ap.add_argument("--mission", required=True, help="the recorded run's mission.json (phases, targets, pose)")
     ap.add_argument("--targets", help="treemapper_replay --out-targets file: replaces mission.json's /spray_target timeline")
+    ap.add_argument("--replay", action="store_true",
+                    help="the map is a treemapper_replay output: --targets (its --out-targets) is then required")
     ap.add_argument("--heading-rad", type=float, help="row heading for the across-track axis (default: run.json, else motion)")
     ap.add_argument("--before", help="earlier --json output: also write the before / after table")
     ap.add_argument("--json", help="write the metrics here")
     ap.add_argument("--md", help="write the markdown here (default: stdout)")
     a = ap.parse_args(argv)
-    res = compute(a.map, a.truth, a.mission, a.targets, a.heading_rad)
+    if a.replay and not a.targets:
+        ap.error("--replay needs --targets (the replay's own --out-targets): mission.json's /spray_target ids are "
+                 "the recorded navigation's, not the replayed mapper's")
+    res = compute(a.map, a.truth, a.mission, a.targets, a.heading_rad, a.replay)
+    res["problems"] = problems(res, a.replay)
     if a.json:
         with open(a.json, "w") as f:
             json.dump(res, f, indent=1)
     md = to_markdown(res)
+    if res["problems"]:
+        md += "\n**NOT TRUSTWORTHY:** " + "; ".join(res["problems"]) + "\n"
     if a.before:
         with open(a.before) as f:
             md += "\n## Against " + a.before + "\n\n" + compare(json.load(f), res)
@@ -327,7 +376,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             f.write(md)
     else:
         sys.stdout.write(md)
-    return 0
+    for msg in res["problems"]:
+        print("replay_metrics: " + msg, file=sys.stderr)
+    return 3 if res["problems"] else 0
 
 
 if __name__ == "__main__":

@@ -233,6 +233,7 @@ def test_targets_file_replaces_the_missions_target_timeline(tmp_path):
     tpath.write_text(json.dumps([[0.0, -1], [18.0, 8], [24.0, -1]]))
     res = rm.compute(*paths, targets_json=str(tpath))
     assert res["n_dose_episodes"] == 2 and res["n_dose_episodes_without_target"] == 1
+    assert res["n_dose_episodes_attached"] == 1 and res["n_dose_episodes_unattached"] == 0
     assert by_id(res)[7]["doses"] == []
 
 
@@ -266,6 +267,66 @@ def test_no_poses_gives_unknown_offset(tmp_path):
     assert res["a3"]["far"]["n"] == 0 and res["a3"]["near"]["n"] == 0
 
 
+# ----------------------------------------------------------------------------- every dose episode is accounted for
+
+def test_every_dose_episode_is_attached_without_target_or_unattached(tmp_path):
+    res = rm.compute(*basic_run(tmp_path))
+    assert (res["n_dose_episodes"], res["n_dose_episodes_attached"], res["n_dose_episodes_without_target"],
+            res["n_dose_episodes_unattached"]) == (2, 2, 0, 0)
+    assert res["unattached_share"] == 0.0 and rm.problems(res) == []
+
+
+def test_target_id_absent_from_the_map_is_unattached(tmp_path):
+    paths = basic_run(tmp_path)
+    tpath = tmp_path / "t.json"
+    tpath.write_text(json.dumps([[0.0, -1], [11.0, 99], [18.0, 8], [24.0, -1]]))      # 99 is in no snapshot
+    res = rm.compute(*paths, targets_json=str(tpath))
+    assert res["n_dose_episodes_unattached"] == 1 and res["n_dose_episodes_attached"] == 1
+    assert res["unattached_breakdown"] == {"id_not_in_map": 1, "entry_unmatched": 0, "entry_not_in_snapshot": 0}
+    assert res["unattached_share"] == pytest.approx(0.5)
+
+
+def test_target_entry_unmatched_to_truth_and_entry_missing_from_the_snapshot_are_unattached(tmp_path):
+    # entry 9 (3 m off every truth) is targeted at 14; entry 8 is targeted at 20 but gone from the snapshots <= 20
+    snaps = [(3.0, [(7, 5.2, 6.0, 4.5), (9, 5.0, 9.0, 4.0), (8, 15.0, 3.0, 4.0)]), (12.0, [(7, 5.2, 6.0, 4.5), (9, 5.0, 9.0, 4.0)])]
+    tpath = tmp_path / "t.json"
+    tpath.write_text(json.dumps([[0.0, -1], [11.0, 9], [18.0, 8], [24.0, -1]]))
+    res = rm.compute(*write_run(tmp_path, TRUTH, snaps, PHASES, TARGETS, track(0, 26)), targets_json=str(tpath))
+    assert res["unattached_breakdown"] == {"id_not_in_map": 0, "entry_unmatched": 1, "entry_not_in_snapshot": 1}
+    assert res["n_dose_episodes_unattached"] == 2 and res["n_dose_episodes_attached"] == 0
+
+
+def test_unattached_share_over_the_threshold_is_flagged(tmp_path):
+    paths = basic_run(tmp_path)
+    tpath = tmp_path / "t.json"
+    tpath.write_text(json.dumps([[0.0, -1], [11.0, 98], [18.0, 99], [24.0, -1]]))     # a replay scored with foreign ids
+    res = rm.compute(*paths, targets_json=str(tpath))
+    assert res["unattached_share"] == 1.0
+    msgs = rm.problems(res, replay=True)
+    assert len(msgs) == 1 and "2 of 2" in msgs[0] and "--out-targets" in msgs[0]
+    # at the threshold it is fine, above it is not
+    ok = dict(res, unattached_share=rm.UNATTACHED_MAX_SHARE)
+    assert rm.problems(ok) == []
+    assert rm.problems(dict(ok, unattached_share=rm.UNATTACHED_MAX_SHARE + 1e-9)) != []
+    # the CLI writes the problem into its output and exits 3
+    out_json = str(tmp_path / "bad.json")
+    assert rm.main(["--map", paths[0], "--truth", paths[1], "--mission", paths[2], "--targets", str(tpath),
+                    "--replay", "--json", out_json, "--md", str(tmp_path / "bad.md")]) == 3
+    assert json.load(open(out_json))["problems"]
+    assert "NOT TRUSTWORTHY" in open(tmp_path / "bad.md").read()
+
+
+def test_replay_without_targets_fails(tmp_path, capsys):
+    paths = basic_run(tmp_path)
+    with pytest.raises(ValueError, match="out-targets"):
+        rm.compute(*paths, replay=True)
+    with pytest.raises(SystemExit) as ex:
+        rm.main(["--map", paths[0], "--truth", paths[1], "--mission", paths[2], "--replay"])
+    assert ex.value.code == 2
+    assert "--out-targets" in capsys.readouterr().err
+    assert rm.compute(*paths)["a1"]["n_over_1p5"] == 0          # closed loop: no targets file needed
+
+
 # ----------------------------------------------------------------------------- report
 
 def test_compare_and_cli(tmp_path, capsys):
@@ -274,6 +335,7 @@ def test_compare_and_cli(tmp_path, capsys):
     md = rm.compare(before, after)
     assert "max dh at dose" in md and "2.000" in md and "0.500" in md
     assert "n over 1.5 m" in md
+    assert "A2 entries (denominator) | 2 | 2 | +0" in md
     m, t, j = basic_run(tmp_path, name="cli")
     out_json, out_md = str(tmp_path / "o.json"), str(tmp_path / "o.md")
     assert rm.main(["--map", m, "--truth", t, "--mission", j, "--json", out_json, "--md", out_md]) == 0
