@@ -921,6 +921,102 @@ TEST(Navigator, ReresolvedImplausibleTargetIsSkipped) {
   }
 }
 
+// Spec 4.4: a corridor target skipped as implausibly high goes onto the cleanup list once. When cleanup builds its
+// list it is retried if it still exists, is unsprayed and its current published height is plausible; otherwise it is
+// dropped. Tree k = 1 (row y = 6) starts 9 m too high; `heal` runs once the navigator targets a tree of a later row.
+TEST(Navigator, ImplausibleTreeRetriedInCleanupOnceHeightIsPlausible) {
+  const Config cfg;
+  const std::size_t k = 1;
+  std::vector<TruthTree> trees = grid({6, 12, 18});
+  trees[k].height_bias = 9.0;
+  FakeWorld w = world(cfg, trees);
+  Navigator nav(cfg, field30x24(), fov90());
+  bool healed = false;
+  w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+    if (!healed && n.status().target != treemapper::kNoTree && n.status().target >= FakeWorld::idOf(4)) {
+      fw.trees[k].height_bias = 0.0;
+      in.map = MapSnapshot{in.t, fw.map()};
+      healed = true;
+    }
+  };
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  ASSERT_TRUE(healed);
+  EXPECT_EQ(w.trees[k].spray_calls, 1);
+  EXPECT_EQ(countRequests(w, FakeWorld::idOf(k)), 1u);
+  EXPECT_EQ(counter(nav, "target_height_implausible"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_retried"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_recovered"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_dropped"), 0u);
+  for (std::size_t j = 0; j < w.trees.size(); ++j) {
+    if (j != k) {
+      EXPECT_EQ(w.trees[j].spray_calls, 1) << "tree " << j + 1;
+    }
+  }
+  EXPECT_EQ(nav.status().sprayed, 12u);
+  EXPECT_EQ(nav.status().remaining, 0u);
+}
+
+TEST(Navigator, ImplausibleStillHighInCleanupIsDropped) {
+  const Config cfg;
+  const std::size_t k = 1;
+  std::vector<TruthTree> trees = grid({6, 12, 18});
+  trees[k].height_bias = 9.0;   // stays 9 m too high for the whole run
+  FakeWorld w = world(cfg, trees);
+  Navigator nav(cfg, field30x24(), fov90());
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  EXPECT_EQ(nav.state(), NavState::kDone);
+  EXPECT_EQ(w.trees[k].spray_calls, 0);
+  EXPECT_EQ(countRequests(w, FakeWorld::idOf(k)), 0u);
+  for (const Sample& s : w.samples) EXPECT_NE(s.target, FakeWorld::idOf(k));
+  EXPECT_EQ(counter(nav, "target_height_implausible"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_retried"), 0u);
+  EXPECT_EQ(counter(nav, "implausible_recovered"), 0u);
+  EXPECT_EQ(counter(nav, "implausible_dropped"), 1u);
+  for (std::size_t j = 0; j < w.trees.size(); ++j) {
+    if (j != k) {
+      EXPECT_EQ(w.trees[j].spray_calls, 1) << "tree " << j + 1;
+    }
+  }
+  EXPECT_EQ(nav.status().sprayed, 11u);
+  EXPECT_EQ(nav.status().remaining, 0u);
+}
+
+TEST(Navigator, ImplausibleRetryAfterMergeDosesOnce) {
+  // as the retry case, but before cleanup the tree is republished under a new id (a merge / split) at the same place
+  // with a plausible height: the old id is gone, the new one stands for the tree, and it is dosed exactly once
+  const Config cfg;
+  const std::size_t k = 1;
+  const TreeId old_id = FakeWorld::idOf(k);
+  std::vector<TruthTree> trees = grid({6, 12, 18});
+  trees[k].height_bias = 9.0;
+  FakeWorld w = world(cfg, trees);
+  Navigator nav(cfg, field30x24(), fov90());
+  bool healed = false;
+  w.before_step = [&](FakeWorld& fw, const Navigator& n, Inputs& in) {
+    if (!healed && n.status().target != treemapper::kNoTree && n.status().target >= FakeWorld::idOf(4)) {
+      fw.trees[k].published_id = 50;
+      fw.trees[k].height_bias = 0.0;
+      in.map = MapSnapshot{in.t, fw.map()};
+      healed = true;
+    }
+  };
+  ASSERT_TRUE(w.run(nav, kDt, kMaxSim));
+  ASSERT_TRUE(healed);
+  EXPECT_EQ(w.trees[k].spray_calls, 1);
+  EXPECT_EQ(countRequests(w, old_id), 0u);
+  EXPECT_EQ(countRequests(w, 50), 1u);
+  EXPECT_GE(counter(nav, "ids_reresolved"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_dropped"), 0u);
+  EXPECT_EQ(counter(nav, "implausible_retried"), 1u);
+  EXPECT_EQ(counter(nav, "implausible_recovered"), 1u);
+  for (std::size_t j = 0; j < w.trees.size(); ++j) {
+    if (j != k) {
+      EXPECT_EQ(w.trees[j].spray_calls, 1) << "tree " << j + 1;
+    }
+  }
+  EXPECT_EQ(nav.status().remaining, 0u);
+}
+
 TEST(Navigator, GuardGivesUpAStuckAttempt) {
   // the guard reads 1.0 m whenever tree 2 is the target: the climb is capped at scan altitude, and an attempt with no
   // clear reading for hold_timeout_s fails like an invalid dose (one retry, skip, once more from cleanup)

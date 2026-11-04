@@ -298,6 +298,7 @@ void Navigator::stepDose(const Inputs& in, Outputs& out) {
     dose_.update(in.t, false);   // credits the last interval before validity is read
     dose_running_ = false;
     if (dose_.valid()) {
+      if (target_is_retry_) count(counters_, "implausible_recovered");   // a tree skipped as too high, now dosed
       mark_ = Mark{};
       mark_.active = true;
       mark_.first_id = target_;
@@ -459,15 +460,44 @@ void Navigator::advance(double t) {
     while (next_target_ < targets_.size()) {
       const Target tg = targets_[next_target_++];
       TreeId id = tg.id;
+      // a retry of an implausible-height skip (spec 4.4): it ends as retried (picked) or dropped (it cannot be)
+      const bool is_retry = implausible_retry_.erase(tg.id) > 0 || implausible_taken_.count(tg.id) > 0;
+      const bool first_retry = is_retry && implausible_taken_.count(tg.id) == 0;
+      const auto no_retry = [&] {
+        if (first_retry) count(counters_, "implausible_dropped");
+      };
       if (!tree(id)) {   // merged or split away since it was planned
         id = reresolve(tg.centre);
         count(counters_, id == kNoTree ? "ids_dropped_vanished" : "ids_reresolved");
         if (log_) log_("tree " + std::to_string(tg.id) + " vanished -> " + std::to_string(id));
-        if (id == kNoTree) continue;
+        if (id == kNoTree) {
+          no_retry();
+          continue;
+        }
       }
       const TreeEntry* tr = tree(id);
-      if (!tr || tr->sprayed || attempted_.count(id)) continue;   // never spray twice
-      if (!plausible(*tr)) continue;                              // a phantom: never visited, never marked
+      if (!tr || tr->sprayed || attempted_.count(id)) {   // never spray twice
+        no_retry();
+        continue;
+      }
+      if (!plausible(*tr)) {   // a phantom: never visited, never marked
+        // A corridor target passed over once is parked for one retry in cleanup; a retry that is high again, and a
+        // cleanup target that rose, are not parked again.
+        if (!cleanup_mode_ && implausible_ever_parked_.insert(id).second) {
+          implausible_parked_.emplace(id, tr->centre);
+          if (std::find(assignment_.cleanup.begin(), assignment_.cleanup.end(), id) == assignment_.cleanup.end()) {
+            assignment_.cleanup.push_back(id);
+          }
+        } else {
+          no_retry();
+        }
+        continue;
+      }
+      if (first_retry) {
+        count(counters_, "implausible_retried");
+        implausible_taken_.insert(tg.id);
+      }
+      target_is_retry_ = is_retry;
       target_ = id;
       corridor_ = cleanup_mode_ ? -1 : tg.corridor;
       retried_ = false;
@@ -481,6 +511,7 @@ void Navigator::advance(double t) {
     }
     // corridors exhausted: the cleanup list (late trees; may hold ids sprayed since), from here towards home
     std::vector<TreeId> ids;
+    collectImplausibleRetries(ids);
     for (TreeId id : assignment_.cleanup) {
       const TreeEntry* tr = tree(id);
       if (tr && !tr->sprayed && !attempted_.count(id) && plausible(*tr) &&
@@ -559,6 +590,27 @@ bool Navigator::plausible(const TreeEntry& t) {
   return false;
 }
 
+void Navigator::collectImplausibleRetries(std::vector<TreeId>& ids) {
+  for (const auto& parked : implausible_parked_) {
+    TreeId id = parked.first;
+    if (!tree(id)) {   // merged or split away since it was skipped: the entry standing for its centre, if any
+      id = reresolve(parked.second);
+      count(counters_, id == kNoTree ? "ids_dropped_vanished" : "ids_reresolved");
+      if (log_) log_("tree " + std::to_string(parked.first) + " vanished -> " + std::to_string(id));
+    }
+    const TreeEntry* tr = id == kNoTree ? nullptr : tree(id);
+    if (!tr || tr->sprayed || attempted_.count(id) || !support::heightPlausible(*tr, home_.z, cfg_)) {
+      count(counters_, "implausible_dropped");   // still too high at cleanup, or gone: no retry
+      if (log_) log_("tree " + std::to_string(parked.first) + ": still implausible or gone in cleanup, dropped");
+      continue;
+    }
+    // keyed by the parked id; picked via the entry that stands for it now
+    implausible_retry_.insert(id);
+    if (std::find(ids.begin(), ids.end(), id) == ids.end()) ids.push_back(id);
+  }
+  implausible_parked_.clear();
+}
+
 std::set<TreeId> Navigator::treesInCorridor(int k) const {
   std::set<TreeId> ids;
   if (k < 0) return ids;
@@ -596,7 +648,11 @@ Status Navigator::status() const {
   pending.insert(assignment_.cleanup.begin(), assignment_.cleanup.end());
   for (TreeId id : pending) {
     const TreeEntry* t = tree(id);
-    if (t && !t->sprayed && !attempted_.count(id) && !implausible_.count(id)) ++s.remaining;
+    // a tree skipped as implausibly high is pending again only while its current published height is plausible
+    if (t && !t->sprayed && !attempted_.count(id) &&
+        (!implausible_.count(id) || support::heightPlausible(*t, home_.z, cfg_))) {
+      ++s.remaining;
+    }
   }
   s.clearance_m = clearance_m_;
   s.warnings = warnings_;

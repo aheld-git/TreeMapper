@@ -146,7 +146,9 @@ class Navigator {
   void startAbort(const std::string& why, double t);
   void finishTarget(double t);   ///< the current target is done (sprayed or its mark given up): advance
   void failAttempt(double t, const std::string& why);   ///< invalid dose / guard: one retry, then skip
-  void advance(double t);        ///< next target, else next corridor, else cleanup, else RETURN
+  /// Next target, else next corridor, else cleanup, else RETURN. A corridor target whose published height is implausible
+  /// is passed over (target_height_implausible) and parked for one retry when the cleanup list is built (spec 4.4).
+  void advance(double t);
 
   // --- holds, guard, mark, re-planning
   void updateHold(const Inputs& in);   ///< enters HOLD on a missing input; leaves it (or times out)
@@ -166,7 +168,8 @@ class Navigator {
   void sendMark(treemapper::TreeId id, double t, Outputs& out);
   void abandonMark();
   /// Re-resolves a vanished target_; false (counted dropped) if nothing stands for it, or if what stands for it is
-  /// implausibly high (counted by plausible(), as in advance()).
+  /// implausibly high (counted by plausible(), as in advance()). Such a re-resolved entry is not parked for the
+  /// cleanup retry (only a corridor target advance() passes over is): it is a different id from the one planned.
   bool resolveTarget();
   bool keepTarget(double t);   ///< resolveTarget(), and advance() if it was dropped
   treemapper::TreeId reresolve(const treemapper::Point2& centre) const;   ///< kNoTree if none or already done
@@ -185,7 +188,13 @@ class Navigator {
   bool reached(const Point3& p) const;
   const treemapper::TreeEntry* tree(treemapper::TreeId id) const;
   /// support::heightPlausible against home; an implausible tree is counted target_height_implausible once per id.
+  /// Only counts: advance() decides whether the skipped corridor target is parked for one retry in cleanup.
   bool plausible(const treemapper::TreeEntry& t);
+  /// Cleanup retry of the trees advance() skipped as implausibly high (spec 4.4), run when the cleanup list is built:
+  /// each parked id is retried (counted implausible_retried when it is picked) if it, or the entry now standing for
+  /// its centre, still exists, is unsprayed and not attempted, and its current published height is plausible; else
+  /// it is dropped (implausible_dropped). Appends the retry ids to `ids` (no duplicates).
+  void collectImplausibleRetries(std::vector<treemapper::TreeId>& ids);
   std::set<treemapper::TreeId> treesInCorridor(int k) const;
   std::vector<Target> orderStops(const std::vector<treemapper::TreeId>& ids, const Point3& start, const Point3& end,
                                  int corridor) const;
@@ -257,6 +266,12 @@ class Navigator {
   std::map<treemapper::TreeId, double> planned_heights_;   ///< for the re-plan trigger (needsReplan)
   std::set<treemapper::TreeId> attempted_;                 ///< sprayed, mark given up, or skipped twice
   std::set<treemapper::TreeId> implausible_;               ///< passed over for a published height above the limit
+  /// Corridor targets advance() skipped as implausible, with their centre, waiting for the cleanup list to be built.
+  std::map<treemapper::TreeId, treemapper::Point2> implausible_parked_;
+  std::set<treemapper::TreeId> implausible_ever_parked_;   ///< ids parked once: a tree is parked, hence retried, once
+  std::set<treemapper::TreeId> implausible_retry_;         ///< on the cleanup list as a retry, not yet picked
+  std::set<treemapper::TreeId> implausible_taken_;         ///< retries picked: a later pick of the id stays a retry
+  bool target_is_retry_{false};                            ///< the current target is such a retry (counts a recovery)
   std::map<treemapper::TreeId, int> skips_;                ///< times each tree was skipped
   bool retried_{false};                                    ///< the current target had its one retry
   unsigned sprayed_{0}, skipped_{0};                       ///< skipped_: trees skipped twice (left unsprayed)
