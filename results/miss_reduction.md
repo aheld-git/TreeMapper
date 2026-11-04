@@ -398,7 +398,9 @@ differ only in `centre_steps_clamped` and the new `centre_support_fallback_latch
 
 ### Centre / result
 
-Replay, `replay_metrics --replay --targets <own>` against the committed baseline (`results/miss_reduction/centre_fix/<ds>/metrics.json`):
+Replay, `replay_metrics --replay --targets <own>` against the committed baseline. The table is the centre fix alone
+(`1cab792`). The committed `results/miss_reduction/centre_fix/<ds>/metrics.json` are HEAD (D66 + D67): identical to this
+table on both field_first datasets, and on the two corridor datasets as in "With D67" below.
 
 | Metric | 5x5 corridor | 5x5 field_first | rows corridor | rows field_first |
 |---|---|---|---|---|
@@ -406,12 +408,33 @@ Replay, `replay_metrics --replay --targets <own>` against the committed baseline
 | A3 far: share `dc` > 0.8 m | 0.615 -> **0.000** | 0.700 -> **0.000** | 0.067 -> 0.000 | 0.137 -> 0.000 |
 | A3 near: mean `dc` at dose (m) | 0.220 -> 0.106 | 0.337 -> 0.089 | 0.365 -> 0.140 | 0.237 -> 0.102 |
 | A3 near: share `dc` > 0.8 m | 0.000 -> 0.000 | 0.067 -> 0.000 | 0.098 -> 0.000 | 0.028 -> 0.000 |
-| A1 max `dh` lock / dose (m), n over 1.5 m | 3.63 / 3.63, 6 (unchanged) | 6.54 / 0.88, 1 (unchanged) | 4.96 / 4.96, 2 (unchanged) | 1.81 / 1.81, 2 (unchanged) |
+| A1 max `dh` lock / dose (m), n over 1.5 m | 3.63 / 3.63, 6 (unchanged; **8 with D67**, see below) | 6.54 / 0.88, 1 (unchanged) | 4.96 / 4.96, 2 (unchanged) | 1.81 / 1.81, 2 (unchanged) |
 | A2 share below -0.3 m / worst `dh` | 0.000 / -0.189 (unchanged) | 0.038 / -0.344 (unchanged) | 0.349 / -0.596 (unchanged) | 0.460 / -0.637 (unchanged) |
 
 A3 holds on both 5x5 datasets (target: far <= 0.5 m and <= 0.15 beyond 0.8 m; near not worse). A1 and A2 are
 identical to the baseline entry by entry (every lock and dose `dh`): the fix does not touch heights. Every 5x5 far
 entry is within 0.22 m at its dose; before, 8 of 13 (corridor) and 7 of 10 (field_first) were beyond the 0.8 m footprint.
+
+**With D67 (the post-spray hold no longer ends on SCAN_APPROACH; HEAD, the committed `metrics.json`).** Field_first
+replays are byte-identical. On the corridor replays the hold now lasts through the SCAN_APPROACH climb out of each dose
+(held frames 255 -> 767 on 5x5 corridor, 1140 -> 1810 on rows corridor), which shifts when other instances get evidence:
+
+| Corridor replays, D66 alone -> D66 + D67 | 5x5 corridor | rows corridor |
+|---|---|---|
+| A3 far: mean `dc` at dose (m), share > 0.8 m | 0.099, 0.000 -> 0.133, 0.000 | 0.116, 0.000 -> 0.108, 0.000 |
+| A3 near: mean `dc` at dose (m), share > 0.8 m | 0.106, 0.000 -> 0.095, 0.000 | 0.140, 0.000 -> 0.137, 0.000 |
+| far / near at the start of the dosing leg (mean, share > 0.8 m) | 0.452, 0.154 / 0.151, 0 -> 0.472, 0.154 / 0.143, 0 | 0.146, 0 / 0.167, 0.024 -> 0.138, 0 / 0.161, 0.024 |
+| A1 max `dh` lock / dose (m), n over 1.5 m | 3.63 / 3.63, 6 -> 3.63 / 3.63, **8** (lock 3 -> 4, dose 3 -> 4) | 4.96 / 4.96, 2 (unchanged) |
+| A2 share below -0.3 m / worst `dh` | unchanged (0.000 / -0.189) | unchanged (0.349 / -0.596) |
+| centre outside its own outline: at the doses / any snapshot max | 5 of 27, 0.82 -> 4 of 27, 0.79 / 0.817 -> 0.794 m | 1 of 86, 0.99 / 1.000 m (unchanged) |
+
+**Accepted A1 count change (ruling R25).** The new A1 value on 5x5 corridor is entry 46 (truth 7, the rule 4 duplicate
+of entry 8): lock `dh` +1.454 -> +2.454 m, dose `dh` +1.454 -> +2.178 m. The first map difference is at t 81.65 s, entry 8
+frozen in the climb after its 72.2 s spray; entry 46 is then confirmed 0.6 s later (126.45 s instead of 125.85 s) and its
+first published height is 9.22 m (3.70 m before): one garbage latched cell, the parked height-runaway mechanism ("Height"
+above). It falls at 0.5 m/s and the lock at 135.03 s takes 4.86 m (4.10 m before). The hold change alone, without D66, gives
+the same values. Too high is the flight-safe direction, the maximum is unchanged and A2 is identical; the height fix removes
+it. On rows corridor entry 111 moves lock / dose `dh` -0.055 -> -0.258 m (not below -0.3 m, so A2 is unchanged).
 
 **Where the correction happens.** The navigator plans the glide to the target's centre when it starts the leg and
 replans only when a height changes (`needsReplan`) or the clearance guard releases; it does not follow a centre that
@@ -490,8 +513,17 @@ identical to `294254f` / `7284ba6`), **after** = `1cab792`. Each is a clean `git
 `tools/` is identical in both (the scorer is the same). Raw outputs under `/data/work/eval/mr_t7/`; the small result files and the
 scripts are kept in `results/miss_reduction/regression/` (named below).
 
-**Noise floor and how "beyond noise" is decided.** Every run is deterministic: `TM_REPEAT=2` on the synthetic suite gives a
-run-to-run difference of 0 for every metric in both builds, so a difference between builds on one dataset is real. What
+**Re-run with D67 (Task 7 fix round 1).** Every evaluation below was run again with after = D66 + D67 (`a0e2de3`; built from
+`git stash create` `1e8543f`, whose `core/` and `config/` equal that commit) and a third build, **hold** = `be0e5bd` plus only
+the one-line D67 change (`d67_hold_only.diff`), under `/data/work/mr_t7f/`, outputs `/data/work/eval/mr_t7f/` (job lines
+`stage_d67.sh`, analysis `analyse_d67.sh`). The committed files in `regression/` are from that re-run. Every number is
+identical to the `1cab792` run except on the recorded Isaac mission: `SAFETY total violations` is 0 (it was 1, see the table)
+and one fewer snapshot has a centre move (309 instead of 310 of 1410).
+
+**Noise floor and how "beyond noise" is decided.** Run-to-run noise was measured on suite_v2 only: `TM_REPEAT=2` gives a
+run-to-run difference of 0 for every metric in both builds (and identical maps, r0 against r1, on 15 of 15 in the D67 re-run).
+The held-out suite, the recorded Isaac mission and the real log were run once per build; they use the same deterministic
+binary, so a difference between builds on one dataset is taken as real. What
 decides whether a difference matters is the dataset-to-dataset spread of the paired difference (the paired rows of
 `evaluate.py`: t = mean diff / (std diff / sqrt n), |t| < 2 is within seed noise, W / L / T counted per dataset). A single
 dataset (the recorded Isaac mission) has no spread; there it is compared with the paired spread of the synthetic suites
@@ -513,7 +545,8 @@ python3 -m treemapper_tools.real_score --dataset /data/work/extracted/real_farm 
   --systems "sim_before=cand_obj@<before bin>,sim_after=cand_obj@<after bin>,sim_after_off=cand_obj@<after bin>,real_before=...,real_after=...,real_after_off=...,existing" \
   --set real_<x>.<key>=<value> for every key of that build's config/cand_obj_real.cfg ... --runs /data/work/eval/mr_t7/real/runs
 ```
-The exact job lines are `results/miss_reduction/regression/stage2.sh`. Paired tables: `compare.py` (`compare_suite_v2.md`,
+The exact job lines are `results/miss_reduction/regression/stage2.sh` (`1cab792` run) and `stage_d67.sh` (D67 re-run, which
+adds the hold build, the rollback on the Isaac mission and the four miss-reduction replays). Paired tables: `compare.py` (`compare_suite_v2.md`,
 `compare_isaac.md`, `compare_holdout.md`, same folder). The built-in defaults equal `config/cand_obj.cfg` (the sim profile).
 
 ### Result per evaluation
@@ -521,8 +554,8 @@ The exact job lines are `results/miss_reduction/regression/stage2.sh`. Paired ta
 | Evaluation | Before | After | Difference against its noise floor | Verdict |
 |---|---|---|---|---|
 | Synthetic suite_v2, 15 missions, run-to-run noise 0 (`compare_suite_v2.md`) | recall 0.954, precision 0.991, IoU 0.773, swallowed 1.067, height RMSE 0.155, sprayed 4.867, SAFETY 0 | the same for every metric but one | centre RMSE 0.426 -> 0.420 m: -0.005 m, t -0.4, 9 better / 6 worse; easy group 0.140 -> 0.154 (+0.014, t +1.7, 4 worse / 1 better), medium -0.009, hard -0.021 | no regression |
-| Held-out suite, 30 missions (`compare_holdout.md`) | centre RMSE 0.443 m, sprayed 4.867, all else as after | centre RMSE 0.425 m, sprayed 4.933 | centre RMSE -0.018 m (t -1.8, 19 better / 11 worse); easy 0.133 -> 0.147 (+0.015, t +2.2, 6 worse / 4 better); medium 0.441 -> 0.395 (-0.046, t -2.3); hard -0.023 (t -1.2); sprayed +0.067 (2 / 0 / 28). Recall, precision, IoU, swallowed, split, heights, jumps, SAFETY: 0 difference on all 30 | no regression; easy scenes +1.5 cm (see concerns) |
-| Recorded Isaac mission, 9 trees, 1 dataset (`compare_isaac.md`) | recall 1, precision 1, IoU 0.867 / min 0.817, centre RMSE 0.191 m (max 0.311), SAFETY 0 | same, but centre RMSE 0.255 m (max 0.472), SAFETY 1 | centre RMSE +0.064 m: 4 trees closer (-0.04 to -0.09), 5 farther (+0.025 to +0.18); about 1.2 x the synthetic paired spread. SAFETY 0 -> 1: one non-target change in a climb-out window, entry 7 at t = 169.196 s (no target, SCAN_APPROACH), its centre moved 0.01-0.02 m (the scorer's threshold is 1 mm) | **regression**: discrete safety counter, see below |
+| Held-out suite, 30 missions (`compare_holdout.md`) | centre RMSE 0.443 m, sprayed 4.867, all else as after | centre RMSE 0.425 m, sprayed 4.933 | centre RMSE -0.018 m (t -1.8, 19 better / 11 worse); easy 0.133 -> 0.147 (+0.015, t +2.2, 6 worse / 4 better); medium 0.441 -> 0.395 (-0.046, t -2.3); hard -0.023 (t -1.2); sprayed +0.067 (2 / 0 / 28). Recall, precision, IoU, swallowed, split, heights, jumps, SAFETY: 0 difference on all 30 | no regression overall; easy scenes +1.5 cm is beyond the noise rule (t +2.2), a small regression (see Verdict) |
+| Recorded Isaac mission, 9 trees, 1 dataset (`compare_isaac.md`) | recall 1, precision 1, IoU 0.867 / min 0.817, centre RMSE 0.191 m (max 0.311), SAFETY 0 | same, but centre RMSE 0.255 m (max 0.472); SAFETY 1 at `1cab792`, 0 with D67 | centre RMSE +0.064 m: 4 trees closer (-0.04 to -0.09), 5 farther (+0.025 to +0.18); about 1.2 x the synthetic paired spread, so within noise for one dataset. SAFETY at `1cab792`: one non-target change in a climb-out window, entry 7 at t = 169.196 s (no target, SCAN_APPROACH), its centre moved 0.01-0.02 m (the scorer's threshold is 1 mm); cause: the post-spray hold ended on SCAN_APPROACH (D67), fixed | no regression with D67 (centre RMSE within noise) |
 | Real-flight scorecard, real profile (`cand_obj_real.cfg`; `real/real_score.json`) | 63 trees, 68 IDs, area p10/50/90 21.94 / 37.84 / 47.30, vanished 5, jumps 0, implausible-height frames 59, max centre drift from first 2.586 m | identical trees, IDs, outlines, heights, counters; max centre drift from first 3.455 m; nearest-crown-peak distance p10 / p50 5.76 / 7.46 -> 4.26 / 7.83 | outlines, heights, IDs byte-identical for all 63 trees; centre drift from first publication +0.87 m (the centre now travels toward the crown, jumps stay 0, per-snapshot step 0.265 -> 0.264 m) | no regression in a bounded quantity |
 | Real-flight scorecard, sim profile | 101 trees, 111 IDs, drift 3.342 m | 101, 111, drift 4.246 m | same pattern (+0.90 m drift), outline / heights identical | as above |
 
@@ -533,9 +566,14 @@ final trees / 111 IDs (as `results/real_flight_scorecard.md` after the S8 guard)
 ### Rollback: `centre_from_support = false` reproduces the before build
 
 * Synthetic: the after build with `--config centre_from_support=false` on all 15 suite_v2 datasets: `map.jsonl` identical to the
-  before build's (without `stage_ms`) and `targets.json` byte-identical on 15 of 15 (`rollback.txt`).
+  before build's (without `stage_ms`) and `targets.json` byte-identical on 15 of 15 (`1cab792` run). With D67 the reference is
+  the hold build (`be0e5bd` + the D67 line): after-off equals hold on the 15 suite_v2 datasets and the recorded Isaac mission
+  (maps and targets), and hold equals before on all 16, so `centre_from_support = false` still reproduces `be0e5bd` there
+  (`rollback.txt`, written by `analyse_d67.sh` with `same_maps.py`, which drops `stage_ms`; the `1cab792` run's file was
+  written the same way, not by the `cmp` line in `stage2.sh`).
 * Real log, both profiles: `sim_before` = `sim_after_off`, `real_before` = `real_after_off`, 2559 of 2559 snapshots identical
-  (`maps_equal.txt`); the same stability, crown and cost summaries in `real_score.json`.
+  (`maps_equal.txt`; with D67 also `*_hold` = `*_before` = `*_after_off`: the log has no mission phases, so no hold starts);
+  the same stability, crown and cost summaries in `real_score.json`.
 * The fix is not vacuous: with it on, the map differs from snapshot 81 (sim) / 87 (real).
 * (The four Isaac replays were shown byte-identical earlier, section "Centre / result".)
 
@@ -564,11 +602,18 @@ unchanged (0.30 / 0.265 / 0.182 m, the rate limit).
 * Detection, outlines, heights, IDs, jumps, every other safety counter, the real-flight maps (except the centre) and the cost
   per frame: no change beyond the noise floor on any evaluation (45 synthetic missions with a zero difference on everything but
   the centre RMSE, which improves by 0.005 - 0.018 m on average).
-* Two things do get worse and are the price of the fix, not fixed in this task (the fix is not local: it is the centre now
-  following the observation support, which also moves a little more often):
-  1. **Recorded Isaac mission:** `SAFETY total violations` 0 -> 1 (a 1 - 2 cm centre move of a non-target tree during a
-     climb-out) and centre RMSE 0.191 -> 0.255 m (5 of 9 trees farther). The scorer counts any centre move above 1 mm; centre
-     moves now occur twice as often. No synthetic mission shows a non-target change (0 of 45).
-  2. **Easy scenes:** the centre RMSE is 1.4 - 1.5 cm worse (easy group, 0.133 -> 0.147 m on the held-out suite, t +2.2; suite_v2
-     +0.014 m, t +1.7). Medium / hard scenes improve by 0.01 - 0.05 m.
-* Raised to the controller (spec section 6); numbers also in `docs/DECISIONS.md` (addendum to D66).
+* What gets worse with the centre fix, not fixed in this task (the centre now follows the observation support and moves about
+  twice as often):
+  1. **Easy scenes:** the centre RMSE is 1.4 - 1.5 cm worse: held-out easy 0.133 -> 0.147 m, t +2.2, beyond the |t| < 2 rule,
+     so a small regression beyond noise; suite_v2 easy +0.014 m, t +1.7, within it. Medium / hard scenes improve by
+     0.01 - 0.05 m (held-out medium t -2.3).
+  2. **Recorded Isaac mission:** centre RMSE 0.191 -> 0.255 m (5 of 9 trees farther), about 1.2 x the synthetic paired spread,
+     so within noise for a single dataset (plausibly the mission's own observation geometry, not a defect).
+* **Corrected (fix round 1):** the `1cab792` run also showed `SAFETY total violations` 0 -> 1 on the Isaac mission (a 1 - 2 cm
+  centre move of non-target entry 7 in SCAN_APPROACH, inside the scorer's climb-out window), first reported here as a price of
+  the centre fix. The cause was cand_obj's post-spray hold, which ended on SCAN_APPROACH (since M3) against its documented
+  "until 2 m away"; D66 only made a centre move in that window more likely. D67 fixes the hold: SAFETY is 0 on the mission and
+  on all 45 synthetic missions, and nothing else in this section changes (`climbout.txt`: SCAN never starts inside the window,
+  the closest SCAN start is 5.07 m from the hover point). D67 changes the 5x5 corridor replay's A1 count 6 -> 8 (section
+  "Centre / result", ruling R25).
+* Raised to the controller (spec section 6); numbers also in `docs/DECISIONS.md` (addendum to D66, D67).

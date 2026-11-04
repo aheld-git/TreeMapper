@@ -1,0 +1,12 @@
+diff -ru before/core/src/candidates/cand_obj/cand_obj.cpp hold/core/src/candidates/cand_obj/cand_obj.cpp
+--- before/core/src/candidates/cand_obj/cand_obj.cpp	2026-11-04 13:09:12.000000000 +0100
++++ hold/core/src/candidates/cand_obj/cand_obj.cpp	2026-11-04 15:14:07.670681231 +0100
+@@ -900,7 +900,7 @@
+   if (!pol.awake) { count("crowns_dropped_sleeping", crowns.size()); return; }
+   // post-spray climb hold (see process()): freeze non-targets until the drone has left the hover point
+   if (hold_after_spray_) {
+-    const bool scanning = phase == MissionPhase::kScan || phase == MissionPhase::kScanApproach;
++    const bool scanning = phase == MissionPhase::kScan;
+     if (!hover_known_) { if (pose.valid) { hover_x_ = pose.x; hover_y_ = pose.y; hover_known_ = true; } }
+     const bool away = hover_known_ && pose.valid && std::hypot(pose.x - hover_x_, pose.y - hover_y_) > cfg_.post_spray_hold_radius;
+     if (away || scanning) {

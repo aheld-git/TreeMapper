@@ -608,7 +608,7 @@ target only within `drone_radius + lateral_margin` (1.3 m) of the target's outli
 (true), `centre_support_ratio` (0.5) and `centre_max_outside` (1.0). Not changed: latching and the outline (rule 2 as before:
 grow-only, no cell enters from one frame), heights, the internal centre used for matching / merges / spill guard /
 sprayed checks. Result on the four replays: map streams identical to the baseline except the centre, A1 / A2 identical
-entry by entry, A3 far 0.099 / 0.114 m with none beyond 0.8 m (5x5), near 0.106 / 0.089 m; rows far 0.116 / 0.128 m
+entry by entry (D67 later changes the 5x5 corridor A1 count 6 -> 8, see there), A3 far 0.099 / 0.114 m with none beyond 0.8 m (5x5), near 0.106 / 0.089 m; rows far 0.116 / 0.128 m
 (from 0.347 / 0.445), near 0.140 / 0.102 m (from 0.365 / 0.237). Rejected (measured): support over latched cells only
 (0.470 m, no margin; the unlatched far half cannot come in), the same estimate as the internal centre (changes matching,
 A1 count 6 -> 8), weighted evidence as a second latch path (new cells feed the height, A1 dose 0.88 -> 5.72 m).
@@ -639,22 +639,31 @@ neighbour's outline (2.4 s and 0.4 s; 0 before). The section 6 regression check 
 replays it reproduces the baseline map streams, targets, counters and `metrics.json` byte for byte).
 
 **D66 addendum (Task 7 regression check, 2026-11-04; evidence `results/miss_reduction.md` "TreeMapper regression check").**
-The centre fix was run against the evaluations that existed before it (before `be0e5bd`, after `1cab792`; the runs are
-deterministic, so the noise floor is the paired dataset-to-dataset spread). No change beyond noise in detection, outlines,
+The centre fix was run against the evaluations that existed before it (before `be0e5bd`, after `1cab792`; re-run with D67
+after `a0e2de3`, identical except where stated). Run-to-run noise was measured on suite_v2 only (`TM_REPEAT=2`: 0 for every
+metric, maps identical on 15 of 15); the held-out suite, the Isaac mission and the real log were run once each. The noise
+floor is the paired dataset-to-dataset spread. No change beyond noise in detection, outlines,
 heights, IDs, jumps or safety counters on suite_v2 (15 missions, `TM_REPEAT=2`, run-to-run 0), the held-out suite (30) and the
 real log with either profile (outlines, heights, IDs byte-identical for all 63 / 101 final trees); centre RMSE -0.005 m
 (suite_v2) and -0.018 m (held-out). `centre_from_support = false` reproduces the before build exactly (15 of 15 suite_v2 maps,
 both profiles on the real log, 2559 of 2559 snapshots). Real log, every snapshot: with the real profile no centre is ever outside
 its outline and the clamp never acts; two centres pass through a touching neighbour's outline (16 entry-snapshots; 0 before);
 sim profile on the same log: 857 of 137092 entry-snapshots outside (max 1.000 m), 19 clamps, 20 -> 28 inside-another pairs.
-Accepted costs, not fixed (the cause is the centre now following the support, so it moves about twice as often: 1.4 -> 3.9 %
-of entry-snapshots on the real log with the sim profile, 1.9 -> 4.4 % with the real profile, largest step unchanged at the rate
-limit): (1) on the recorded Isaac mission (9 trees, used in tuning) `SAFETY total violations` 0 -> 1, one 1 - 2 cm centre move of
-a non-target tree (entry 7, t = 169.2 s, climb-out, no target), and centre RMSE 0.191 -> 0.255 m (4 trees closer, 5 farther,
-largest 0.311 -> 0.472 m); no synthetic mission shows a non-target change (0 of 45); (2) easy synthetic scenes lose 1.4 - 1.5 cm
-of centre RMSE (held-out easy 0.133 -> 0.147 m, t +2.2; suite_v2 easy +0.014 m, t +1.7), while medium / hard improve by 0.01 - 0.05 m;
-(3) the real-flight "max centre drift from first publication" grows 2.586 -> 3.455 m (real profile; sim profile 3.342 -> 4.246 m),
+Accepted costs, not fixed (the centre now follows the support, so it moves about twice as often: 1.4 -> 3.9 % of
+entry-snapshots on the real log with the sim profile, 1.9 -> 4.4 % with the real profile, 2.1 -> 4.7 % on the Isaac mission,
+largest step unchanged at the rate limit): (1) on the recorded Isaac mission (9 trees, used in tuning) centre RMSE 0.191 ->
+0.255 m (4 trees closer, 5 farther, largest 0.311 -> 0.472 m); +0.064 m is about 1.2 x the paired spread of the synthetic suites
+(0.047 - 0.056 m), so within noise for a single dataset, plausibly that mission's own observation geometry; (2) easy synthetic
+scenes lose 1.4 - 1.5 cm of centre RMSE: held-out easy 0.133 -> 0.147 m, t +2.2 (6 worse / 4 better), beyond the |t| < 2 noise
+rule; suite_v2 easy +0.014 m, t +1.7, within it; medium / hard improve by 0.01 - 0.05 m (held-out medium t -2.3); (3) the
+real-flight "max centre drift from first publication" grows 2.586 -> 3.455 m (real profile; sim profile 3.342 -> 4.246 m),
 because the centre now travels toward the crown. Raised to the user (spec section 6).
+Corrected (Task 7 review I1, fix round 1): the `1cab792` run also showed `SAFETY total violations` 0 -> 1 on the Isaac mission
+(one 1 - 2 cm centre move of non-target entry 7 at t = 169.2 s, no target, SCAN_APPROACH, inside the scorer's 1.5 m climb-out
+window), first reported here as a price of the centre fix. It was not one: cand_obj's post-spray hold ended on SCAN_APPROACH
+(since M3 `94abc70`), which neither the documented gate ("until 2 m away") nor the scorer's climb window ("whatever the phase")
+allows; D66 only made a centre move in that window more likely. D67 closes the gap: SAFETY 0 on the mission again, and no
+synthetic mission shows a non-target change (0 of 45) with either build.
 
 **D67. The post-spray hold lasts until the drone has left the hover point, not until SCAN_APPROACH** (Task 7 review I1,
 rulings R23 and R25; evidence `results/miss_reduction.md` "TreeMapper regression check" and

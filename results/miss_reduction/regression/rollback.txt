@@ -1,15 +1,16 @@
-easy_s200 IDENTICAL (579 snapshots) targets-same
-easy_s201 IDENTICAL (560 snapshots) targets-same
-easy_s202 IDENTICAL (590 snapshots) targets-same
-easy_s203 IDENTICAL (578 snapshots) targets-same
-easy_s204 IDENTICAL (557 snapshots) targets-same
-hard_s200 IDENTICAL (703 snapshots) targets-same
-hard_s201 IDENTICAL (703 snapshots) targets-same
-hard_s202 IDENTICAL (731 snapshots) targets-same
-hard_s203 IDENTICAL (700 snapshots) targets-same
-hard_s204 IDENTICAL (717 snapshots) targets-same
-medium_s200 IDENTICAL (605 snapshots) targets-same
-medium_s201 IDENTICAL (608 snapshots) targets-same
-medium_s202 IDENTICAL (626 snapshots) targets-same
-medium_s203 IDENTICAL (638 snapshots) targets-same
-medium_s204 IDENTICAL (598 snapshots) targets-same
+easy_s200 off-vs-hold: IDENTICAL (579 snapshots) targets-same | hold-vs-before: IDENTICAL (579 snapshots) | after r0-vs-r1: IDENTICAL (579 snapshots)
+easy_s201 off-vs-hold: IDENTICAL (560 snapshots) targets-same | hold-vs-before: IDENTICAL (560 snapshots) | after r0-vs-r1: IDENTICAL (560 snapshots)
+easy_s202 off-vs-hold: IDENTICAL (590 snapshots) targets-same | hold-vs-before: IDENTICAL (590 snapshots) | after r0-vs-r1: IDENTICAL (590 snapshots)
+easy_s203 off-vs-hold: IDENTICAL (578 snapshots) targets-same | hold-vs-before: IDENTICAL (578 snapshots) | after r0-vs-r1: IDENTICAL (578 snapshots)
+easy_s204 off-vs-hold: IDENTICAL (557 snapshots) targets-same | hold-vs-before: IDENTICAL (557 snapshots) | after r0-vs-r1: IDENTICAL (557 snapshots)
+hard_s200 off-vs-hold: IDENTICAL (703 snapshots) targets-same | hold-vs-before: IDENTICAL (703 snapshots) | after r0-vs-r1: IDENTICAL (703 snapshots)
+hard_s201 off-vs-hold: IDENTICAL (703 snapshots) targets-same | hold-vs-before: IDENTICAL (703 snapshots) | after r0-vs-r1: IDENTICAL (703 snapshots)
+hard_s202 off-vs-hold: IDENTICAL (731 snapshots) targets-same | hold-vs-before: IDENTICAL (731 snapshots) | after r0-vs-r1: IDENTICAL (731 snapshots)
+hard_s203 off-vs-hold: IDENTICAL (700 snapshots) targets-same | hold-vs-before: IDENTICAL (700 snapshots) | after r0-vs-r1: IDENTICAL (700 snapshots)
+hard_s204 off-vs-hold: IDENTICAL (717 snapshots) targets-same | hold-vs-before: IDENTICAL (717 snapshots) | after r0-vs-r1: IDENTICAL (717 snapshots)
+medium_s200 off-vs-hold: IDENTICAL (605 snapshots) targets-same | hold-vs-before: IDENTICAL (605 snapshots) | after r0-vs-r1: IDENTICAL (605 snapshots)
+medium_s201 off-vs-hold: IDENTICAL (608 snapshots) targets-same | hold-vs-before: IDENTICAL (608 snapshots) | after r0-vs-r1: IDENTICAL (608 snapshots)
+medium_s202 off-vs-hold: IDENTICAL (626 snapshots) targets-same | hold-vs-before: IDENTICAL (626 snapshots) | after r0-vs-r1: IDENTICAL (626 snapshots)
+medium_s203 off-vs-hold: IDENTICAL (638 snapshots) targets-same | hold-vs-before: IDENTICAL (638 snapshots) | after r0-vs-r1: IDENTICAL (638 snapshots)
+medium_s204 off-vs-hold: IDENTICAL (598 snapshots) targets-same | hold-vs-before: IDENTICAL (598 snapshots) | after r0-vs-r1: IDENTICAL (598 snapshots)
+isaac_2026-10-23-15-34-29 off-vs-hold: IDENTICAL (1410 snapshots) targets-same | hold-vs-before: IDENTICAL (1410 snapshots)

@@ -24,10 +24,10 @@
 | centre jumps | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
 | height jumps | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
 | IDs vanished while held by nav | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
-| SAFETY total violations | 0 | 1 | +1 | n/a | n/a | 0 / 1 / 0 |
+| SAFETY total violations | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
 |   undefined-height frames | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
 |   new trees after scan | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
-|   non-target changes in descent | 0 | 1 | +1 | n/a | n/a | 0 / 1 / 0 |
+|   non-target changes in descent | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
 |   sprayed-tree changes | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
 |   new tree inside sprayed | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
 |   invalid-entry frames | 0 | 0 | 0 | n/a | n/a | 0 / 0 / 1 |
@@ -42,7 +42,7 @@ Per seed (after - before):
 
 | dataset | recall (final) | precision (final) | mean IoU (final) | neighbours swallowed (final) | false trees (final) | centre RMSE m (final) | height RMSE m (final) | spill (final) | SAFETY total violations |
 |---|---|---|---|---|---|---|---|---|---|
-| isaac_2026-10-23-15-34-29 | 0 | 0 | 0 | 0 | 0 | +0.064 | n/a | 0 | +1 |
+| isaac_2026-10-23-15-34-29 | 0 | 0 | 0 | 0 | 0 | +0.064 | n/a | 0 | 0 |
 
 
 Run-to-run max diff (TM_REPEAT) before / after, per metric:

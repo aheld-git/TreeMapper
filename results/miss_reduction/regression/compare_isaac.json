@@ -206,13 +206,13 @@
  "SAFETY total violations": {
   "n": 1,
   "ref_mean": 0.0,
-  "other_mean": 1.0,
-  "mean_diff": 1.0,
+  "other_mean": 0.0,
+  "mean_diff": 0.0,
   "std_diff": null,
   "t": null,
   "wins": 0,
-  "losses": 1,
-  "ties": 0
+  "losses": 0,
+  "ties": 1
  },
  "  undefined-height frames": {
   "n": 1,
@@ -239,13 +239,13 @@
  "  non-target changes in descent": {
   "n": 1,
   "ref_mean": 0.0,
-  "other_mean": 1.0,
-  "mean_diff": 1.0,
+  "other_mean": 0.0,
+  "mean_diff": 0.0,
   "std_diff": null,
   "t": null,
   "wins": 0,
-  "losses": 1,
-  "ties": 0
+  "losses": 0,
+  "ties": 1
  },
  "  sprayed-tree changes": {
   "n": 1,
