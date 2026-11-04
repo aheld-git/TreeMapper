@@ -114,6 +114,9 @@ struct Config {
   double centre_support_ratio{0.5};  ///< a cell supports the centre while its observation-weighted canopy evidence is
                                      ///< >= this share of all its weighted evidence and >= latch_frames weighted frames;
                                      ///< fewer than min_height_cells such cells: the latched centroid (counted)
+  double centre_max_outside{1.0};   ///< m, the supported centroid is held within this distance of the latched outline
+                                    ///< (counted): the navigator accepts a clearance-guard release over the target only
+                                    ///< within drone_radius + lateral_margin (1.3 m) of its outline
   // --- merges (rule 4)
   double merge_overlap{0.5};        ///< latched overlap / smaller latched area
   double merge_centre_dist{1.5};    ///< m, or centres closer than this
@@ -128,7 +131,7 @@ struct Config {
 /// Key/value -> Config (keys = field names); unknown keys throw std::invalid_argument.
 Config configFrom(const MapperConfig& config);
 /// Number of tunables, for the config-file test.
-constexpr int kConfigKeyCount = 47;
+constexpr int kConfigKeyCount = 48;
 
 /// Frame quality from the body rotation rate (rad/s) and the time since the last fast rotation.
 /// Unknown rate (< 0) -> 1 (fail open). Pure, tested.

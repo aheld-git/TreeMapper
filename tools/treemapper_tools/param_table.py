@@ -68,6 +68,7 @@ D = {
  'max_height_rate': ('m/s a published height may move', 'lower = no jumps, slower to converge after a merge'),
  'max_centre_rate': ('m/s a published centre may move (outline not delayed)', 'lower = smoother centre, lags the outline'),
  'centre_from_support': ('published centre = centroid of the cells with observation-weighted canopy support (true) or of the latched cells (false, M4)', 'true lets near views correct a centre a far edge view biased (latching is permanent); false keeps the centre inside the latched outline'),
+ 'centre_max_outside': ('m, the supported centroid is held within this distance of the latched outline (counted centre_clamped_to_outline; clamp range 0-1.3)', 'the navigator accepts a guard release over its target only within 1.3 m of the outline; lower keeps more of a far view bias'),
  'centre_support_ratio': ('a cell supports the centre while its weighted canopy evidence is >= this share of its weighted evidence (and >= latch_frames weighted frames)', 'lower follows the newest good views sooner, admits more spill; higher (0.75) keeps more of a far view ghost band'),
  'merge_overlap': ('merge when latched overlap >= this x the smaller latched area', 'lower merges fragments readily, risks merging neighbours'),
  'merge_centre_dist': ('m, or merge when centres are closer', 'higher merges real-crown fragments, risks merging tight neighbours'),

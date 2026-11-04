@@ -601,8 +601,11 @@ frame counted as one frame whatever its geometry. Fix: per cell a second pair of
 frame saw the cell (min(mean point weight, 1) x frame quality, about 0.15 for the far edge view and 1 near nadir); the
 published centre moves (at `max_centre_rate`, unchanged) toward the centroid of the cells with at least `latch_frames`
 weighted positive frames and a weighted positive share of at least `centre_support_ratio` (0.5); fewer than
-`min_height_cells` such cells falls back to the latched centroid (counted `centre_support_fallback_latched`). New keys
-`centre_from_support` (true) and `centre_support_ratio` (0.5). Not changed: latching and the outline (rule 2 as before:
+`min_height_cells` such cells falls back to the latched centroid (counted `centre_support_fallback_latched`); the
+supported centroid is held within `centre_max_outside` (1.0 m, clamp range 0-1.3 m) of the latched outline (counted
+`centre_clamped_to_outline`, review ruling R20), because the navigator accepts a clearance-guard release over its
+target only within `drone_radius + lateral_margin` (1.3 m) of the target's outline. New keys `centre_from_support`
+(true), `centre_support_ratio` (0.5) and `centre_max_outside` (1.0). Not changed: latching and the outline (rule 2 as before:
 grow-only, no cell enters from one frame), heights, the internal centre used for matching / merges / spill guard /
 sprayed checks. Result on the four replays: map streams identical to the baseline except the centre, A1 / A2 identical
 entry by entry, A3 far 0.099 / 0.114 m with none beyond 0.8 m (5x5), near 0.106 / 0.089 m; rows far 0.116 / 0.128 m
@@ -610,13 +613,27 @@ entry by entry, A3 far 0.099 / 0.114 m with none beyond 0.8 m (5x5), near 0.106 
 (0.470 m, no margin; the unlatched far half cannot come in), the same estimate as the internal centre (changes matching,
 A1 count 6 -> 8), weighted evidence as a second latch path (new cells feed the height, A1 dose 0.88 -> 5.72 m).
 Consequences: the centre and the outline are now separate quantities and a corrected centre can lie outside the
-(still biased, grow-only) outline: 6 of 226 replay doses, at most 0.99 m outside, within the navigator's 1.3 m reach for
-a guard release. Part of the correction arrives on the leg to the dose, which the navigator does not follow (it replans
+(still biased, grow-only) outline. Over every replay snapshot the largest distance was 0.817 / 0.000 / 1.006 / 1.067 m
+(5x5 corridor / field_first / rows corridor / field_first) before the clamp and 0.817 / 0 / 1.000 / 1.000 m with it
+(the clamp acts 8 and 56 times on rows, never on 5x5, and changes no lock or dose value); at the doses 6 of 225, at most
+0.99 m. A centre can also sit inside ANOTHER entry's outline, which the baseline never shows on 5x5 / rows corridor:
+three pairs, each two entries of one physical tree (pre-existing rule 4 duplicates): 5x5 corridor 8 inside 46 (truth 7,
+from t 125.85, 8 already sprayed) and 121 inside 139 (truth 22, from 401.85, both sprayed by then), rows field_first 20
+inside 137 (truth 14, from 796.75: 137 sprayed at 763.0, 20 is on its dosing leg, dosed at 797.7). A fourth, rows
+field_first 253 inside 252 (t 209.15-219.15, truth 85), is in the baseline too. For the navigator: `reresolveId` prefers
+the entry whose outline contains the old centre but skips sprayed entries, so a vanished target is not re-resolved onto a
+sprayed duplicate; `sprayPoint` raises the spray point over a neighbour whose outline is within 1.3 m of the target
+centre, so a target sitting on a duplicate's outline is dosed from that duplicate's height plus clearance (the safe
+direction; it may weaken the dose). Part of the correction arrives on the leg to the dose, which the navigator does not follow (it replans
 on height changes only): measured at the start of the dosing leg the 5x5 corridor far error is 0.452 m with 2 of 13
 beyond 0.8 m.
-Real-flight profile: gets the same (`centre_from_support = true`, `centre_support_ratio = 0.5`, identical code). Safe
+Real-flight profile: gets the same (`centre_from_support = true`, `centre_support_ratio = 0.5`, `centre_max_outside =
+1.0`, identical code). Safe
 there because nothing that bounds the descent changes: on the real farm log outlines, heights and IDs are byte-identical
 for all 63 final trees, every centre stays inside its own outline, and the centre still moves at <= 0.8 m/s (largest
 snapshot step 0.26 m, as before). The centres move by a median 0.48 m (max 3.17 m); against the stereo crown peaks (a
 proxy, no truth) mean distance 1.76 -> 1.63 m, p90 3.02 -> 2.66 m, 22 trees closer and 11 farther by more than 0.3 m.
-The section 6 regression check (Task 7) has to confirm it; `centre_from_support = false` restores the M4 centre.
+Over the whole log no centre leaves its outline (the clamp never acts); two centres pass briefly through a touching
+neighbour's outline (2.4 s and 0.4 s; 0 before). The section 6 regression check (Task 7) has to confirm it;
+`centre_from_support = false` restores the M4 centre (`CandObj.CentreFromSupportOffIsTheLatchedCentroid`; on the four
+replays it reproduces the baseline map streams, targets, counters and `metrics.json` byte for byte).

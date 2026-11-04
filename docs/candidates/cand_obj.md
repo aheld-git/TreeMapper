@@ -18,7 +18,8 @@ instance's canopy (negative). A cell **latches**, permanently, after `latch_fram
 at least `latch_ratio` of the judged frames. The published outline is the convex hull of the latched cells; the centre
 is the centroid of the cells whose observation-weighted evidence (each frame counts min(point weight, 1) x frame
 quality) currently says "this tree's canopy" (D66: latching is permanent, and a far edge view latches cells displaced
-toward its track; `centre_from_support = false` gives the latched centroid); the height is a high quantile (0.99) of the latched cells' fused surface heights (M4; M3 used the
+toward its track; held within `centre_max_outside` of the outline; `centre_from_support = false` gives the latched
+centroid); the height is a high quantile (0.99) of the latched cells' fused surface heights (M4; M3 used the
 median of per-frame crown-top samples, see section 10). Published centre and height move at a bounded rate. There are no
 2D tracks anywhere.
 

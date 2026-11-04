@@ -382,14 +382,19 @@ tree's canopy", instead of the centroid of the latched cells.
   Unlatched cells count (the far half of the crown), latched cells that the better views call ground drop out.
 - Fewer than `min_height_cells` supported cells: the latched centroid, as before (fails open, counted
   `centre_support_fallback_latched`).
+- The supported centroid is held within `centre_max_outside` (1.0 m) of the latched outline (counted
+  `centre_clamped_to_outline`): the navigator accepts a clearance-guard release over its target only within 1.3 m of
+  the target's outline (`raiseSprayFloor`). Added in review fix round 1 (ruling R20).
 - The published centre still moves toward its target at `max_centre_rate`; the rate limiter is unchanged.
 - **Unchanged:** latching, the outline (convex hull of the latched cells, grow-only, rule 2), heights, the internal centre
-  used for matching, merges, the spill guard and the sprayed checks. Two new keys, `centre_from_support` (true) and
-  `centre_support_ratio` (0.5), in both profiles.
+  used for matching, merges, the spill guard and the sprayed checks. Three new keys, `centre_from_support` (true),
+  `centre_support_ratio` (0.5) and `centre_max_outside` (1.0), in both profiles. `centre_from_support = false`
+  reproduces the baseline map streams, targets, counters and `metrics.json` byte for byte on all four replays.
 
 Checked on the four replays: every map snapshot is identical to the baseline except the centre (outline, height, id and
 `sprayed` of all 40 532 / 43 554 / 287 942 / 363 793 entry-snapshots), the targets files are identical, the counters
-differ only in `centre_steps_clamped` and the new `centre_support_fallback_latched`.
+differ only in `centre_steps_clamped` and the new `centre_support_fallback_latched` / `centre_clamped_to_outline`
+(0 / 0 / 8 / 56). The clamp changes no lock or dose value: the four `metrics.json` are byte-identical with and without it.
 
 ### Centre / result
 
@@ -425,9 +430,28 @@ covers the crown's far half (see entry 59 above); their centres converge only fr
 unless a height replan picks up the new centre. That is a navigator question (replan on a centre move), outside this task.
 
 **Centre and outline are now separate.** The outline still holds the far view's latched ghost band (grow-only), so a
-corrected centre can lie outside it: 5 of 27 doses on 5x5 corridor (up to 0.82 m outside) and 1 of 86 on rows corridor
-(0.99 m); none on the field_first datasets. All are within the navigator's 1.3 m reach (`drone_radius + lateral_margin`)
-that `raiseSprayFloor` uses to accept a guard release over the target.
+corrected centre can lie outside it.
+
+| Centre outside its own outline (m) | 5x5 corridor | 5x5 field_first | rows corridor | rows field_first |
+|---|---|---|---|---|
+| any snapshot, before the clamp (round 0) | 0.817 (entry 59, t 214.27) | 0 | 1.006 (entry 23, t 140.53) | 1.067 (entry 20, t 25.15) |
+| any snapshot, with `centre_max_outside` 1.0 | 0.817 | 0 | 1.000 | 1.000 |
+| at the doses (attached dose episodes) | 5 of 27, max 0.82 | 0 of 25 | 1 of 86, 0.99 | 0 of 87 |
+
+Nothing bounded the distance before the clamp (in principle up to `max_cell_radius`); beyond 1.3 m the navigator
+ignores a guard release over the target (`spray_floor_release_ignored`) and the attempt fails after its climbs.
+
+A centre can also sit inside **another** entry's outline. The baseline has no such case on 5x5 corridor, 5x5
+field_first and rows corridor, and one on rows field_first (253 inside 252, t 209.15-219.15, both truth 85, neither
+sprayed), which stays. The fix adds three, each two entries of one physical tree (pre-existing rule 4 duplicates):
+- 5x5 corridor, entry 8 inside 46 (truth 7) from t 125.85 to the end: 8 was sprayed at 107.3, 46 is born at 125.85 and dosed at 162.5;
+- 5x5 corridor, entry 121 inside 139 (truth 22) from t 401.85: 121 sprayed at 379.1, 139 born at 401.9;
+- rows field_first, entry 20 inside 137 (truth 14) from t 796.75: 137 sprayed at 763.0, 20 is on its dosing leg and dosed at 797.7.
+
+What it means for the navigator: `reresolveId` prefers the entry whose outline contains the lost target's centre but
+skips sprayed entries, so a vanished target is never re-resolved onto its sprayed duplicate; `sprayPoint` raises the
+spray point over any other entry whose outline is within 1.3 m of the target centre, so a target lying on a duplicate's
+outline is dosed from at least that duplicate's height plus clearance. That is the safe direction; it may weaken the dose.
 
 **Alternatives measured** (scratch build, env flags; outputs `/data/work/replay/t6/<ds>/<variant>/`):
 
@@ -452,4 +476,7 @@ centres move by a median 0.48 m (p90 1.18, max 3.17); distance from the centre t
 outline (`results/real_flight_crowns.json`, a proxy: a crown's top is not its centre) mean 1.76 -> 1.63 m, p90 3.02 ->
 2.66 m, 22 trees closer by more than 0.3 m and 11 farther. Sim profile on the same log: 101 trees, mean 2.40 -> 2.35 m,
 p90 4.25 -> 4.43 m, 23 closer and 15 farther, 100 of 101 centres inside their outline. Largest per-snapshot centre step
-unchanged (0.26 / 0.30 m, the rate limit).
+unchanged (0.26 / 0.30 m, the rate limit). With the outline clamp the real profile's numbers are unchanged (no centre
+leaves its outline on the whole log); two centres pass briefly through a touching neighbour's outline (2.4 s and 0.4 s,
+none before). The sim profile on the real log: the clamp acts 19 times, largest distance outside 1.000 m; centres inside
+another entry's outline in 28 pairs (20 before).

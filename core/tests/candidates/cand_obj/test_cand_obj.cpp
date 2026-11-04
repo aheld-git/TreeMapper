@@ -143,7 +143,7 @@ MapperConfig readCfgFile(const std::string& path) {
   X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(seed_truncated) X(window) X(match_radius) X(match_overlap) X(match_reach) X(seed_overlap) \
   X(max_cell_radius) X(latch_rel_h) X(latch_frames) X(latch_ratio) X(confirm_frames) X(min_height_cells) X(min_publish_area) X(min_tree_height) \
   X(tentative_timeout) X(cell_weight_cap) X(outlier_gate_m) X(gate_min_weight) X(height_quantile) X(max_height_rate) X(max_centre_rate) \
-  X(centre_from_support) X(centre_support_ratio)                                                               \
+  X(centre_from_support) X(centre_support_ratio) X(centre_max_outside)                                                               \
   X(merge_overlap) X(merge_centre_dist) X(post_spray_hold_radius)
 
 TEST(CandObjConfig, ShippedFileEqualsBuiltInDefaults) {
@@ -171,10 +171,12 @@ TEST(CandObjConfig, SanitizedClampsAndLogsEveryClamp) {
   c.latch_ratio = 7.0;     // above
   c.window = 2;
   c.centre_support_ratio = -0.5;
+  c.centre_max_outside = 2.0;
   int logged = 0;
   const Config s = c.sanitized([&](const std::string& m) { ++logged; EXPECT_NE(m.find("clamped"), std::string::npos); });
-  EXPECT_EQ(logged, 4);
+  EXPECT_EQ(logged, 5);
   EXPECT_DOUBLE_EQ(s.centre_support_ratio, 0.0);
+  EXPECT_DOUBLE_EQ(s.centre_max_outside, 1.3);
   EXPECT_DOUBLE_EQ(s.cell, 0.1);
   EXPECT_DOUBLE_EQ(s.latch_ratio, 1.0);
   EXPECT_EQ(s.window, 4);
@@ -646,7 +648,7 @@ namespace {
 // carry the low point weight of oblique, far points (0.15). From the near track (3.7 m across) the crown is where
 // it is, with near-nadir weight (0.9), and the far view's ghost band is ground. `each` is called after every frame.
 template <typename F>
-void farThenNear(CandObj& m, double& t, F each) {
+void farThenNear(CandObj& m, double& t, F each, double ghost_dy = -1.5, int near_frames = 40) {
   auto frame = [&](double cy, double w, double drone_y) {
     std::vector<Crown> c{disc(0.0, cy, 1.5, 2.7)};
     FrameView v = viewOf(c);
@@ -654,8 +656,22 @@ void farThenNear(CandObj& m, double& t, F each) {
     m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, poseAt(0.0, drone_y), v, c);
     each();
   };
-  for (int i = 0; i < 25; ++i) frame(-1.5, 0.15, -8.4);  // far pass
-  for (int i = 0; i < 40; ++i) frame(0.0, 0.9, -3.7);    // near pass
+  for (int i = 0; i < 25; ++i) frame(ghost_dy, 0.15, -8.4);  // far pass
+  for (int i = 0; i < near_frames; ++i) frame(0.0, 0.9, -3.7);  // near pass
+}
+
+// Distance from p to a convex polygon (0 inside).
+double outside(const Polygon2& poly, const Point2& p) {
+  if (pointInPolygon(poly, p)) return 0.0;
+  double best = std::numeric_limits<double>::infinity();
+  for (std::size_t i = 0; i < poly.size(); ++i) {
+    const Point2& a = poly[i];
+    const Point2& b = poly[(i + 1) % poly.size()];
+    const double ex = b.x - a.x, ey = b.y - a.y, l2 = ex * ex + ey * ey;
+    const double s = l2 > 0.0 ? std::clamp(((p.x - a.x) * ex + (p.y - a.y) * ey) / l2, 0.0, 1.0) : 0.0;
+    best = std::min(best, std::hypot(p.x - a.x - s * ex, p.y - a.y - s * ey));
+  }
+  return best;
 }
 }  // namespace
 
@@ -703,6 +719,64 @@ TEST(CandObj, CentreFixKeepsOutlineGrowOnly) {
   EXPECT_GT(n_pub, 40);
   EXPECT_LE(max_dc, m.config().max_centre_rate * 0.1 + 1e-6);
   EXPECT_GT(cnt(m, "centre_steps_clamped"), 0u);  // the centre did move a long way, at the bounded rate
+}
+
+// The supported centroid is held within centre_max_outside of the latched outline (counted), so the navigator still
+// accepts a clearance-guard release over the target (it requires the drone within 1.3 m of the target's outline).
+// Here the far view's ghost lies 3.5 m from the crown and only it latched: the crown's support centroid would sit
+// about 2 m outside the outline.
+TEST(CandObj, CentreHeldWithinMaxOutsideOfTheOutline) {
+  auto run = [](double max_outside, double* final_outside, double* max_seen, double* max_dc, std::uint64_t* clamps) {
+    Config c;
+    c.match_radius = 4.0;     // the near crown, 3.5 m from the ghost's centre, is still this tree
+    c.max_cell_radius = 6.0;  // and its cells are credited
+    c.centre_max_outside = max_outside;
+    CandObj m(c);
+    double t = 0;
+    Point2 prev{0, 0};
+    bool have = false;
+    *max_seen = 0.0;
+    *max_dc = 0.0;
+    farThenNear(m, t, [&] {
+      const auto trees = m.publishedTrees();
+      if (trees.empty()) return;
+      ASSERT_EQ(trees.size(), 1u) << dump(m);
+      *max_seen = std::max(*max_seen, outside(trees[0].outline, trees[0].centre));
+      if (have) *max_dc = std::max(*max_dc, std::hypot(trees[0].centre.x - prev.x, trees[0].centre.y - prev.y));
+      prev = trees[0].centre;
+      have = true;
+    }, -3.5, 50);
+    const auto trees = m.publishedTrees();
+    ASSERT_EQ(trees.size(), 1u) << dump(m);
+    *final_outside = outside(trees[0].outline, trees[0].centre);
+    *clamps = cnt(m, "centre_clamped_to_outline");
+  };
+  double fo = 0, ms = 0, dc = 0;
+  std::uint64_t clamps = 0;
+  run(1.3, &fo, &ms, &dc, &clamps);  // the widest setting: the support centroid lies more than 1.0 m outside
+  EXPECT_GT(fo, 1.2);
+  run(1.0, &fo, &ms, &dc, &clamps);  // the default holds it at 1.0 m
+  EXPECT_GT(fo, 0.9);                // (it did move toward the crown, up to the bound)
+  EXPECT_LE(ms, 1.0 + 1e-6);         // never farther outside, in any frame
+  EXPECT_GT(clamps, 0u);
+  EXPECT_LE(dc, Config{}.max_centre_rate * 0.1 + 1e-6);  // and the published centre still moves at the bounded rate
+}
+
+// centre_from_support = false is the documented rollback (real-flight profile included): the published centre is
+// the latched centroid again, as before D66. Through the far-then-near sequence the pre-D66 build published
+// (0, -1.4521739) (RED run of CentreConvergesAfterNearViews, task 6): the centroid of the latched ghost band.
+TEST(CandObj, CentreFromSupportOffIsTheLatchedCentroid) {
+  Config c;
+  c.centre_from_support = false;
+  CandObj m(c);
+  double t = 0;
+  farThenNear(m, t, [] {});
+  const auto trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 1u) << dump(m);
+  EXPECT_NEAR(trees[0].centre.x, 0.0, 1e-9);
+  EXPECT_NEAR(trees[0].centre.y, -1.4521739130434776, 1e-9);
+  EXPECT_EQ(cnt(m, "centre_support_fallback_latched"), 0u);
+  EXPECT_EQ(cnt(m, "centre_clamped_to_outline"), 0u);
 }
 
 // ------------------------------------------------------------------------------- final review (S4, S6, S8, S12)

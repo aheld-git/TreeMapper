@@ -288,11 +288,12 @@ profile are in bold. (Generated from the two files by `python3 -m treemapper_too
 | height model (M4) | `max_centre_rate` | 0.8 | 0.8 | m/s a published centre may move (outline not delayed) | lower = smoother centre, lags the outline |
 | centre (D66) | `centre_from_support` | true | true | published centre = centroid of the cells with observation-weighted canopy support (true) or of the latched cells (false, M4) | true lets near views correct a centre a far edge view biased (latching is permanent); false keeps the centre inside the latched outline |
 | centre (D66) | `centre_support_ratio` | 0.5 | 0.5 | a cell supports the centre while its weighted canopy evidence is >= this share of its weighted evidence (and >= latch_frames weighted frames) | lower follows the newest good views sooner, admits more spill; higher (0.75) keeps more of a far view ghost band |
+| centre (D66) | `centre_max_outside` | 1.0 | 1.0 | m, the supported centroid is held within this distance of the latched outline (counted centre_clamped_to_outline; clamp range 0-1.3) | the navigator accepts a guard release over its target only within 1.3 m of the outline; lower keeps more of a far view bias |
 | merges | `merge_overlap` | 0.5 | **0.3** | merge when latched overlap >= this x the smaller latched area | lower merges fragments readily, risks merging neighbours |
 | merges | `merge_centre_dist` | 1.5 | **2.5** | m, or merge when centres are closer | higher merges real-crown fragments, risks merging tight neighbours |
 | phases | `post_spray_hold_radius` | 2.0 | 2.0 | m, after SPRAYING non-targets stay frozen until the drone is this far from the hover point | larger = longer protection on the climb-out |
 
-47 keys; 9 keys differ in the real profile
+48 keys; 9 keys differ in the real profile
 
 Node parameters that matter most on the drone (all in `treemapper.yaml` / the launch args): `camera_mount` +
 `camera_mount_source` (wrong mount = tilted ground and shifted crowns), `disparity_offset` (wrong offset = depth scale

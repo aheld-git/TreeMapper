@@ -20,6 +20,21 @@ double msSince(Clock::time_point t0) {
   return std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
 }
 double dist(const Point2& a, const Point2& b) { return std::hypot(a.x - b.x, a.y - b.y); }
+/// Nearest point to p on the boundary of a polygon (>= 2 vertices).
+Point2 nearestOnBoundary(const Polygon2& poly, const Point2& p) {
+  Point2 best = poly.front();
+  double bd = std::numeric_limits<double>::infinity();
+  for (std::size_t i = 0; i < poly.size(); ++i) {
+    const Point2& a = poly[i];
+    const Point2& b = poly[(i + 1) % poly.size()];
+    const double ex = b.x - a.x, ey = b.y - a.y, l2 = ex * ex + ey * ey;
+    const double s = l2 > 0.0 ? std::clamp(((p.x - a.x) * ex + (p.y - a.y) * ey) / l2, 0.0, 1.0) : 0.0;
+    const Point2 q{a.x + s * ex, a.y + s * ey};
+    const double d = dist(p, q);
+    if (d < bd) { bd = d; best = q; }
+  }
+  return best;
+}
 int floorDiv(double v, double cell) { return static_cast<int>(std::floor(v / cell)); }
 constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 constexpr double kMaxStepDt = 0.5;  ///< s, the rate limiter never takes one step longer than this
@@ -96,6 +111,7 @@ Config Config::sanitized(const std::function<void(const std::string&)>& log) con
   c.max_height_rate = clampLog("max_height_rate", c.max_height_rate, 0.0, 1000.0, log);
   c.max_centre_rate = clampLog("max_centre_rate", c.max_centre_rate, 0.0, 1000.0, log);
   c.centre_support_ratio = clampLog("centre_support_ratio", c.centre_support_ratio, 0.0, 1.0, log);
+  c.centre_max_outside = clampLog("centre_max_outside", c.centre_max_outside, 0.0, 1.3, log);
   c.merge_overlap = clampLog("merge_overlap", c.merge_overlap, 0.0, 1.0, log);
   c.merge_centre_dist = clampLog("merge_centre_dist", c.merge_centre_dist, 0.0, 50.0, log);
   c.post_spray_hold_radius = clampLog("post_spray_hold_radius", c.post_spray_hold_radius, 0.0, 100.0, log);
@@ -149,6 +165,7 @@ Config configFrom(const MapperConfig& config) {
   c.max_centre_rate = r.getDouble("max_centre_rate", c.max_centre_rate);
   c.centre_from_support = r.getBool("centre_from_support", c.centre_from_support);
   c.centre_support_ratio = r.getDouble("centre_support_ratio", c.centre_support_ratio);
+  c.centre_max_outside = r.getDouble("centre_max_outside", c.centre_max_outside);
   c.merge_overlap = r.getDouble("merge_overlap", c.merge_overlap);
   c.merge_centre_dist = r.getDouble("merge_centre_dist", c.merge_centre_dist);
   c.post_spray_hold_radius = r.getDouble("post_spray_hold_radius", c.post_spray_hold_radius);
@@ -769,7 +786,20 @@ void CandObj::refreshCentreSupport(Instance& in) {
     if (in.confirmed) count("centre_support_fallback_latched");
     return;
   }
-  in.centre_support = {sx / n, sy / n};
+  Point2 c{sx / n, sy / n};
+  // Centre and outline are separate quantities, but the navigator ignores a clearance-guard release over its target
+  // more than drone_radius + lateral_margin (1.3 m) outside the target's outline: the target is held within
+  // centre_max_outside of the (convex, grow-only) outline, so the outline still describes where the drone doses.
+  if (in.hull.size() >= 3 && !pointInPolygon(in.hull, c)) {
+    const Point2 q = nearestOnBoundary(in.hull, c);
+    const double d = dist(c, q);
+    if (d > cfg_.centre_max_outside) {
+      const double k = cfg_.centre_max_outside / d;
+      c = {q.x + (c.x - q.x) * k, q.y + (c.y - q.y) * k};
+      count("centre_clamped_to_outline");
+    }
+  }
+  in.centre_support = c;
   in.has_centre_support = true;
 }
 
