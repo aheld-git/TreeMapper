@@ -601,7 +601,8 @@ frame counted as one frame whatever its geometry. Fix: per cell a second pair of
 frame saw the cell (min(mean point weight, 1) x frame quality, about 0.15 for the far edge view and 1 near nadir); the
 published centre moves (at `max_centre_rate`, unchanged) toward the centroid of the cells with at least `latch_frames`
 weighted positive frames and a weighted positive share of at least `centre_support_ratio` (0.5); fewer than
-`min_height_cells` such cells falls back to the latched centroid (counted `centre_support_fallback_latched`); the
+`min_height_cells` such cells falls back to the latched centroid (counted `centre_support_fallback_latched`), as does an
+outline of fewer than 3 points (final review; counted `centre_support_fallback_no_outline`, never on the four replays); the
 supported centroid is held within `centre_max_outside` (1.0 m, clamp range 0-1.3 m) of the latched outline (counted
 `centre_clamped_to_outline`, review ruling R20), because the navigator accepts a clearance-guard release over its
 target only within `drone_radius + lateral_margin` (1.3 m) of the target's outline. New keys `centre_from_support`
@@ -624,9 +625,10 @@ field_first 253 inside 252 (t 209.15-219.15, truth 85), is in the baseline too. 
 the entry whose outline contains the old centre but skips sprayed entries, so a vanished target is not re-resolved onto a
 sprayed duplicate; `sprayPoint` raises the spray point over a neighbour whose outline is within 1.3 m of the target
 centre, so a target sitting on a duplicate's outline is dosed from that duplicate's height plus clearance (the safe
-direction; it may weaken the dose). Part of the correction arrives on the leg to the dose, which the navigator does not follow (it replans
-on height changes only): measured at the start of the dosing leg the 5x5 corridor far error is 0.452 m with 2 of 13
-beyond 0.8 m.
+direction; it may weaken the dose). A3 is met at the dose instant, not at the start of the dosing leg, which is where the
+closed loop aims (the navigator replans on height changes only, not on a centre move): there the 5x5 corridor far error is
+0.452 m (0.472 m with D67) with 2 of 13 (0.154) beyond 0.8 m, above the 0.15 share target by one entry; a navigator
+follow-up (replan on a centre move), not done here.
 Real-flight profile: gets the same (`centre_from_support = true`, `centre_support_ratio = 0.5`, `centre_max_outside =
 1.0`, identical code). Safe
 there because nothing that bounds the descent changes: on the real farm log outlines, heights and IDs are byte-identical
@@ -685,8 +687,10 @@ leave the neighbour's outline, centre and height unchanged and count 25 `frames_
 releases the hold; SCAN within the radius releases it at once).
 Result: recorded Isaac mission SAFETY 0 -> 0 again (be0e5bd -> D67; non-target changes in descent 0), centre RMSE 0.255 m as
 with D66 alone; held frames 1491 -> 1496. suite_v2 (15 missions, both repeats), the held-out suite (30) and the real log
-(both profiles) are identical to the D66-only run: the build `be0e5bd` + this one line gives maps identical to `be0e5bd` on
-all of them, and the real log has no mission phases, so no hold ever starts there. The four miss-reduction replays: field_first
+(both profiles) are identical to the D66-only run. The build `be0e5bd` + this one line ("hold") gives maps identical to
+`be0e5bd` on the 15 suite_v2 missions (one repeat) and the recorded Isaac mission (`rollback.txt`) and on the real log with
+both profiles (`maps_equal.txt`; the log has no mission phases, so no hold ever starts there); the hold build was not run on
+the held-out suite. The four miss-reduction replays: field_first
 byte-identical; on the corridor replays the hold now lasts through the SCAN_APPROACH climb (held frames 255 -> 767 on 5x5
 corridor, 1140 -> 1810 on rows corridor).
 Accepted cost (ruling R25, narrows R18 "A1 / A2 not worse than the baseline" for this one count): on the 5x5 corridor replay

@@ -11,6 +11,7 @@ mr() { # build label cfg
 case "$1" in
   suite_before) suite before 2 ;;
   suite_after) suite after 2 ;;
+  suite_hold) suite hold 1 ;;   # run by hand after the others (stage.log: "suite hold rc=0"); one repeat
   holdout_before) holdout before ;;
   holdout_after) holdout after ;;
   mr) mr after after /ws/config/cand_obj.cfg; mr hold hold $M/before/config/cand_obj.cfg; mr after after_off /data/work/replay/t6/off.cfg ;;

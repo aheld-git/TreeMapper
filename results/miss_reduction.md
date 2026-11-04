@@ -1,9 +1,11 @@
-# Miss reduction: replay dataset and baseline
+# Miss reduction: replay dataset, baseline, height, centre fix and regression check
 
-Spec: `docs/superpowers/specs/2026-11-03-miss-reduction-design.md` (sections 2 and 4.1). This file holds the replay dataset
-(four Isaac closed-loop runs recorded with `--record-frames`), the proof that `treemapper_replay` reproduces those closed
-loops, and the "today" values of the acceptance criteria A1-A3 measured on it. Nothing here changes TreeMapper; the numbers
-are the baseline every fix is measured against.
+Spec: `docs/superpowers/specs/2026-11-03-miss-reduction-design.md`. This file holds, in order: the replay dataset (four Isaac
+closed-loop runs recorded with `--record-frames`) and the proof that `treemapper_replay` reproduces those closed loops
+(spec 4.1); the baseline, the "today" values of the acceptance criteria A1-A3 measured on it; the height work (diagnosis,
+then parked: no height change ships, spec 4.2); the centre fix D66 (diagnosis, fix, result on the four replays, spec 4.3);
+and the TreeMapper regression check of the centre fix (spec section 6), re-run with the post-spray hold fix D67. The
+navigator retry of implausible-height skips (spec 4.4) is covered by its gtests, not here.
 
 All paths below are inside the work container (`/data/work` = `/media/alex/waspsim/cloud_build_bundle/work` on the host).
 
@@ -411,7 +413,12 @@ table on both field_first datasets, and on the two corridor datasets as in "With
 | A1 max `dh` lock / dose (m), n over 1.5 m | 3.63 / 3.63, 6 (unchanged; **8 with D67**, see below) | 6.54 / 0.88, 1 (unchanged) | 4.96 / 4.96, 2 (unchanged) | 1.81 / 1.81, 2 (unchanged) |
 | A2 share below -0.3 m / worst `dh` | 0.000 / -0.189 (unchanged) | 0.038 / -0.344 (unchanged) | 0.349 / -0.596 (unchanged) | 0.460 / -0.637 (unchanged) |
 
-A3 holds on both 5x5 datasets (target: far <= 0.5 m and <= 0.15 beyond 0.8 m; near not worse). A1 and A2 are
+A3 (far <= 0.5 m and <= 0.15 beyond 0.8 m; near not worse) is met **at the dose instant** on both 5x5 datasets, which
+is what the spec measures. It is **not** met at the start of the dosing leg, which is where the closed loop actually aims:
+the navigator plans the glide when the leg starts and does not replan on a centre move ("Where the correction happens"
+below). There, on 5x5 corridor at HEAD (D66 + D67), the far error is 0.472 m with 2 of 13 entries (0.154) beyond 0.8 m:
+above the 0.15 share target by one entry (5x5 field_first: 0.172 m, none beyond). Closing that gap is a navigator
+follow-up (replan, or re-aim, on a centre move); it was not done here. A1 and A2 are
 identical to the baseline entry by entry (every lock and dose `dh`): the fix does not touch heights. Every 5x5 far
 entry is within 0.22 m at its dose; before, 8 of 13 (corridor) and 7 of 10 (field_first) were beyond the 0.8 m footprint.
 
