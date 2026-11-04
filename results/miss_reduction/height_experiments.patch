@@ -1,0 +1,343 @@
+diff --git a/core/include/treemapper/candidates/cand_obj/cand_obj.hpp b/core/include/treemapper/candidates/cand_obj/cand_obj.hpp
+index cf73df2..fce81fc 100644
+--- a/core/include/treemapper/candidates/cand_obj/cand_obj.hpp
++++ b/core/include/treemapper/candidates/cand_obj/cand_obj.hpp
+@@ -27,6 +27,7 @@
+ #pragma once
+ 
+ #include <cstdint>
++#include <cstdio>
+ #include <functional>
+ #include <map>
+ #include <string>
+@@ -140,6 +141,8 @@ struct FrameView {
+   std::vector<float> hwt;           ///< per window cell: height weight (empty = frame quality everywhere)
+   std::vector<float> hag;           ///< per window cell: smoothed height above ground (empty = no skirt trim)
+   bool valid() const { return w > 0 && h > 0 && state.size() == static_cast<std::size_t>(w * h); }
++  // DIAG (temporary): per window cell mean pixel u, v, mean optical depth, point count, min / max z
++  std::vector<float> du, dv, dz, dn, zmin, zmax;
+ };
+ 
+ enum class State { kAwake, kSleeping, kHoldingNoPose };
+@@ -175,6 +178,7 @@ class CandObj : public Mapper {
+     std::vector<std::uint8_t> latched;
+     std::vector<float> hz, hw;           ///< per cell: fused surface height, its saturating weight
+     std::vector<std::uint8_t> hrej;      ///< per cell: consecutive rejected frame heights
++    std::vector<float> cz, cw, hs, cs; std::vector<std::uint8_t> cgood, hn;  // EXP challenger
+     std::vector<std::uint8_t> hgood;     ///< per cell: has an accepted height sample from a non-truncated crown
+     int n_latched{0};
+     double lat_sum_x{0.0}, lat_sum_y{0.0};  ///< sum of latched cell centres (world)
+@@ -235,9 +239,17 @@ class CandObj : public Mapper {
+   std::map<std::string, bool> warned_;
+   std::function<void(const std::string&)> log_;
+   // scratch buffers (per frame)
+-  std::vector<double> px_, py_, pz_, pu_, pv_, pw_;
++  std::vector<double> px_, py_, pz_, pu_, pv_, pw_, pdz_;
+   std::vector<char> pok_;
+   std::vector<float> hbuf_;
++ public:
++  // DIAG (temporary)
++  std::FILE* diag_{nullptr};
++  std::vector<int> diag_ids_;
++  bool exp_ch_{false}, exp_medw_{false}, exp_wq_{false}, exp_ch3_{false}, exp_gn_{false}, exp_ch4_{false}, exp_dbl_{false}, exp_mode_{false}, exp_moderaw_{false}, exp_hgate_{false}, exp_chc_{false}, exp_sup_{false}, exp_hcap_{false};
++  double diag_t_{0.0};
++  DronePose diag_pose_;
++  bool isDiag(TreeId id) const { for (int d : diag_ids_) if (d == id || d == -1) return true; return false; }
+ };
+ 
+ }  // namespace cand_obj
+diff --git a/core/src/candidates/cand_obj/cand_obj.cpp b/core/src/candidates/cand_obj/cand_obj.cpp
+index 850f532..05d9161 100644
+--- a/core/src/candidates/cand_obj/cand_obj.cpp
++++ b/core/src/candidates/cand_obj/cand_obj.cpp
+@@ -3,6 +3,7 @@
+ #include <algorithm>
+ #include <chrono>
+ #include <cmath>
++#include <cstdlib>
+ #include <iostream>
+ #include <limits>
+ #include <numeric>
+@@ -168,6 +169,26 @@ double frameQuality(double rot_rate, double since_fast_s, const Config& c) {
+ CandObj::CandObj(const Config& cfg, const StereoCalibration& cal)
+     : cal_(cal), log_([](const std::string& m) { std::cerr << "[cand_obj] " << m << "\n"; }) {
+   cfg_ = cfg.sanitized(log_);
++  exp_ch_ = std::getenv("TM_EXP_CH") != nullptr;
++  exp_medw_ = std::getenv("TM_EXP_MEDW") != nullptr;
++  exp_wq_ = std::getenv("TM_EXP_WQ") != nullptr;
++  exp_ch3_ = std::getenv("TM_EXP_CH3") != nullptr;
++  exp_gn_ = std::getenv("TM_EXP_GN") != nullptr;
++  exp_ch4_ = std::getenv("TM_EXP_CH4") != nullptr;
++  exp_dbl_ = std::getenv("TM_EXP_DBL") != nullptr;
++  exp_mode_ = std::getenv("TM_EXP_MODE") != nullptr;
++  exp_moderaw_ = std::getenv("TM_EXP_MODERAW") != nullptr;
++  exp_hgate_ = std::getenv("TM_EXP_HGATE") != nullptr;
++  exp_chc_ = std::getenv("TM_EXP_CHC") != nullptr;
++  exp_sup_ = std::getenv("TM_EXP_SUP") != nullptr;
++  exp_hcap_ = std::getenv("TM_EXP_HCAP") != nullptr;
++  if (const char* ids = std::getenv("TM_DIAG_IDS")) {
++    std::string str(ids);
++    std::size_t p = 0;
++    while (p < str.size()) { std::size_t q = str.find(',', p); if (q == std::string::npos) q = str.size(); diag_ids_.push_back(std::stoi(str.substr(p, q - p))); p = q + 1; }
++    const char* out = std::getenv("TM_DIAG_OUT");
++    diag_ = std::fopen(out ? out : "/tmp/cand_obj_diag.txt", "w");
++  }
+ }
+ 
+ void CandObj::warnOnce(const std::string& key, const std::string& msg) {
+@@ -269,7 +290,7 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
+   const Transform world_cam = world_body.compose(cal_.body_cam);
+   const int s = std::max(1, cal_.stride), o = s / 2;
+   const std::size_t n = static_cast<std::size_t>(gw * gh);
+-  px_.assign(n, 0); py_.assign(n, 0); pz_.assign(n, 0); pu_.assign(n, 0); pv_.assign(n, 0); pw_.assign(n, 0); pok_.assign(n, 0);
++  pdz_.assign(n, 0); px_.assign(n, 0); py_.assign(n, 0); pz_.assign(n, 0); pu_.assign(n, 0); pv_.assign(n, 0); pw_.assign(n, 0); pok_.assign(n, 0);
+   const double z_cap = f.pose.z - cfg_.above_drone_margin;
+   double xmin = 1e300, xmax = -1e300, ymin = 1e300, ymax = -1e300;
+   std::size_t n_ok = 0;
+@@ -285,7 +306,7 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
+       // point weight: stereo depth error ~ Z^2, its lateral component ~ rho * sigma_Z (rho = off-axis tangent)
+       const double rho2 = (po.x * po.x + po.y * po.y) / (po.z * po.z);
+       const double zr = cfg_.z_ref / po.z;
+-      px_[k] = w.x; py_[k] = w.y; pz_[k] = w.z; pu_[k] = u; pv_[k] = v; pok_[k] = 1;
++      px_[k] = w.x; py_[k] = w.y; pz_[k] = w.z; pu_[k] = u; pv_[k] = v; pok_[k] = 1; pdz_[k] = po.z;
+       pw_[k] = zr * zr * zr * zr / (1.0 + cfg_.lateral_k * rho2);
+       xmin = std::min(xmin, w.x); xmax = std::max(xmax, w.x);
+       ymin = std::min(ymin, w.y); ymax = std::max(ymax, w.y);
+@@ -309,14 +330,16 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
+   }
+   std::vector<int> off(NC + 1, 0);
+   for (int c = 0; c < NC; ++c) off[c + 1] = off[c] + cnt[c];
+-  std::vector<double> zs(static_cast<std::size_t>(off[NC]));
++  std::vector<double> zs(static_cast<std::size_t>(off[NC])), wsv(static_cast<std::size_t>(off[NC]));
+   std::vector<int> fill(off.begin(), off.end() - 1);
+-  std::vector<double> su(NC, 0.0), sv(NC, 0.0), sw(NC, 0.0);
++  std::vector<double> su(NC, 0.0), sv(NC, 0.0), sw(NC, 0.0), sdz(NC, 0.0), szmin(NC, 1e9), szmax(NC, -1e9);
+   for (std::size_t k = 0; k < n; ++k) {
+     const int c = cell_of[k];
+     if (c < 0) continue;
++    wsv[static_cast<std::size_t>(fill[c])] = pw_[k];
+     zs[static_cast<std::size_t>(fill[c]++)] = pz_[k];
+     su[c] += pu_[k]; sv[c] += pv_[k]; sw[c] += pw_[k];
++    sdz[c] += pdz_[k]; szmin[c] = std::min(szmin[c], pz_[k]); szmax[c] = std::max(szmax[c], pz_[k]);
+   }
+   std::vector<double> z(NC, 0.0);
+   std::vector<std::uint8_t> valid(NC, 0);
+@@ -412,7 +435,11 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
+   view->z.assign(NC, std::numeric_limits<float>::quiet_NaN());
+   view->hwt.assign(NC, 0.0f);
+   view->hag.assign(NC, 0.0f);
++  view->du.assign(NC, 0.0f); view->dv.assign(NC, 0.0f); view->dz.assign(NC, 0.0f); view->dn.assign(NC, 0.0f);
++  view->zmin.assign(NC, 0.0f); view->zmax.assign(NC, 0.0f);
+   for (int c : vc) {
++    view->du[c] = su[c] / cnt[c]; view->dv[c] = sv[c] / cnt[c]; view->dz[c] = sdz[c] / cnt[c]; view->dn[c] = cnt[c];
++    view->zmin[c] = szmin[c]; view->zmax[c] = szmax[c];
+     const int i = c % W, j = c / W;
+     double sum = 0; int m = 0;
+     for (int dj = -1; dj <= 1; ++dj) {
+@@ -427,6 +454,12 @@ void CandObj::extractCrowns(const FrameInput& f, FrameView* view, std::vector<Cr
+     hs[c] = sum / m;
+     view->state[c] = hs[c] >= cfg_.min_above_ground ? 2 : 1;
+     view->z[c] = static_cast<float>(z[c]);
++    if (exp_medw_) {
++      auto b = wsv.begin() + off[c], e = wsv.begin() + off[c + 1];
++      auto m = b + (e - b) / 2;
++      std::nth_element(b, m, e);
++      view->hwt[c] = static_cast<float>(quality * *m);
++    } else
+     view->hwt[c] = static_cast<float>(quality * sw[c] / cnt[c]);
+     view->hag[c] = static_cast<float>(hs[c]);
+   }
+@@ -671,23 +704,109 @@ void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vec
+         // height fusion of this instance's canopy cell (weighted running mean, saturating, gated)
+         if (have_z) {
+           const float zc = view.z[vk];
+-          const float wf = have_w ? view.hwt[vk] : q;
++          const float wf = exp_wq_ ? std::min(have_w ? view.hwt[vk] : q, q) : (have_w ? view.hwt[vk] : q);
++          if (diag_ && isDiag(in.id) && std::isfinite(zc) && !view.du.empty()) {
++            std::fprintf(diag_, "S t=%.3f id=%d cell=%d,%d lat=%d zc=%.2f wf=%.4f hz=%.2f hw=%.3f tr=%d u=%.0f v=%.0f Z=%.1f n=%.0f zmin=%.2f zmax=%.2f hag=%.2f pose=%.2f,%.2f,%.2f zcap=%.2f\n",
++                         diag_t_, in.id, i, j, in.latched[lk], zc, wf, in.hz[lk], in.hw[lk], cell_trunc[vk], view.du[vk], view.dv[vk], view.dz[vk], view.dn[vk],
++                         view.zmin[vk], view.zmax[vk], view.hag[vk], diag_pose_.x, diag_pose_.y, diag_pose_.z, z_cap);
++          }
+           if (!std::isfinite(zc) || zc >= z_cap) {
+             count(std::isinf(z_cap) ? "height_cells_skipped_locked_phase" : "height_cells_dropped_near_drone_or_nan");
+           } else if (!(wf > 0.0f)) {
+             count("height_cells_dropped_zero_weight");
+-          } else if (in.hw[lk] >= cfg_.gate_min_weight && std::fabs(zc - in.hz[lk]) > cfg_.outlier_gate_m) {
++          } else if (exp_mode_) {
++            const float sf = std::min(wf, q);  // support: a frame counts at most once
++            const bool good = !cell_trunc[vk];
++            auto fuse = [&](float& z, float& w, float& sp, std::uint8_t& g) {
++              const float wa = exp_moderaw_ ? wf : std::min(wf, std::max(w, q));  // one frame at most doubles the weight
++              const float wn = w + wa;
++              z = (z * w + zc * wa) / wn;
++              w = std::min(wn, cap);
++              sp = std::min(sp + sf, cap);
++              if (good) g = 1;
++            };
++            if (in.hs[lk] <= 0.0f) {
++              in.hz[lk] = zc; in.hw[lk] = exp_moderaw_ ? std::min(wf, cap) : std::min(wf, q); in.hs[lk] = sf; in.hgood[lk] = good ? 1 : 0;
++            } else if (std::fabs(zc - in.hz[lk]) <= cfg_.outlier_gate_m) {
++              fuse(in.hz[lk], in.hw[lk], in.hs[lk], in.hgood[lk]);
++            } else {
++              count("height_cells_rejected_outlier");
++              if (in.cs[lk] > 0.0f && std::fabs(zc - in.cz[lk]) <= cfg_.outlier_gate_m) {
++                fuse(in.cz[lk], in.cw[lk], in.cs[lk], in.cgood[lk]);
++              } else if (in.cs[lk] > sf) {
++                in.cs[lk] -= sf;
++              } else {
++                in.cz[lk] = zc; in.cw[lk] = exp_moderaw_ ? std::min(wf, cap) : std::min(wf, q); in.cs[lk] = sf; in.cgood[lk] = good ? 1 : 0;
++              }
++              if (in.cs[lk] > in.hs[lk]) {
++                std::swap(in.hz[lk], in.cz[lk]); std::swap(in.hw[lk], in.cw[lk]); std::swap(in.hs[lk], in.cs[lk]);
++                std::swap(in.hgood[lk], in.cgood[lk]);
++                count("height_cells_reset");
++              }
++            }
++          } else if ((in.hw[lk] >= cfg_.gate_min_weight || (exp_gn_ && in.hn[lk] >= 3) || (exp_hgate_ && in.hw[lk] > 0.0f && wf > in.hw[lk])) && std::fabs(zc - in.hz[lk]) > cfg_.outlier_gate_m) {
+             count("height_cells_rejected_outlier");
++            if (exp_ch4_) {
++              if (in.hrej[lk] > 0 && std::fabs(zc - in.cz[lk]) <= cfg_.outlier_gate_m) {
++                const float wfc = exp_dbl_ ? std::min(wf, std::max(in.cw[lk], q)) : wf;
++                const float wn = in.cw[lk] + wfc;
++                in.cz[lk] = (in.cz[lk] * in.cw[lk] + zc * wfc) / wn;
++                in.cw[lk] = wn;
++                in.cs[lk] += std::min(wf, q);
++                if (in.hrej[lk] < 255) ++in.hrej[lk];
++                if (!cell_trunc[vk]) in.cgood[lk] = 1;
++              } else {
++                in.cz[lk] = zc; in.cw[lk] = exp_dbl_ ? std::min(wf, q) : wf; in.hrej[lk] = 1; in.cgood[lk] = cell_trunc[vk] ? 0 : 1;
++                in.cs[lk] = std::min(wf, q);
++              }
++              if (in.hrej[lk] >= 3 && (exp_sup_ ? in.cs[lk] > in.hs[lk] : (exp_chc_ || in.cw[lk] > in.hw[lk]))) {
++                in.hs[lk] = std::min(in.cs[lk], cap);
++                in.hz[lk] = in.cz[lk]; in.hw[lk] = std::min(in.cw[lk], cap); in.hgood[lk] = in.cgood[lk]; in.hn[lk] = std::min(255, (int)in.hrej[lk]); in.hrej[lk] = 0;
++                count("height_cells_reset");
++              }
++            } else
++            if (exp_ch3_) {
++              if (in.hrej[lk] > 0 && std::fabs(zc - in.cz[lk]) <= cfg_.outlier_gate_m) {
++                const float wn = in.cw[lk] + wf;
++                in.cz[lk] = (in.cz[lk] * in.cw[lk] + zc * wf) / wn;
++                in.cw[lk] = wn;
++                if (in.hrej[lk] < 255) ++in.hrej[lk];
++                if (!cell_trunc[vk]) in.cgood[lk] = 1;
++              } else {
++                in.cz[lk] = zc; in.cw[lk] = wf; in.hrej[lk] = 1; in.cgood[lk] = cell_trunc[vk] ? 0 : 1;
++              }
++              if (in.hrej[lk] >= 3 && in.cw[lk] > in.hw[lk]) {
++                in.hz[lk] = in.cz[lk]; in.hw[lk] = std::min(in.cw[lk], cap); in.hgood[lk] = in.cgood[lk]; in.hn[lk] = std::min(255, (int)in.hrej[lk]); in.hrej[lk] = 0;
++                count("height_cells_reset");
++              }
++            } else
++            if (exp_ch_) {
++              if (in.cw[lk] > 0.0f && std::fabs(zc - in.cz[lk]) <= cfg_.outlier_gate_m) {
++                const float wn = in.cw[lk] + wf;
++                in.cz[lk] = (in.cz[lk] * in.cw[lk] + zc * wf) / wn;
++                in.cw[lk] = std::min(wn, cap);
++                if (!cell_trunc[vk]) in.cgood[lk] = 1;
++              } else {
++                in.cz[lk] = zc; in.cw[lk] = std::min(wf, cap); in.cgood[lk] = cell_trunc[vk] ? 0 : 1;
++              }
++              if (in.cw[lk] > in.hw[lk]) {
++                in.hz[lk] = in.cz[lk]; in.hw[lk] = in.cw[lk]; in.hgood[lk] = in.cgood[lk]; in.cw[lk] = 0.0f;
++                count("height_cells_reset");
++              }
++            } else
+             if (++in.hrej[lk] >= 3) {  // the established value was the outlier: start over
+-              in.hz[lk] = zc; in.hw[lk] = wf; in.hrej[lk] = 0;
++              in.hz[lk] = zc; in.hw[lk] = exp_dbl_ ? std::min(wf, q) : wf; in.hrej[lk] = 0;
+               in.hgood[lk] = cell_trunc[vk] ? 0 : 1;
+               count("height_cells_reset");
+             }
+           } else {
+-            const float wn = in.hw[lk] + wf;
+-            in.hz[lk] = (in.hz[lk] * in.hw[lk] + zc * wf) / wn;
++            const float wfa = exp_dbl_ ? std::min(wf, std::max(in.hw[lk], q)) : (exp_hcap_ && in.hw[lk] > 0.0f ? std::min(wf, in.hw[lk]) : wf);
++            const float wn = in.hw[lk] + wfa;
++            in.hz[lk] = (in.hz[lk] * in.hw[lk] + zc * wfa) / wn;
+             in.hw[lk] = std::min(wn, cap);
+-            in.hrej[lk] = 0;
++            if (!exp_ch3_) in.hrej[lk] = 0;  // (ch4: consecutive)
++            if (in.hn[lk] < 255) ++in.hn[lk];
++            in.hs[lk] = std::min(in.hs[lk] + std::min(wf, q), cap);
+             if (!cell_trunc[vk]) in.hgood[lk] = 1;
+           }
+         }
+@@ -704,6 +823,7 @@ void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vec
+         in.lat_sum_y += (j + 0.5) * cfg_.cell;
+         in.hull_dirty = true;
+         count("cells_latched");
++        if (diag_ && isDiag(in.id)) std::fprintf(diag_, "L t=%.3f id=%d cell=%d,%d hz=%.2f hw=%.3f good=%d npos=%.1f nneg=%.1f\n", diag_t_, in.id, i, j, in.hz[lk], in.hw[lk], in.hgood[lk], in.npos[lk], in.nneg[lk]);
+       }
+     }
+   }
+@@ -751,7 +871,14 @@ void CandObj::refreshHeight(Instance& in) {
+   if (in.n_height_cells < cfg_.min_height_cells) { in.height_target = kNaN; return; }
+   const std::size_t i = static_cast<std::size_t>(std::floor(cfg_.height_quantile * static_cast<double>(hbuf_.size() - 1) + 0.5));
+   std::nth_element(hbuf_.begin(), hbuf_.begin() + static_cast<long>(i), hbuf_.end());
++  const double old = in.height_target;
+   in.height_target = hbuf_[i];
++  if (diag_ && isDiag(in.id) && !(std::fabs(old - in.height_target) < 0.01)) {
++    std::vector<float> srt = hbuf_; std::sort(srt.rbegin(), srt.rend());
++    std::fprintf(diag_, "H t=%.3f id=%d target %.2f -> %.2f pub=%.2f n=%zu good=%d qidx=%zu top:", diag_t_, in.id, old, in.height_target, in.height_pub, hbuf_.size(), good, i);
++    for (std::size_t k = 0; k < std::min<std::size_t>(6, srt.size()); ++k) std::fprintf(diag_, " %.2f", srt[k]);
++    std::fprintf(diag_, "\n");
++  }
+ }
+ 
+ void CandObj::stepPublished(Instance& in, double t) {
+@@ -782,6 +909,7 @@ bool CandObj::publishable(const Instance& in) const {
+ }
+ 
+ void CandObj::absorb(Instance& keep, const Instance& lose) {
++  if (diag_ && (isDiag(keep.id) || isDiag(lose.id))) std::fprintf(diag_, "M t=%.3f keep=%d lose=%d lose_latched=%d\n", diag_t_, keep.id, lose.id, lose.n_latched);
+   const float cap = static_cast<float>(cfg_.cell_weight_cap);
+   for (int lj = 0; lj < cfg_.window; ++lj) {
+     for (int li = 0; li < cfg_.window; ++li) {
+@@ -793,10 +921,21 @@ void CandObj::absorb(Instance& keep, const Instance& lose) {
+       const int kk = kj * cfg_.window + ki;
+       keep.npos[kk] = std::min(65535.0f, keep.npos[kk] + lose.npos[lk]);
+       keep.nneg[kk] = std::min(65535.0f, keep.nneg[kk] + lose.nneg[lk]);
++      if (exp_mode_ && lose.hw[lk] > 0.0f) {
++        if (keep.hs[kk] <= 0.0f || (std::fabs(lose.hz[lk] - keep.hz[kk]) > cfg_.outlier_gate_m && lose.hs[lk] > keep.hs[kk])) {
++          keep.hz[kk] = lose.hz[lk]; keep.hw[kk] = lose.hw[lk]; keep.hs[kk] = lose.hs[lk]; keep.hgood[kk] = lose.hgood[lk];
++        } else if (std::fabs(lose.hz[lk] - keep.hz[kk]) <= cfg_.outlier_gate_m) {
++          const float wn = keep.hw[kk] + lose.hw[lk];
++          keep.hz[kk] = (keep.hz[kk] * keep.hw[kk] + lose.hz[lk] * lose.hw[lk]) / wn;
++          keep.hw[kk] = std::min(wn, cap); keep.hs[kk] = std::min(keep.hs[kk] + lose.hs[lk], cap);
++          if (lose.hgood[lk]) keep.hgood[kk] = 1;
++        }
++      } else
+       if (lose.hw[lk] > 0.0f) {  // the loser's surface measurements of cells the winner had not measured
+         const float wn = keep.hw[kk] + lose.hw[lk];
+         keep.hz[kk] = (keep.hz[kk] * keep.hw[kk] + lose.hz[lk] * lose.hw[lk]) / wn;
+         keep.hw[kk] = std::min(wn, cap);
++        keep.hs[kk] = std::min(keep.hs[kk] + lose.hs[lk], cap);
+         if (lose.hgood[lk]) keep.hgood[kk] = 1;
+       }
+       if (lose.latched[lk] && !keep.latched[kk]) {
+@@ -890,6 +1029,7 @@ void CandObj::mergeInstances(double t) {
+ 
+ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const DronePose& pose, const FrameView& view,
+                         std::vector<Crown>& crowns, double quality) {
++  diag_t_ = t; diag_pose_ = pose;
+   sticky_frame_ = false;
+   PhasePolicy pol = policyFor(phase, target);
+   if (sticky_frame_) {
+@@ -944,7 +1084,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
+       in.aj = floorDiv(c.peak.y, cfg_.cell) - cfg_.window / 2;
+       const std::size_t n = static_cast<std::size_t>(cfg_.window) * cfg_.window;
+       in.npos.assign(n, 0.0f); in.nneg.assign(n, 0.0f); in.latched.assign(n, 0);
+-      in.hz.assign(n, 0.0f); in.hw.assign(n, 0.0f); in.hrej.assign(n, 0); in.hgood.assign(n, 0);
++      in.hz.assign(n, 0.0f); in.hw.assign(n, 0.0f); in.hrej.assign(n, 0); in.hgood.assign(n, 0); in.cz.assign(n, 0.0f); in.cw.assign(n, 0.0f); in.cgood.assign(n, 0); in.hn.assign(n, 0); in.hs.assign(n, 0.0f); in.cs.assign(n, 0.0f);
+       in.centre = in.centre_pub = c.peak;
+       in.height_target = in.height_pub = kNaN;
+       in.first_seen = in.last_seen = in.last_step_t = t;
+@@ -986,6 +1126,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
+       // outside the image) would publish an under-estimated height, which is the unsafe direction for a descent
+       if (in.n_good_height_cells < cfg_.min_height_cells) { count("instances_waiting_untruncated_height"); stepPublished(in, t); continue; }
+       in.confirmed = true;
++      if (diag_ && isDiag(in.id)) std::fprintf(diag_, "C t=%.3f id=%d confirmed h=%.2f\n", t, in.id, in.height_target);
+       in.height_pub = in.height_target;  // first publication: no previous value to rate-limit from
+       in.centre_pub = in.centre;
+       in.last_step_t = t;

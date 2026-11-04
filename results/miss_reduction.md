@@ -199,3 +199,110 @@ Inputs: the closed loop's `metrics.json` (`replay_metrics` on the run's `map.jso
 4. **Diagnostic, not a gate (`trace_diff.py`).** At every replay snapshot stamp `t`, compare each entry id present in both streams with
    the live stream's latest snapshot with stamp <= `t`: share of identical (height and centre) entry-snapshots, max `|dh|`, max `dc`.
    Values in the table of the previous section.
+
+## Height
+
+Task 5 (spec section 4.2). Diagnosed on the replay dataset above; no fix shipped (controller ruling R17: the centre fix
+goes first, the height fix is parked). `cand_obj`, `config/` and `DECISIONS.md` are unchanged.
+
+### Height / diagnosis
+
+Method: temporary instrumentation in `cand_obj.cpp` (env `TM_DIAG_IDS` / `TM_DIAG_OUT`, in the patch below). It logs every
+height sample of the listed instances (cell, sample `zc`, weight `wf`, the cell's `hz` / `hw` before the sample, mean pixel,
+mean optical depth Z, point count and z range), every latch and every `height_target` change. The `frames.bin` points
+were also read directly. With the variables unset the build reproduces the four baseline `metrics.json` byte for byte.
+
+Mechanism, in the order it happens:
+
+1. **Stereo mismatches put samples metres above the crowns.**
+   - The raw points have Z 3-10 m where the canopy is at 12-15 m below the drone, so they land at z 5-13 m over trees 2.3-3.3 m tall.
+   - About 0.7 % of all points are impossibly high, 2-4x more in the top and bottom 50 image rows (the leading and trailing edges of the view).
+   - Around tree 12 at 186.4-188.0 s, alternate frames have 16-21 % of their points impossibly high.
+   - A mismatch sits on the true ray at a shorter range. It moves about 0.17 m in the world per 0.4 m of flight, so the same 0.4 m cell gets consistent wrong heights for 3-4 consecutive frames: a ghost surface.
+2. **The sample weight rewards its own error.**
+   - The point weight `(z_ref/Z)^4 / (1 + 10 rho^2)` is computed from the measured, mismatched Z, and a cell's weight is the mean over its points. One near point therefore dominates.
+   - On the crown cells of 5x5 corridor (41,724 samples), the samples more than 1 m above the true top are **4 % of the samples and carry 59 % of the height weight**.
+   - Samples with `wf` >= 3 are 36-68 % garbage; samples with `wf` < 1 are 1 %. Single mismatched samples reach `wf` 37, 742 and 2822.
+3. **Three rejections re-initialise a cell, uncapped.**
+   - Three consecutive rejected samples replace the established value with the third sample, at its uncapped weight.
+   - This applies whatever the established weight is (up to the cap of 30) and whether or not the three samples agree with each other.
+   - In 5x5 corridor, 27 of 32 upward resets land on garbage.
+4. **Young cells are ungated.** While `hw` is below `gate_min_weight` (3), any sample is fused. A cell seen only from far away (about 0.25 per frame) stays ungated for 10+ frames, and one heavy mismatch then takes it over.
+5. **The 0.99 quantile is the top cell.** The index is `floor(0.99 (n-1) + 0.5)`: the maximum cell below 51 latched cells and the second highest up to about 150. The offenders have 21-112 latched cells, so one corrupted latched cell sets `height_target`. `stepPublished` then walks the published height up at 0.5 m/s after the pass, and the lock freezes it. The rate limiter is not the bug.
+
+All six baseline A1 offenders follow this mechanism:
+
+| Dataset, entry (truth) | Lock dh | What set the top cell |
+|---|---|---|
+| 5x5 corridor, 59 (12) | +3.63 | Cell (20,33) at 0.79 m, `hw` 10.3, rejects 3.13 / 6.44 / 6.86 (trailing edge, v 139 -> 14). The third rejection re-initialises it to 6.86, and a further 5.63 is fused ungated (`hw` 2.9 < 3), giving 6.41. `height_target` goes 2.76 -> 6.86 at t 187.77; the lock at 195.58 freezes 6.41. |
+| 5x5 corridor, 0 (1) | +1.80 | Cells (2,-3) and (1,-3) at 1.87 m with `hw` 30 (the cap); 4.13 / 3.92 / 4.42 (`wf` about 2.5 each) re-initialise them to about 4.4 m. |
+| 5x5 corridor, 111 (18) | +1.91 | Cell (30,51) with `hw` 30; three mutually inconsistent rejections (-1.86 / 4.42 / 4.70) re-initialise it to 4.70. |
+| 5x5 field_first, 55 (12) | +6.54 | Cell (24,32): an ungated 8.60 (`wf` 4.4) gives 5.43, then a reset to 10.69 with uncapped `wf` 37.2. Cell (13,34): an ungated 10.40 (`wf` 23.7) gives 9.31. |
+| rows corridor, 23 (4) | +4.96 | Cell (33,6): an ungated 8.47 (`wf` 43.5) gives 8.12. Cells (30,5) and (32,6) are re-initialised to 6.25 and 5.98 (`wf` up to 43). |
+| rows field_first, 95 (25) | +1.81 | Cell (31,24) with `hw` 23.7; 7.49 / 6.05 / 5.84 re-initialise it to 5.84. |
+
+Entry 55 (controller ruling R16) is the duplicate entry of truth 12; truth 12 was dosed under entry 119 at +0.44 m. Its
++6.54 m is this height mechanism, not the duplicate: under the best variant below its lock dh is +0.02 m, while 119 stays
+at +0.44 m. The duplicate itself (a rule-4 merge failure) is a separate open cause and was not touched.
+
+### Height / status: parked
+
+Fifteen variants were run on all four datasets (replay, `--replay --targets`). A3 is unchanged in every variant, to three
+decimals. The variants that matter:
+
+| Variant | What it changes |
+|---|---|
+| wq | sample weight capped at the frame quality q |
+| medw | cell weight = median point weight instead of the mean |
+| dbl | one frame at most doubles a cell's weight; the first counts at most q |
+| hgate | a sample heavier than the cell's whole weight is gated even before `gate_min_weight` |
+| ch | rejected samples form a challenger that replaces the cell when it outweighs it |
+| ch4 | as ch, plus the challenger needs 3 consecutive, mutually consistent rejections |
+| mode | two hypotheses per cell; the one with more frame support (`sum of min(wf, q)`) wins |
+| hgsupcap | hgate + ch4 decided on frame support instead of weight + an accepted sample counts at most the cell's weight |
+
+Each cell gives A1 max dh at the lock / at a dose (m), then A2 share of entries below -0.3 m / worst dh (m). Values
+outside A1 or A2 are in bold. ch and ch4 have no A2 figures because their A1 is already far out.
+
+| Variant | 5x5 corridor | 5x5 field_first | rows corridor | rows field_first |
+|---|---|---|---|---|
+| baseline | 3.63 / 3.63; 0.000 / -0.189 | 6.54 / 0.88; 0.038 / -0.344 | 4.96 / 4.96; 0.349 / -0.596 | 1.81 / 1.81; 0.460 / -0.637 |
+| wq | **2.10**; **0.037** / **-0.358** | 0.76; **0.077** / **-0.417** | 1.23; **0.698** / **-0.900** | 1.13; **0.805** / **-0.874** |
+| medw | **3.63**; 0.000 / **-0.194** | **6.60**; **0.077** / **-0.418** | **4.57**; **0.372** / -0.592 | 1.28; **0.506** / -0.636 |
+| dbl | **2.10**; 0.000 / **-0.214** | **2.60**; 0.038 / -0.344 | **1.93**; **0.360** / -0.596 | 1.41; **0.494** / **-0.647** |
+| hgate | **3.63**; 0.000 / -0.181 | 0.88; 0.038 / -0.344 | **2.54**; **0.360** / -0.596 | 1.44; 0.460 / -0.637 |
+| ch | **10.35** | **10.15** | **9.22** | **9.86** |
+| ch4 | **9.75** | **9.38** | **7.78** | **3.58** |
+| mode | **1.74**; 0.000 / **-0.210** | **2.07**; 0.038 / -0.315 | 1.31; **0.372** / -0.596 | **2.95**; **0.494** / -0.564 |
+| hgsupcap | **1.88**; 0.000 / -0.189 | 1.11; 0.038 / -0.315 | 1.00; 0.349 / -0.596 | **1.57**; **0.494** / -0.564 |
+
+What the table shows:
+- **The range weight cannot simply be capped.** On rows the near-nadir samples, the ones that see the crown top, legitimately weigh 2-6 against 0.3-1 for oblique samples of the crown sides. wq doubles the rows under-estimates: an anti-goal.
+- **A reset test on weight alone or on sample count alone is worse than today** (ch, ch4). Single mismatches weigh up to thousands, and ghost bursts are consistent for 3-4 frames. The old rule was also what pulled back cells that one heavy mismatch had corrupted.
+
+**Why hgsupcap is not shipped.**
+- It removes every runaway, and its replay is deterministic:
+
+  | Entry | Baseline lock dh (m) | hgsupcap lock dh (m) |
+  |---|---|---|
+  | 59 | 3.63 | 0.05 |
+  | 0 | 1.80 | -0.02 |
+  | 111 | 1.91 | 0.53 |
+  | 55 | 6.54 | 0.02 |
+  | 23 | 4.96 | 0.62 |
+  | 95 | 1.81 | -0.03 |
+
+- **A1 fails on 5x5 corridor, 1.88 m.** Entries 10 and 13 go from +1.47 and +1.33 to +1.63 and +1.88. Their top cells are set by four consistent, moderately weighted readings of 3.3-4.8 m from the first views at the leading image edge. The old reset used to pull these cells back down.
+- **A1 fails on rows field_first, 1.57 m.** Entry 151 goes from +1.44 to +1.57. Its top cell lies about 1 m outside the crown, with 7 consistent readings of 4.1-5.7 m over 1 s.
+- **A2 fails on rows field_first:** share 0.494 against 0.460.
+- **Correct heights are lowered by 0.3-0.5 m**, the unsafe direction: entry 8 goes from +0.06 to -0.50 (rows field_first), entries 149 and 191 to -0.38 and -0.44 (rows corridor).
+
+**Open design step.** After the runaway, what is left is a tail of +0.5-1.9 m from ghost surfaces that stay consistent
+over 3-4 consecutive frames. No per-cell temporal rule separates them from a real top without lowering correct
+heights. A later attempt needs a surface check across widely separated views: a ghost moves in the world as the camera
+moves, a real surface does not. Alternatively, it needs a ruling on how A1 treats that tail.
+
+**Experimental source.** `results/miss_reduction/height_experiments.patch` contains all variants and the diagnostic dump,
+behind environment flags. Apply it with `git apply results/miss_reduction/height_experiments.patch` on `294254f`. hgsupcap is
+`TM_EXP_HGATE=1 TM_EXP_CH4=1 TM_EXP_SUP=1 TM_EXP_HCAP=1`; with no flags set the build equals the baseline byte for byte.
+Re-applied and re-run, the four hgsupcap `metrics.json` are byte-identical to the ones the table was made from.
