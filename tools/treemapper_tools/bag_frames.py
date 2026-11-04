@@ -94,6 +94,133 @@ def target_points(mission) -> list:
     return out
 
 
+class FrameMaker:
+    """Builds ``Frame`` records: pose interpolated at the image stamp, phase / hop target looked up at the receive time."""
+
+    def __init__(self, mission, tf_t, tf_rows):
+        self.mission = mission
+        self.tf_t, self.tf_rows = tf_t, tf_rows
+        tpts = target_points(mission)
+        self._tid = [(x[0], x[1]) for x in tpts]
+        self._txy = [(x[0], x[2]) for x in tpts]
+
+    def __call__(self, t, stamp, boxes, disp):
+        pose = interp_pose(self.tf_t, self.tf_rows, stamp)
+        ph = step_lookup(self.mission.phases, t, "") or ""
+        tid = step_lookup(self._tid, t, -1)
+        txy = step_lookup(self._txy, t, (math.nan, math.nan))
+        return Frame(t, stamp, pose if pose else (0, 0, 0, 0, 0, 0, 1), pose is not None, ph,
+                     -1 if tid is None else tid, txy, boxes, disp)
+
+
+def boxes_from_bounding_boxes(msg) -> np.ndarray:
+    """(N, 6) x, y, w, h, score, label of a spot_spraying_msgs/DetectionResult (the old Isaac bags)."""
+    return np.array([[b.x, b.y, b.width, b.height, b.score, b.label] for b in msg.bounding_boxes],
+                    dtype=np.float32).reshape(-1, 6)
+
+
+def pair_frames(messages, make, stride=4, nearest_tol=0.02, boxes_of=boxes_from_bounding_boxes, expect_wh=None,
+                disp_topic=DISP):
+    """Pair detections with disparity images by exact header stamp (then the nearest stamp within ``nearest_tol``).
+
+    ``messages`` yields ``(topic, msg, t)`` in receive order, ``t`` in seconds; every topic but ``disp_topic`` is a
+    detection stream (``boxes_of(msg)`` -> (N, 6) x, y, w, h, score, label). Returns ``(frames, counts)`` where
+    ``frames`` are the paired ``Frame`` records in completion order and ``counts`` a ``collections.Counter``.
+    ``expect_wh = (width, height)``: a disparity image of another size is rejected (``disparity_rejected_resolution``),
+    as treemapper_node does; ``None`` keeps the old Isaac bags' behaviour (no size check)."""
+    o = stride // 2
+    cnt = collections.Counter()
+    disp_by_stamp = collections.OrderedDict()
+    pending = {}  # stamp -> (t, boxes)
+    frames = []
+
+    def resolve(s):
+        tt, boxes = pending.pop(s)
+        if disp_by_stamp:
+            ks = np.fromiter(disp_by_stamp.keys(), dtype=np.float64)
+            j = int(np.argmin(np.abs(ks - s)))
+            if abs(ks[j] - s) <= nearest_tol:
+                f = make(tt, float(ks[j]), boxes, disp_by_stamp[float(ks[j])])
+                frames.append(f)
+                cnt["frames_paired_nearest"] += 1
+                return
+        frames.append(make(tt, s, boxes, None))
+        cnt["frames_without_disparity"] += 1
+
+    for topic, msg, t in messages:
+        st = round(msg.header.stamp.to_sec(), 6)
+        if topic == disp_topic:
+            cnt["disparity_msgs"] += 1
+            if msg.encoding != "32FC1" or msg.step != 4 * msg.width or len(msg.data) != msg.step * msg.height:
+                cnt["disparity_rejected_malformed"] += 1
+                continue
+            if expect_wh is not None and (msg.width, msg.height) != tuple(expect_wh):
+                cnt["disparity_rejected_resolution"] += 1
+                continue
+            if st in disp_by_stamp:
+                cnt["disparity_duplicate"] += 1
+                continue
+            d = np.frombuffer(msg.data, dtype="<f4").reshape(msg.height, msg.width)[o::stride, o::stride]
+            d = np.where(np.isfinite(d) & (d > 0), d, np.nan).astype(np.float32)
+            disp_by_stamp[st] = d
+            while len(disp_by_stamp) > 400:
+                disp_by_stamp.popitem(last=False)
+            if st in pending:
+                tt, boxes = pending.pop(st)
+                frames.append(make(tt, st, boxes, d))
+                cnt["frames_paired_late"] += 1
+        else:
+            cnt["detection_msgs"] += 1
+            boxes = boxes_of(msg)
+            if st in disp_by_stamp:
+                frames.append(make(t, st, boxes, disp_by_stamp[st]))
+                cnt["frames_paired"] += 1
+            else:
+                pending[st] = (t, boxes)
+        # detections that waited > 0.5 s for an exact-stamp disparity: nearest valid one within
+        # `nearest_tol` (pose taken at the disparity stamp, so depth and pose stay consistent), else none
+        for s in [s for s, (tt, _) in pending.items() if t - tt > 0.5]:
+            resolve(s)
+    for s in list(pending):
+        resolve(s)
+    return frames, cnt
+
+
+def time_range(start, end, mission, frames):
+    """(t_lo, t_hi) of the heartbeat grid: the requested window, else first phase .. last frame."""
+    t_lo = start if start is not None else (mission.phases[0][0] if mission.phases else frames[0].t)
+    t_hi = end if end is not None else max(f.t for f in frames)
+    return t_lo, t_hi
+
+
+def add_heartbeats(frames, make, mission, t_lo, t_hi, heartbeat, cnt) -> None:
+    """Heartbeat frames: phase changes + every ``heartbeat`` s without a detection frame. Appends to ``frames``,
+    sorts them by (t, has-no-disparity) in place and sets ``cnt['heartbeat_frames']``."""
+    det_t = np.array(sorted(f.t for f in frames))
+    hb = [t for t, _ in mission.phases if t_lo <= t <= t_hi]
+    tt = t_lo
+    while tt <= t_hi:
+        k = int(np.searchsorted(det_t, tt, side="right"))
+        if k == 0 or tt - det_t[k - 1] >= heartbeat:
+            hb.append(tt)
+        tt += heartbeat
+    empty = np.zeros((0, 6), np.float32)
+    for t in hb:
+        frames.append(make(t, t, empty, None))
+    cnt["heartbeat_frames"] = len(hb)
+    frames.sort(key=lambda f: (f.t, f.disparity is None))
+
+
+def write_frames(path, cal, frames, meta) -> int:
+    """Write ``frames`` as a TMF1 file (``meta`` goes into its header). Returns the number of records."""
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    w = FrameWriter(path, cal, meta)
+    for f in frames:
+        w.write(f)
+    w.close()
+    return w.n
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--bag", required=True)
@@ -114,7 +241,6 @@ def main(argv=None):
     cam = json.load(open(os.path.join(a.extracted, "camera_info.json")))
     mission = read_mission(os.path.join(a.extracted, "mission.json"))
     tf_t, tf_rows = load_body_tf(os.path.join(a.extracted, "body_tf.csv"))
-    tpts = target_points(mission)
     bag = rosbag.Bag(a.bag)
 
     T = a.t_body_cam
@@ -137,100 +263,22 @@ def main(argv=None):
                       baseline=baseline, stride=a.stride, T_body_cam=list(T), frame="world",
                       note="Isaac: body->camera derived from /tf_static world->%s (spawn pose) and the spawn "
                            "body pose; tf_static raw = %s" % (LEFT_CAM, T_static))
-    o = a.stride // 2
-    cnt = collections.Counter()
-    disp_by_stamp = collections.OrderedDict()
-    pending = {}  # stamp -> (t, boxes)
-    frames = []
-
-    def make(t, stamp, boxes, disp):
-        pose = interp_pose(tf_t, tf_rows, stamp)
-        ph = step_lookup(mission.phases, t, "") or ""
-        tid = step_lookup([(x[0], x[1]) for x in tpts], t, -1)
-        txy = step_lookup([(x[0], x[2]) for x in tpts], t, (math.nan, math.nan))
-        return Frame(t, stamp, pose if pose else (0, 0, 0, 0, 0, 0, 1), pose is not None, ph,
-                     -1 if tid is None else tid, txy, boxes, disp)
-
-    def resolve(s):
-        tt, boxes = pending.pop(s)
-        if disp_by_stamp:
-            ks = np.fromiter(disp_by_stamp.keys(), dtype=np.float64)
-            j = int(np.argmin(np.abs(ks - s)))
-            if abs(ks[j] - s) <= a.nearest_tol:
-                f = make(tt, float(ks[j]), boxes, disp_by_stamp[float(ks[j])])
-                frames.append(f)
-                cnt["frames_paired_nearest"] += 1
-                return
-        frames.append(make(tt, s, boxes, None))
-        cnt["frames_without_disparity"] += 1
-
+    make = FrameMaker(mission, tf_t, tf_rows)
     kw = {}
     if a.start is not None:
         kw["start_time"] = rospy.Time.from_sec(a.start)
     if a.end is not None:
         kw["end_time"] = rospy.Time.from_sec(a.end)
-    for topic, msg, bt in bag.read_messages(topics=[DET, DISP], **kw):
-        t = bt.to_sec()
-        st = round(msg.header.stamp.to_sec(), 6)
-        if topic == DISP:
-            cnt["disparity_msgs"] += 1
-            if msg.encoding != "32FC1" or msg.step != 4 * msg.width or len(msg.data) != msg.step * msg.height:
-                cnt["disparity_rejected_malformed"] += 1
-                continue
-            if st in disp_by_stamp:
-                cnt["disparity_duplicate"] += 1
-                continue
-            d = np.frombuffer(msg.data, dtype="<f4").reshape(msg.height, msg.width)[o::a.stride, o::a.stride]
-            d = np.where(np.isfinite(d) & (d > 0), d, np.nan).astype(np.float32)
-            disp_by_stamp[st] = d
-            while len(disp_by_stamp) > 400:
-                disp_by_stamp.popitem(last=False)
-            if st in pending:
-                tt, boxes = pending.pop(st)
-                frames.append(make(tt, st, boxes, d))
-                cnt["frames_paired_late"] += 1
-        else:
-            cnt["detection_msgs"] += 1
-            boxes = np.array([[b.x, b.y, b.width, b.height, b.score, b.label] for b in msg.bounding_boxes],
-                             dtype=np.float32).reshape(-1, 6)
-            if st in disp_by_stamp:
-                frames.append(make(t, st, boxes, disp_by_stamp[st]))
-                cnt["frames_paired"] += 1
-            else:
-                pending[st] = (t, boxes)
-        # detections that waited > 0.5 s for an exact-stamp disparity: nearest valid one within
-        # `nearest_tol` (pose taken at the disparity stamp, so depth and pose stay consistent), else none
-        for s in [s for s, (tt, _) in pending.items() if t - tt > 0.5]:
-            resolve(s)
-    for s in list(pending):
-        resolve(s)
+    msgs = ((topic, msg, bt.to_sec()) for topic, msg, bt in bag.read_messages(topics=[DET, DISP], **kw))
+    frames, cnt = pair_frames(msgs, make, a.stride, a.nearest_tol)
     bag.close()
 
-    # heartbeat frames: phase changes + every `heartbeat` s without a detection frame
-    t_lo = a.start if a.start is not None else (mission.phases[0][0] if mission.phases else frames[0].t)
-    t_hi = a.end if a.end is not None else max(f.t for f in frames)
-    det_t = np.array(sorted(f.t for f in frames))
-    hb = [t for t, _ in mission.phases if t_lo <= t <= t_hi]
-    tt = t_lo
-    while tt <= t_hi:
-        k = int(np.searchsorted(det_t, tt, side="right"))
-        if k == 0 or tt - det_t[k - 1] >= a.heartbeat:
-            hb.append(tt)
-        tt += a.heartbeat
-    empty = np.zeros((0, 6), np.float32)
-    for t in hb:
-        frames.append(make(t, t, empty, None))
-    cnt["heartbeat_frames"] = len(hb)
-    frames.sort(key=lambda f: (f.t, f.disparity is None))
+    t_lo, t_hi = time_range(a.start, a.end, mission, frames)
+    add_heartbeats(frames, make, mission, t_lo, t_hi, a.heartbeat, cnt)
 
-    os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     meta = {"source": os.path.abspath(a.bag), "tf_static_raw": T_static, "t_start": t_lo, "t_end": t_hi, "counts": dict(cnt),
             "pose_invalid_frames": sum(1 for f in frames if not f.pose_valid)}
-    w = FrameWriter(a.out, cal, meta)
-    for f in frames:
-        w.write(f)
-    w.close()
-    meta["frames_written"] = w.n
+    meta["frames_written"] = write_frames(a.out, cal, frames, dict(meta))
     meta["seconds"] = round(time.time() - t0, 1)
     with open(a.out + ".meta.json", "w") as f:
         json.dump(meta, f, indent=1)

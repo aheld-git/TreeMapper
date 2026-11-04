@@ -13,7 +13,11 @@
      what tools/treemapper_tools/mission_score.py reads (/tf, /mission_state, /spray_target, /corridor_nav/spray,
      /corridor_nav/status, /treemapper/map, /treemapper/stage_timing, /sim/deposition, the three timing streams) plus
      /tf_static, /corridor_nav/setpoint, the plan markers, /sim/truth, the detections and the perception counters.
-     record_images:=true adds the left image throttled to 0.2 Hz on /rec/left_0p2hz. -->
+     record_images:=true adds the left image throttled to 0.2 Hz on /rec/left_0p2hz.
+     record_frames:=true adds what treemapper_node consumes besides the detections, /tf and the phase / target topics
+     above: /disparity_image_down_float and the left / right half-resolution camera_info (~1 MB per disparity image at
+     10 Hz). The harness option record-frames of scripts/sim_mission.sh sets it, converts the bag to frames.bin with
+     tools/treemapper_tools/sim_frames.py and then replaces the bag by a copy without these topics. -->
 <launch>
   <arg name="run_dir"/>
   <arg name="detector_model"/>
@@ -22,6 +26,7 @@
   <arg name="bag" default="$(arg run_dir)/mission.bag"/>
   <arg name="record" default="true"/>
   <arg name="record_images" default="false"/>
+  <arg name="record_frames" default="false"/>
   <arg name="detector_device" default="cuda"/>
   <arg name="detector_score_threshold" default="0.8"/>
   <!-- sim/specs/camera.json "mount" (optical -> body), as treemapper_sim.launch has it -->
@@ -56,6 +61,9 @@
 
   <arg if="$(arg record_images)" name="rec_image_topic" value="/rec/left_0p2hz"/>
   <arg unless="$(arg record_images)" name="rec_image_topic" value=""/>
+  <arg if="$(arg record_frames)" name="rec_frame_topics"
+       value="/disparity_image_down_float /cam/bottom/left/half/camera_info /cam/bottom/right/half/camera_info"/>
+  <arg unless="$(arg record_frames)" name="rec_frame_topics" value=""/>
   <group if="$(arg record)">
     <node if="$(arg record_images)" pkg="topic_tools" type="throttle" name="rec_left_throttle"
           args="messages /cam/bottom/left/half/image_raw 0.2 /rec/left_0p2hz"/>
@@ -70,6 +78,6 @@
                 /sim/truth /sim/deposition
                 /object_detection/detections /detector/timing
                 /stereo_sgbm/timing /stereo_sgbm/counters
-                $(arg rec_image_topic)"/>
+                $(arg rec_image_topic) $(arg rec_frame_topics)"/>
   </group>
 </launch>

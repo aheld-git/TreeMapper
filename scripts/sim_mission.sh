@@ -3,7 +3,8 @@
 # and the corridor navigator (tm_sim_ros); records the mission and scores it.
 #
 #   scripts/sim_mission.sh <spec.json> [--strategy corridor|field_first] [--runs N] [--out DIR]
-#                          [--detector-model PATH] [--timeout 1800] [--record-images] [--no-build] [--force-clean]
+#                          [--detector-model PATH] [--timeout 1800] [--record-images] [--record-frames] [--no-build]
+#                          [--force-clean]
 #
 #   spec.json        sim/specs/*.json (host path)
 #   --strategy       navigator strategy written into the run's cfg (default corridor)
@@ -13,6 +14,13 @@
 #   --detector-model ONNX model, container path (default /data/work/models/yolox_s_isaac/yolox_s_isaac_epoch190_416_static.onnx)
 #   --timeout S      sim seconds from ~start to DONE before ~abort (default 1800)
 #   --record-images  also record the left image at 0.2 Hz on /rec/left_0p2hz (default off: disk)
+#   --record-frames  also record what TreeMapper consumes (/disparity_image_down_float, the left / right half camera_info;
+#                    ~1 MB per disparity image at 10 Hz, default off: disk). After the run is scored it is converted to
+#                    <run>/frames.bin + frames.bin.meta.json (tools/treemapper_tools/sim_frames.py, the replay input of
+#                    treemapper_replay) and checked (a frame was paired with a disparity, pose coverage). Only if the
+#                    check passes is mission.bag replaced by a copy without the disparity / camera_info topics (the run
+#                    then looks like a normal one; mission_score --run works on it). A failed conversion or check fails
+#                    that run (exit 1) and keeps the full bag. Needs the work drive to stay above the 8 GB floor.
 #   --no-build       skip the catkin build of the Noetic packages
 #   --force-clean    an --out that already holds run_* directories (or compare.md) is refused unless this is given;
 #                    then only the files a run writes (RUN_FILES in this script) are deleted, in a container (they belong to
@@ -21,7 +29,7 @@
 # Per run directory: run.json (spec, strategy, git commit, seed, ...), spec.json, field.yaml (polygon, heading_rad from
 # rows.heading_rad, home from drone.home), corridor_nav.cfg (config/corridor_nav.cfg with the strategy and the sim-only
 # carrot_lead_s 1.2; all four from tools/treemapper_tools/sim_inputs.py), ground_texture.png, truth.json,
-# deposition.json, rtf.json (Isaac), mission.bag, driver.json, isaac.log, ros.log, ros_log/, scorecard.md + mission_score.json (tools/treemapper_tools/mission_score.py). After several runs:
+# deposition.json, rtf.json (Isaac), mission.bag, [frames.bin, frames.bin.meta.json with --record-frames], driver.json, isaac.log, ros.log, ros_log/, scorecard.md + mission_score.json (tools/treemapper_tools/mission_score.py). After several runs:
 # <out>/compare.md (mission_score --compare).
 #
 # Noetic packages: built by this script (unless --no-build) in a dedicated catkin workspace $TM_SIM_CATKIN_WS
@@ -55,7 +63,7 @@ STOP_LAUNCH_S=60          # wall s for the launch to exit after SIGINT (rosbag c
 LOGS_BUDGET_S=15          # wall s for the docker logs follower to end after tm_isaac stopped
 # what a run writes into its directory (sim_inputs, Isaac, the launch, the driver, the scorer); --force-clean deletes these
 RUN_FILES="run.json spec.json field.yaml corridor_nav.cfg ground_texture.png truth.json ground_truth.json deposition.json
- rtf.json mission.bag mission.bag.active driver.json isaac.log ros.log ros_log scorecard.md mission_score.json map.jsonl
+ rtf.json mission.bag mission.bag.active mission.bag.filtered frames.bin frames.bin.meta.json driver.json isaac.log ros.log ros_log scorecard.md mission_score.json map.jsonl
  mission.json"
 
 die() { echo "sim_mission: FATAL: $*" >&2; exit 1; }
@@ -67,7 +75,7 @@ usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' 
 [ $# -ge 1 ] || usage
 case "$1" in -h|--help) usage 0 ;; esac
 SPEC="$1"; shift
-STRATEGY=corridor; RUNS=1; OUT=""; TIMEOUT=1800; RECORD_IMAGES=false; BUILD=1; FORCE_CLEAN=0
+STRATEGY=corridor; RUNS=1; OUT=""; TIMEOUT=1800; RECORD_IMAGES=false; RECORD_FRAMES=false; BUILD=1; FORCE_CLEAN=0
 DETECTOR_MODEL="$WORK_C/models/yolox_s_isaac/yolox_s_isaac_epoch190_416_static.onnx"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -77,6 +85,7 @@ while [ $# -gt 0 ]; do
     --detector-model) DETECTOR_MODEL="${2:?}"; shift 2 ;;
     --timeout) TIMEOUT="${2:?}"; shift 2 ;;
     --record-images) RECORD_IMAGES=true; shift ;;
+    --record-frames) RECORD_FRAMES=true; shift ;;
     --no-build) BUILD=0; shift ;;
     --force-clean) FORCE_CLEAN=1; shift ;;
     -h|--help) usage 0 ;;
@@ -111,6 +120,7 @@ for c in tm_isaac tm_sim_ros; do
   if running "$c"; then die "container $c is already running: another mission? (docker stop $c if it is stale)"; fi
 done
 MIN_FREE_START_B=$((MIN_FREE_START_GB * 1000000000))
+MIN_FREE_RUN_B=$((MIN_FREE_RUN_GB * 1000000000))
 free_bytes() { df -P -B1 "$1" | awk 'NR == 2 { print $4 }'; }   # exact bytes: no rounding up to a whole GB
 FREE="$(free_bytes "$WORK_HOST")"
 [ "$FREE" -ge "$MIN_FREE_START_B" ] || die "only $((FREE / 1000000)) MB free on $WORK_HOST (< $MIN_FREE_START_GB GB)"
@@ -218,7 +228,27 @@ wait_gone() {   # leftovers of a previous run (a stop still in progress) must di
   done
 }
 
-run_one() {   # $1 = run index; sets RUN_RC (0 scored all_pass, 2 not, 1 failed)
+convert_frames() {   # $1 = run index: <run>/frames.bin from the bag, then the bag without the TreeMapper-input topics
+  # returns 0 converted + checked + bag replaced, 1 failed (the full bag stays; frames.bin may be left for inspection)
+  local i="$1" run_c="$OUT_C/run_$1" run_h="$OUT_HOST/run_$1" free rc
+  free="$(free_bytes "$WORK_HOST")"
+  if [ "$free" -lt "$MIN_FREE_RUN_B" ]; then
+    log "run $i: FRAMES FAILED: only $((free / 1000000)) MB free on $WORK_HOST (< $MIN_FREE_RUN_GB GB): bag kept"; return 1
+  fi
+  log "run $i: converting the bag to frames.bin (sim_frames)"
+  set +e
+  timeout 3600 docker run --rm --name "tm_frames_$i" --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    -v "$ROOT:/ws:ro" -v "$WORK_HOST:$WORK_C" "$SIM_ROS_IMAGE" bash -c \
+    "cd /ws/tools && python3 -m treemapper_tools.sim_frames --run '$run_c' --filter-bag"
+  rc=$?
+  set -e
+  if [ "$rc" != 0 ] || [ ! -s "$run_h/frames.bin" ] || [ -f "$run_h/mission.bag.filtered" ]; then
+    log "run $i: FRAMES FAILED (sim_frames exit $rc, see above): the full bag $run_h/mission.bag is kept"; return 1
+  fi
+  log "run $i: frames.bin $(du -h "$run_h/frames.bin" | cut -f1), bag now $(du -h "$run_h/mission.bag" | cut -f1)"
+}
+
+run_one() {   # $1 = run index; sets RUN_RC (0 scored all_pass, 2 not, 1 failed) and FRAMES_FAIL (1 = --record-frames conversion failed)
   local i="$1" run_h run_c rc t0 t1 up logs
   RUN_I="$i"
   run_h="$OUT_HOST/run_$i"; run_c="$OUT_C/run_$i"
@@ -226,7 +256,8 @@ run_one() {   # $1 = run index; sets RUN_RC (0 scored all_pass, 2 not, 1 failed)
   if ! { mkdir -p -m 777 "$run_h" && chmod 777 "$run_h"; }; then fail_run "cannot create $run_h"; return; fi   # Isaac runs as uid 1234
   if ! PYTHONPATH="$ROOT/tools" python3 -m treemapper_tools.sim_inputs --spec "$SPEC" --run-dir "$run_h" \
       --cfg "$ROOT/config/corridor_nav.cfg" --strategy "$STRATEGY" --git-commit "$GIT_COMMIT" --git-dirty "$GIT_DIRTY" \
-      --detector-model "$DETECTOR_MODEL" --timeout "$TIMEOUT" $([ "$RECORD_IMAGES" = true ] && echo --record-images); then
+      --detector-model "$DETECTOR_MODEL" --timeout "$TIMEOUT" $([ "$RECORD_IMAGES" = true ] && echo --record-images) \
+      $([ "$RECORD_FRAMES" = true ] && echo --record-frames); then
     fail_run "cannot write the run inputs"; return
   fi
   t0=$(date +%s)
@@ -277,7 +308,7 @@ run_one() {   # $1 = run index; sets RUN_RC (0 scored all_pass, 2 not, 1 failed)
   log "/clock is running after $((SECONDS - tc)) s; starting sim_closed_loop.launch"
   if ! docker exec -d -e ROS_LOG_DIR="$run_c/ros_log" tm_sim_ros /tm_entrypoint.sh bash -c \
       "$src && exec roslaunch corridor_nav_ros sim_closed_loop.launch run_dir:='$run_c' detector_model:='$DETECTOR_MODEL' \
-       record_images:=$RECORD_IMAGES > '$run_c/ros.log' 2>&1"; then
+       record_images:=$RECORD_IMAGES record_frames:=$RECORD_FRAMES > '$run_c/ros.log' 2>&1"; then
     fail_run "docker exec roslaunch failed"; return
   fi
   set +e
@@ -305,6 +336,9 @@ run_one() {   # $1 = run index; sets RUN_RC (0 scored all_pass, 2 not, 1 failed)
   set -e
   [ "$RUN_RC" = 0 ] || [ "$RUN_RC" = 2 ] || RUN_RC=1
   log "run $i: scorer exit $RUN_RC (scorecard $run_h/scorecard.md)"
+  if [ "$RECORD_FRAMES" = true ] && { [ "$RUN_RC" = 0 ] || [ "$RUN_RC" = 2 ]; }; then
+    convert_frames "$i" || FRAMES_FAIL=1
+  fi
 }
 
 mkdir -p -m 777 "$OUT_HOST"
@@ -314,8 +348,9 @@ SCORED=()
 for i in $(seq 1 "$RUNS"); do
   FREE="$(free_bytes "$WORK_HOST")"
   if [ "$FREE" -lt "$MIN_FREE_START_B" ]; then log "only $((FREE / 1000000)) MB free: not starting run $i"; FINAL=1; break; fi
-  RUN_RC=1
+  RUN_RC=1; FRAMES_FAIL=0
   run_one "$i" || RUN_RC=1
+  [ "$FRAMES_FAIL" = 0 ] || FINAL=1
   case "$RUN_RC" in
     0) SCORED+=("$OUT_C/run_$i") ;;
     2) SCORED+=("$OUT_C/run_$i"); [ "$FINAL" = 1 ] || FINAL=2 ;;

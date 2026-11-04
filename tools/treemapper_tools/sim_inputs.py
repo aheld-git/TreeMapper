@@ -1,7 +1,7 @@
 """Inputs of one Isaac closed-loop run (scripts/sim_mission.sh): the navigator cfg, field.yaml, spec.json, run.json.
 
     python3 -m treemapper_tools.sim_inputs --spec <spec.json> --run-dir <dir> --cfg config/corridor_nav.cfg \
-        --strategy corridor [--git-commit H --git-dirty N --detector-model P --timeout S --record-images]
+        --strategy corridor [--git-commit H --git-dirty N --detector-model P --timeout S --record-images --record-frames]
 
 Standard library only (it runs on the host, before any container). Isaac-free.
 
@@ -72,7 +72,7 @@ def field_yaml_text(spec: dict, source: str = "") -> str:
 
 def write_run_inputs(spec_path: str, run_dir: str, base_cfg: str, strategy: str, git_commit: str = "",
                      git_dirty: int = 0, detector_model: str = "", timeout: float = 1800.0,
-                     record_images: bool = False) -> dict:
+                     record_images: bool = False, record_frames: bool = False) -> dict:
     with open(spec_path) as f:
         spec = json.load(f)
     overrides = cfg_overrides(strategy)
@@ -88,6 +88,7 @@ def write_run_inputs(spec_path: str, run_dir: str, base_cfg: str, strategy: str,
     run = {"spec": spec, "spec_file": spec_path, "strategy": strategy, "git_commit": git_commit,
            "git_dirty_files": int(git_dirty), "seed": spec.get("seed"), "detector_model": detector_model,
            "timeout_sim_s": float(timeout), "record_images": bool(record_images),
+           "record_frames": bool(record_frames),
            "isaac": {"v_max_xy": 4.0, "v_max_z": 1.5, "max_rtf": 1.0}, "cfg_overrides": overrides,
            "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     with open(os.path.join(run_dir, "run.json"), "w") as f:
@@ -106,10 +107,12 @@ def main(argv: Sequence[str] = None) -> int:
     ap.add_argument("--detector-model", default="")
     ap.add_argument("--timeout", type=float, default=1800.0)
     ap.add_argument("--record-images", action="store_true")
+    ap.add_argument("--record-frames", action="store_true",
+                    help="the run records TreeMapper's inputs (disparity, camera_info) for tools/treemapper_tools/sim_frames.py")
     a = ap.parse_args(argv)
     try:
         write_run_inputs(a.spec, a.run_dir, a.cfg, a.strategy, a.git_commit, a.git_dirty, a.detector_model,
-                         a.timeout, a.record_images)
+                         a.timeout, a.record_images, a.record_frames)
     except (OSError, ValueError, KeyError, TypeError) as e:
         print("sim_inputs: %s" % e, file=sys.stderr)
         return 1
