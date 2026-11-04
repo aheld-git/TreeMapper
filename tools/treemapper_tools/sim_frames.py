@@ -7,12 +7,21 @@ Runs inside the Noetic image (``rosbag``), after ``mission_score`` has scored th
 The run was recorded with ``scripts/sim_mission.sh --record-frames``: ``<run>/mission.bag`` holds, besides the normal
 allow-list, ``/rec/disparity_grid`` (``treemapper_msgs/DisparityGrid``: only the pixels the node samples, ~64 kB instead of
 the ~1 MB image, made by ``sim_perception/disparity_grid_node.py``) and the left / right ``camera_info``. A bag that holds the
-full ``/disparity_image_down_float`` instead (older recordings, tests) is read as well; the frames are identical. Output: ``frames.bin`` (TMF1, replayed by
+full ``/disparity_image_down_float`` instead (older recordings, tests) is read as well; the frames are identical (the loss
+check below is skipped for those).
+
+Loss accounting of the grid path. ``stereo_sgbm_node`` publishes the disparity with ``queue_size=2`` (per connection, oldest
+dropped) and that is not changed, so a grid node that falls ~0.2 s behind loses images silently. The images the stereo node
+published are counted by its ``/stereo_sgbm/timing`` stream (one message per published image, right after the disparity;
+``/stereo_sgbm/counters`` holds only drop reasons, no published count), the grids that reached the bag by the grid topic's own
+message count: ``grid_lost = sgbm_published - grid_messages``. ``/disparity_grid/counters`` (received, published, malformed,
+stamp_gap of the grid node, last message) is copied into the meta and must be present. Output: ``frames.bin`` (TMF1, replayed by
 ``treemapper_replay``) and ``frames.bin.meta.json`` with ``frames``, ``frames_with_disparity``, ``pose_invalid``,
 ``disparity_rejected``, ``t_start``, ``t_end`` (+ counts and provenance). Exit status 0 = written and ``check()`` passed,
 1 = written but ``check()`` failed (the reasons go to stderr), 2 = could not convert. ``check()`` fails on: no frames, no
 detection paired with a disparity, fewer than 80 % of the detection frames paired, any rejected (malformed / wrong-size)
-disparity, more than 1 % of the frames without a pose.
+disparity, more than 1 % of the frames without a pose and, for a bag with the recorded grid, more than 1 % of the
+disparity images the stereo node published missing from the grid topic (``grid_lost``) or the counters that show it missing.
 
 ``--filter-bag``: only when ``check()`` passed, ``mission.bag`` is replaced by a copy without the disparity (grid or
 image) and camera_info topics (a normal run bag again: ``mission_score --run`` works on it unchanged). Any failure keeps the bag.
@@ -60,16 +69,19 @@ from .frames import Calibration
 DET = "/object_detection/detections"
 DISP = "/disparity_image_down_float"
 GRID = "/rec/disparity_grid"
+GRID_COUNTERS = "/disparity_grid/counters"
+SGBM_TIMING = "/stereo_sgbm/timing"
 LEFT_INFO = "/cam/bottom/left/half/camera_info"
 RIGHT_INFO = "/cam/bottom/right/half/camera_info"
 TF = "/tf"
 TF_STATIC = "/tf_static"
 STATE = "/mission_state"
 TARGET = "/spray_target"
-DROP_TOPICS = (GRID, DISP, LEFT_INFO, RIGHT_INFO)  # recorded only by --record-frames; not in the normal allow-list
+DROP_TOPICS = (GRID, GRID_COUNTERS, DISP, LEFT_INFO, RIGHT_INFO)   # recorded only by --record-frames
 CAMERA_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "sim", "specs", "camera.json")
 MAX_POSE_INVALID_FRACTION = 0.01
 MIN_PAIRED_FRACTION = 0.8
+MAX_GRID_LOST_FRACTION = 0.01
 BODY = "body"
 WORLD = "world"
 
@@ -91,6 +103,17 @@ def check(meta: dict) -> List[str]:
     if with_disp > 0 and detections > 0 and with_disp < MIN_PAIRED_FRACTION * detections:
         out.append("only %d of %d detection frames (%.0f %% < %.0f %%) were paired with a disparity image"
                    % (with_disp, detections, 100.0 * with_disp / detections, 100.0 * MIN_PAIRED_FRACTION))
+    if meta.get("disparity_topic") == GRID:         # full-image bags have no grid node to lose anything
+        published, grids = meta.get("sgbm_published"), meta.get("grid_messages")
+        if not published:
+            out.append("%s is missing or empty in the bag: the number of disparity images published cannot be told" % SGBM_TIMING)
+        if meta.get("grid_node") is None:
+            out.append("%s is missing in the bag: the grid node's own counters (received, malformed, stamp_gap) are not there"
+                       % GRID_COUNTERS)
+        if published and grids is not None and published - grids > MAX_GRID_LOST_FRACTION * published:
+            out.append("grid_lost %d of %d disparity images published by the stereo node (%.1f %% > %.0f %%) never reached "
+                       "%s (stamp_gap %s)" % (published - grids, published, 100.0 * (published - grids) / published,
+                                              100.0 * MAX_GRID_LOST_FRACTION, GRID, (meta.get("grid_node") or {}).get("stamp_gap")))
     if int(meta.get("disparity_rejected", 0) or 0) > 0:
         out.append("disparity_rejected %d: malformed or wrong-size disparity images (there should be none)"
                    % int(meta["disparity_rejected"]))
@@ -123,13 +146,15 @@ class BagScan:
         self.targets: List = []
         self.left = self.right = None                   # (CameraInfo, receive time) of the first message
         self.static: Dict[str, tuple] = {}              # child frame -> (parent, [x y z qx qy qz qw])
+        self.grid_counters: Optional[Dict[str, int]] = None   # last /disparity_grid/counters: reason -> count
 
 
 def scan_bag(bag_path: str) -> BagScan:
     import rosbag
     s = BagScan()
     with rosbag.Bag(bag_path) as bag:
-        for topic, msg, bt in bag.read_messages(topics=[TF, TF_STATIC, STATE, TARGET, LEFT_INFO, RIGHT_INFO]):
+        for topic, msg, bt in bag.read_messages(topics=[TF, TF_STATIC, STATE, TARGET, LEFT_INFO, RIGHT_INFO,
+                                                        GRID_COUNTERS]):
             if topic == TF:
                 for tr in msg.transforms:
                     if tr.header.frame_id.lstrip("/") == WORLD and tr.child_frame_id.lstrip("/") == BODY:
@@ -146,6 +171,8 @@ def scan_bag(bag_path: str) -> BagScan:
                     p, q = tr.transform.translation, tr.transform.rotation
                     s.static[tr.child_frame_id.lstrip("/")] = (tr.header.frame_id.lstrip("/"),
                                                                [p.x, p.y, p.z, q.x, q.y, q.z, q.w])
+            elif topic == GRID_COUNTERS:
+                s.grid_counters = {str(r): int(c) for r, c in zip(msg.reasons, msg.counts)}
             elif topic == LEFT_INFO and s.left is None:
                 s.left = (msg, bt.to_sec())
             elif topic == RIGHT_INFO and s.right is None:
@@ -238,6 +265,8 @@ def convert(run_dir: str, out: Optional[str] = None, bag: Optional[str] = None, 
         disp_topic = GRID if GRID in topics else DISP
         expect_wh = (cal.width, cal.height)
         hook = grid_disparity_of(stride, expect_wh) if disp_topic == GRID else None
+        sgbm_published = topics[SGBM_TIMING].message_count if SGBM_TIMING in topics else None
+        grid_messages = topics[GRID].message_count if GRID in topics else None
         msgs = ((topic, msg, bt.to_sec()) for topic, msg, bt in
                 b.read_messages(topics=[DET, disp_topic], start_time=_rostime(t_cal)))
         frames, cnt = pair_frames(msgs, make, stride, nearest_tol, boxes_of=boxes_from_detection_array,
@@ -259,7 +288,13 @@ def convert(run_dir: str, out: Optional[str] = None, bag: Optional[str] = None, 
             "disparity_rejected": int(cnt["disparity_rejected_malformed"] + cnt["disparity_rejected_resolution"]),
             "t_start": t_lo, "t_end": t_hi,
             "detection_frames": int(cnt["detection_msgs"]), "heartbeat_frames": int(cnt["heartbeat_frames"]),
-            "disparity_topic": disp_topic, "counts": dict(cnt), "t_calibration": t_cal, "source": os.path.abspath(bag_path),
+            "disparity_topic": disp_topic, "sgbm_published": sgbm_published, "grid_messages": grid_messages,
+            "grid_lost": (max(0, sgbm_published - grid_messages)
+                          if disp_topic == GRID and sgbm_published is not None else None),
+            "grid_node": scan.grid_counters if disp_topic == GRID else None,
+            "grid_stamp_gap": (scan.grid_counters or {}).get("stamp_gap") if disp_topic == GRID else None,
+            "grid_malformed": (scan.grid_counters or {}).get("malformed") if disp_topic == GRID else None,
+            "counts": dict(cnt), "t_calibration": t_cal, "source": os.path.abspath(bag_path),
             "calibration": cal.to_json(), "mount_vs_tf_static_max_diff": mismatch,
             "run": {"spec_file": run.get("spec_file"), "strategy": run.get("strategy"), "seed": run.get("seed"),
                     "git_commit": run.get("git_commit")}}
@@ -335,6 +370,8 @@ def main(argv=None) -> int:
         print("sim_frames: cannot convert %s: %s: %s" % (bag, type(e).__name__, e), file=sys.stderr)
         return 2
     keys = ("frames", "frames_with_disparity", "pose_invalid", "disparity_rejected", "t_start", "t_end")
+    if meta["disparity_topic"] == GRID:
+        keys += ("sgbm_published", "grid_messages", "grid_lost", "grid_stamp_gap", "grid_malformed")
     print("sim_frames: " + ", ".join("%s %s" % (k, meta[k]) for k in keys))
     if meta["disparity_rejected"]:
         print("sim_frames: %d disparity messages rejected (malformed or wrong size)" % meta["disparity_rejected"],

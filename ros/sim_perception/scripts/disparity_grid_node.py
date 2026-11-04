@@ -12,9 +12,17 @@ Nothing is dropped silently. ``~counters`` (DropCounters, stage "disparity_grid"
   received    images received
   published   grids published
   malformed   images published as an empty grid (treemapper_node would reject them)
-  stamp_gap   an image whose stamp is > 1.5x the previous interval after the previous one: images were lost upstream
-              (stereo_sgbm counts its own) or in this node's queue (100 deep, 64 MB socket buffer; the callback takes < 1 ms)
+  stamp_gap   an image whose stamp is > 1.5x the previous interval after the previous one: images were lost before
+              this node saw them
 and each gap / malformed image is logged (throttled to 1 per second).
+
+Where images can be lost, and who counts it: ``stereo_sgbm_node`` publishes the disparity with ``queue_size=2`` (a
+per-connection outgoing queue that drops the oldest message when this node falls ~0.2 s behind; it also feeds the live
+TreeMapper node, so it is not changed). Those drops happen before this node and are not visible to it except as
+``stamp_gap``; ``tools/treemapper_tools/sim_frames.py`` counts them exactly as the number of images the stereo node published
+(``/stereo_sgbm/timing``, one message per image) minus the grids in the bag, and fails the conversion above 1 %. The
+subscriber's ``buff_size`` (64 MB) is rospy's receive chunk size, not a socket buffer; the callback takes about a millisecond,
+and the outgoing queue of this node's own publisher is 100 deep.
 """
 import collections
 

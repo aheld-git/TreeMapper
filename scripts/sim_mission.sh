@@ -20,7 +20,8 @@
 #                    packages must be rebuilt once (no --no-build: treemapper_msgs has a new message). After the run is
 #                    scored it is converted to <run>/frames.bin + frames.bin.meta.json (tools/treemapper_tools/
 #                    sim_frames.py, the replay input of treemapper_replay) and checked (>= 80 % of the detection frames
-#                    paired with a disparity, no rejected disparity, pose coverage). Only if the check passes is
+#                    paired with a disparity, no rejected disparity, at most 1 % of the stereo node's images missing
+#                    from the grid topic, pose coverage). Only if the check passes is
 #                    mission.bag replaced by a copy without the disparity grid / camera_info topics (the run then looks
 #                    like a normal one; mission_score --run works on it). A failed conversion or check fails that run
 #                    (exit 1) and keeps the full bag. The work drive must stay above the 8 GB floor.

@@ -58,6 +58,32 @@ def disparity_grid_class():
 DisparityGrid = disparity_grid_class()
 
 
+def plain_class(name):
+    full = (open(os.path.join(MSG_DIR, name.split("/")[-1] + ".msg")).read() +
+            "=" * 80 + "\nMSG: std_msgs/Header\n" + HEADER_TXT)
+    return genpy.dynamic.generate_dynamic(name, full)[name]
+
+
+StageTiming = plain_class("treemapper_msgs/StageTiming")
+DropCounters = plain_class("treemapper_msgs/DropCounters")
+
+
+def timing_msg(stamp):
+    m = StageTiming()
+    m.header.stamp = T(stamp)
+    m.stages, m.ms = ["sgbm"], [40.0]
+    return m
+
+
+def grid_counters_msg(t, received, published=None, malformed=0, stamp_gap=0):
+    m = DropCounters()
+    m.header.stamp = T(t)
+    m.stage = "disparity_grid"
+    m.reasons = ["received", "published", "malformed", "stamp_gap"]
+    m.counts = [received, received if published is None else published, malformed, stamp_gap]
+    return m
+
+
 def grid_of(img):
     """What sim_perception's disparity_grid_node publishes for the Image ``img``."""
     f = dgrid.grid_fields(img.width, img.height, img.step, img.encoding, img.is_bigendian, img.data, 4)
@@ -137,7 +163,7 @@ def tf_msg(t, x, y=0.0, z=5.0, parent="world", child="body"):
     return TFMessage(transforms=[tr])
 
 
-def make_run(tmp_path, n=3, t0=10.0, with_disparity=True, disp="grid", unique=False, phases=(("SCAN", 9.0), ("PLANNING", 10.12)),
+def make_run(tmp_path, n=3, t0=10.0, with_disparity=True, disp="grid", unique=False, sgbm_extra=0, grid_counters=True, phases=(("SCAN", 9.0), ("PLANNING", 10.12)),
              targets=((-1, 9.0), (4, 10.12)), tf_from=9.0, tf_to=11.0, info_t=9.5, extra=None):
     """A run dir with a bag of n detection+disparity pairs 0.1 s apart (stamp t0 + 0.1 k, disparity received 0.04 s
     after the stamp, the detection 0.05 s after), /tf at 100 Hz (x = t, z = 5), phases and targets."""
@@ -159,7 +185,12 @@ def make_run(tmp_path, n=3, t0=10.0, with_disparity=True, disp="grid", unique=Fa
             stamp = round(t0 + 0.1 * k, 6)
             if with_disparity:
                 write_disparity(bag, disparity(stamp, unique=unique), stamp + 0.04, disp)
+                bag.write("/stereo_sgbm/timing", timing_msg(stamp), T(stamp + 0.041))       # one per published image
             bag.write("/object_detection/detections", detections(stamp), T(stamp + 0.05))
+        for k in range(sgbm_extra):     # images the stereo node published that never reached the grid topic
+            bag.write("/stereo_sgbm/timing", timing_msg(50.0 + k), T(50.0 + k))
+        if grid_counters and disp in ("grid", "both") and with_disparity:
+            bag.write("/disparity_grid/counters", grid_counters_msg(t0 + 0.1 * n, received=n), T(t0 + 0.1 * n))
         if extra:
             extra(bag)
     return run
@@ -230,7 +261,7 @@ def test_sim_closed_loop_launch_records_the_frame_topics_only_on_request():
     assert len(arg) == 1 and arg[0].get("default") == "false"
     when = [a for a in root.iter("arg") if a.get("name") == "rec_frame_topics" and a.get("if") == "$(arg record_frames)"]
     # the decimated grid and the two camera_info; the full ~1 MB image is NOT recorded
-    assert len(when) == 1 and when[0].get("value").split() == ["/rec/disparity_grid",
+    assert len(when) == 1 and when[0].get("value").split() == ["/rec/disparity_grid", "/disparity_grid/counters",
                                                                "/cam/bottom/left/half/camera_info",
                                                                "/cam/bottom/right/half/camera_info"]
     unless = [a for a in root.iter("arg") if a.get("name") == "rec_frame_topics" and a.get("unless")]
@@ -363,6 +394,68 @@ def test_cli_fails_when_too_few_detections_have_a_disparity(tmp_path, capsys):
     assert "3 of 13 detection frames" in capsys.readouterr().err
 
 
+# ---------------------------------------------------------------------------------------------------- grid loss accounting
+
+def grid_ok_meta(**kw):
+    m = {"frames": 100, "detection_frames": 100, "frames_with_disparity": 100, "pose_invalid": 0, "disparity_rejected": 0,
+         "disparity_topic": "/rec/disparity_grid", "sgbm_published": 1000, "grid_messages": 1000,
+         "grid_node": {"received": 1000, "published": 1000, "malformed": 0, "stamp_gap": 0}}
+    m.update(kw)
+    return m
+
+
+def test_grid_bag_with_counters_and_no_loss_passes(tmp_path):
+    run = make_run(tmp_path)
+    meta = sf.convert(str(run))
+    assert meta["disparity_topic"] == "/rec/disparity_grid"
+    assert (meta["sgbm_published"], meta["grid_messages"], meta["grid_lost"]) == (3, 3, 0)
+    assert meta["grid_node"] == {"received": 3, "published": 3, "malformed": 0, "stamp_gap": 0}
+    assert meta["grid_stamp_gap"] == 0 and meta["grid_malformed"] == 0
+    assert sf.check(meta) == []
+    assert sf.main(["--run", str(run), "--filter-bag"]) == 0
+
+
+def test_grid_loss_of_two_percent_fails_and_keeps_the_bag(tmp_path, capsys):
+    run = make_run(tmp_path, n=50, sgbm_extra=1, tf_to=16.0)           # the stereo node published 51 images, 50 grids arrived
+    meta = sf.convert(str(run))
+    assert (meta["sgbm_published"], meta["grid_messages"], meta["grid_lost"]) == (51, 50, 1)
+    bad = sf.check(meta)
+    assert len(bad) == 1 and "grid_lost 1 of 51" in bad[0]
+    before = bag_counts(str(run / "mission.bag"))
+    assert sf.main(["--run", str(run), "--filter-bag"]) == 1
+    assert "grid_lost 1 of 51" in capsys.readouterr().err and bag_counts(str(run / "mission.bag")) == before
+
+
+def test_grid_loss_check_boundary():
+    assert sf.check(grid_ok_meta(sgbm_published=1010, grid_messages=1000)) == []          # exactly 1 %
+    assert len(sf.check(grid_ok_meta(sgbm_published=1011, grid_messages=1000))) == 1
+
+
+def test_grid_counters_missing_fails_loud(tmp_path, capsys):
+    run = make_run(tmp_path, grid_counters=False)
+    meta = sf.convert(str(run))
+    assert meta["grid_node"] is None
+    bad = sf.check(meta)
+    assert len(bad) == 1 and "/disparity_grid/counters is missing" in bad[0]
+    assert sf.main(["--run", str(run), "--filter-bag"]) == 1
+
+
+def test_stereo_published_count_missing_fails_loud():
+    bad = sf.check(grid_ok_meta(sgbm_published=None, grid_messages=1000))
+    assert len(bad) == 1 and "/stereo_sgbm/timing" in bad[0]
+    assert len(sf.check(grid_ok_meta(sgbm_published=0))) == 1
+
+
+def test_full_image_bag_skips_the_loss_check(tmp_path):
+    run = make_run(tmp_path, disp="full", sgbm_extra=5, grid_counters=False)    # more published than ever seen: irrelevant
+    meta = sf.convert(str(run))
+    assert meta["disparity_topic"] == "/disparity_image_down_float" and meta["grid_lost"] is None and meta["grid_node"] is None
+    assert sf.check(meta) == []
+    assert sf.main(["--run", str(run)]) == 0
+    # a bare meta without a topic never looks at the counters (the contract's old callers)
+    assert sf.check({"frames": 3, "detection_frames": 3, "frames_with_disparity": 3, "pose_invalid": 0}) == []
+
+
 def test_check_flags_pose_invalid_above_one_percent_and_empty():
     ok = {"frames": 1000, "frames_with_disparity": 900, "pose_invalid": 10, "disparity_rejected": 0}
     assert sf.check(ok) == []                                           # exactly 1 %: allowed
@@ -419,7 +512,8 @@ def test_filter_bag_drops_only_the_frame_topics_and_replaces_after_check(tmp_pat
     before = bag_counts(str(run / "mission.bag"))
     assert sf.main(["--run", str(run), "--filter-bag"]) == 0
     after = bag_counts(str(run / "mission.bag"))
-    dropped = {"/rec/disparity_grid", "/cam/bottom/left/half/camera_info", "/cam/bottom/right/half/camera_info"}
+    dropped = {"/rec/disparity_grid", "/disparity_grid/counters", "/cam/bottom/left/half/camera_info",
+               "/cam/bottom/right/half/camera_info"}
     assert set(after) == set(before) - dropped
     assert all(after[t] == before[t] for t in after)                       # every kept message is still there
     assert sorted(os.listdir(str(run))) == ["frames.bin", "frames.bin.meta.json", "mission.bag"]   # no temp file left
@@ -440,7 +534,7 @@ def test_filter_bag_function_is_a_byte_faithful_message_copy(tmp_path):
     run = make_run(tmp_path)
     dst = str(tmp_path / "copy.bag")
     n = sf.filter_bag(str(run / "mission.bag"), dst)
-    assert n["dropped"] == 3 + 2 and n["kept"] > 0         # 3 disparity images + 2 camera_info
+    assert n["dropped"] == 3 + 1 + 2 and n["kept"] > 0     # 3 grids + their counters + 2 camera_info
     keep = ["/mission_state", "/spray_target", "/tf", "/object_detection/detections"]
     with rosbag.Bag(str(run / "mission.bag")) as a, rosbag.Bag(dst) as b:
         ka = [(t, rospy_ser(m), bt.to_sec()) for t, m, bt in a.read_messages(topics=keep)]

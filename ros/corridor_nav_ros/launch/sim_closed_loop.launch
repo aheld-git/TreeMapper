@@ -15,7 +15,8 @@
      /tf_static, /corridor_nav/setpoint, the plan markers, /sim/truth, the detections and the perception counters.
      record_images:=true adds the left image throttled to 0.2 Hz on /rec/left_0p2hz.
      record_frames:=true adds what treemapper_node consumes besides the detections, /tf and the phase / target topics
-     above: the left / right half-resolution camera_info and /rec/disparity_grid, made by sim_perception's
+     above: the left / right half-resolution camera_info, /rec/disparity_grid and its /disparity_grid/counters (with the
+     /stereo_sgbm/timing already recorded they give the exact number of images lost on the way), made by sim_perception's
      disparity_grid_node from /disparity_image_down_float. That node republishes only the stride-4 pixels the TreeMapper
      node samples (~64 kB instead of ~1 MB per image); the full image is NOT recorded, and the TreeMapper node keeps
      consuming the full image. The harness option record-frames of scripts/sim_mission.sh sets it, converts the bag to
@@ -64,7 +65,7 @@
   <arg if="$(arg record_images)" name="rec_image_topic" value="/rec/left_0p2hz"/>
   <arg unless="$(arg record_images)" name="rec_image_topic" value=""/>
   <arg if="$(arg record_frames)" name="rec_frame_topics"
-       value="/rec/disparity_grid /cam/bottom/left/half/camera_info /cam/bottom/right/half/camera_info"/>
+       value="/rec/disparity_grid /disparity_grid/counters /cam/bottom/left/half/camera_info /cam/bottom/right/half/camera_info"/>
   <arg unless="$(arg record_frames)" name="rec_frame_topics" value=""/>
   <group if="$(arg record)">
     <node if="$(arg record_frames)" pkg="sim_perception" type="disparity_grid_node.py" name="disparity_grid"
