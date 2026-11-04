@@ -16,7 +16,9 @@ outline or within `match_radius` of its centre). Each instance owns a local **ev
 cell, how many frames it was that instance's canopy (positive) and how many frames it was seen as ground or as another
 instance's canopy (negative). A cell **latches**, permanently, after `latch_frames` positive frames and when positive in
 at least `latch_ratio` of the judged frames. The published outline is the convex hull of the latched cells; the centre
-is their centroid; the height is a high quantile (0.99) of the latched cells' fused surface heights (M4; M3 used the
+is the centroid of the cells whose observation-weighted evidence (each frame counts min(point weight, 1) x frame
+quality) currently says "this tree's canopy" (D66: latching is permanent, and a far edge view latches cells displaced
+toward its track; `centre_from_support = false` gives the latched centroid); the height is a high quantile (0.99) of the latched cells' fused surface heights (M4; M3 used the
 median of per-frame crown-top samples, see section 10). Published centre and height move at a bounded rate. There are no
 2D tracks anywhere.
 
@@ -248,7 +250,7 @@ its ID (rule 4). A union can only raise the quantile relative to "winner keeps i
 
 ### 10.2 Publication stability (task 2): rate-limited centre and height
 
-The published centre moves toward the latched centroid at <= `max_centre_rate` 0.8 m/s and the published height toward
+The published centre moves toward its target (the latched centroid here; since D66 the centroid of the supported cells) at <= `max_centre_rate` 0.8 m/s and the published height toward
 the quantile at <= `max_height_rate` 0.5 m/s (one step per frame, dt capped at 0.5 s, only for instances the phase
 policy lets change; sprayed / frozen instances are never stepped). The outline is not delayed, so the scorer's
 first-publish time (IoU match + finite height) is unchanged by this: centre and height jumps went from 3.2 / 0.6

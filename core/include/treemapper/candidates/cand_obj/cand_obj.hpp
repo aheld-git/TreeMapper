@@ -21,7 +21,14 @@
 // quantile (`height_quantile`) of the latched cells' surface, so a partial first view (crown entering at
 // the swath edge) cannot pin the height to the top of the visible slice. Published height and centre are
 // rate-limited (`max_height_rate`, `max_centre_rate`), so they never jump; sprayed and frozen instances
-// are never stepped. Rule 3: published only once enough latched cells carry a finite height. Identity:
+// are never stepped.
+//
+// Centre (D66): latching is permanent, and a crown first seen from a far track at the image edge latches cells
+// displaced toward that track (stereo range error along the oblique ray). The published centre is therefore not
+// the latched centroid but the centroid of the cells the instance's OBSERVATION-WEIGHTED evidence currently calls
+// its canopy (each frame counts min(point weight, 1) x frame quality, so a far, oblique view counts ~0.15 of a
+// near-nadir one): once near views exist the far view's ghost band drops out and the unlatched far half of the
+// crown comes in. The outline (latched hull) and everything that matches or merges instances are unchanged. Rule 3: published only once enough latched cells carry a finite height. Identity:
 // IDs are monotonic; a merge keeps the better-established instance's ID (rule 4); sprayed instances never
 // change (rule 5). Every drop is counted by reason (rule 7).
 #pragma once
@@ -101,6 +108,12 @@ struct Config {
   double height_quantile{0.99};     ///< published height = this quantile of the latched cells' fused surface
   double max_height_rate{0.5};      ///< m/s a published height may move (no jumps)
   double max_centre_rate{0.8};      ///< m/s a published centre may move (no jumps; the outline is not delayed)
+  // --- centre (D66)
+  bool centre_from_support{true};   ///< published centre = centroid of the cells with observation-weighted canopy
+                                    ///< support (true) or of the latched cells (false: the M4 centre)
+  double centre_support_ratio{0.5};  ///< a cell supports the centre while its observation-weighted canopy evidence is
+                                     ///< >= this share of all its weighted evidence and >= latch_frames weighted frames;
+                                     ///< fewer than min_height_cells such cells: the latched centroid (counted)
   // --- merges (rule 4)
   double merge_overlap{0.5};        ///< latched overlap / smaller latched area
   double merge_centre_dist{1.5};    ///< m, or centres closer than this
@@ -115,7 +128,7 @@ struct Config {
 /// Key/value -> Config (keys = field names); unknown keys throw std::invalid_argument.
 Config configFrom(const MapperConfig& config);
 /// Number of tunables, for the config-file test.
-constexpr int kConfigKeyCount = 45;
+constexpr int kConfigKeyCount = 47;
 
 /// Frame quality from the body rotation rate (rad/s) and the time since the last fast rotation.
 /// Unknown rate (< 0) -> 1 (fail open). Pure, tested.
@@ -176,6 +189,7 @@ class CandObj : public Mapper {
     std::vector<float> hz, hw;           ///< per cell: fused surface height, its saturating weight
     std::vector<std::uint8_t> hrej;      ///< per cell: consecutive rejected frame heights
     std::vector<std::uint8_t> hgood;     ///< per cell: has an accepted height sample from a non-truncated crown
+    std::vector<float> wpos, wneg;       ///< per cell: observation-weighted positive / negative evidence (D66)
     int n_latched{0};
     double lat_sum_x{0.0}, lat_sum_y{0.0};  ///< sum of latched cell centres (world)
     double peak_sum_x{0.0}, peak_sum_y{0.0};
@@ -187,6 +201,8 @@ class CandObj : public Mapper {
     bool hull_dirty{true};
     Polygon2 hull;
     Point2 centre;                ///< latched centroid, else running peak mean (internal, instantaneous)
+    Point2 centre_support;        ///< centroid of the cells with weighted canopy support (D66)
+    bool has_centre_support{false};  ///< ... valid (enough supported cells); else the published centre follows `centre`
     Point2 centre_pub;            ///< published centre: rate-limited toward `centre`
     double height_target{0.0};    ///< quantile of the latched cells' fused heights (NaN until enough cells)
     double height_pub{0.0};       ///< published height: rate-limited toward `height_target`
@@ -205,6 +221,9 @@ class CandObj : public Mapper {
   void updateEvidence(Instance& in, const FrameView& view, const std::vector<int>& cell_owner,
                       const std::vector<std::uint8_t>& cell_trunc, int self_index, double quality, double z_cap);
   void refreshHull(Instance& in);
+  void refreshCentreSupport(Instance& in);
+  /// The published centre's target: the supported centroid when there is one, else the latched centroid.
+  const Point2& centreTarget(const Instance& in) const { return in.has_centre_support ? in.centre_support : in.centre; }
   void refreshHeight(Instance& in);
   void stepPublished(Instance& in, double t);
   void mergeInstances(double t);

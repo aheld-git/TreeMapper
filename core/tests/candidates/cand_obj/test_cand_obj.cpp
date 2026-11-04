@@ -143,6 +143,7 @@ MapperConfig readCfgFile(const std::string& path) {
   X(min_basin_cells) X(box_dilate) X(peak_border_px) X(hull_cell_corners) X(seed_truncated) X(window) X(match_radius) X(match_overlap) X(match_reach) X(seed_overlap) \
   X(max_cell_radius) X(latch_rel_h) X(latch_frames) X(latch_ratio) X(confirm_frames) X(min_height_cells) X(min_publish_area) X(min_tree_height) \
   X(tentative_timeout) X(cell_weight_cap) X(outlier_gate_m) X(gate_min_weight) X(height_quantile) X(max_height_rate) X(max_centre_rate) \
+  X(centre_from_support) X(centre_support_ratio)                                                               \
   X(merge_overlap) X(merge_centre_dist) X(post_spray_hold_radius)
 
 TEST(CandObjConfig, ShippedFileEqualsBuiltInDefaults) {
@@ -169,9 +170,11 @@ TEST(CandObjConfig, SanitizedClampsAndLogsEveryClamp) {
   c.cell = 0.0;            // below the range
   c.latch_ratio = 7.0;     // above
   c.window = 2;
+  c.centre_support_ratio = -0.5;
   int logged = 0;
   const Config s = c.sanitized([&](const std::string& m) { ++logged; EXPECT_NE(m.find("clamped"), std::string::npos); });
-  EXPECT_EQ(logged, 3);
+  EXPECT_EQ(logged, 4);
+  EXPECT_DOUBLE_EQ(s.centre_support_ratio, 0.0);
   EXPECT_DOUBLE_EQ(s.cell, 0.1);
   EXPECT_DOUBLE_EQ(s.latch_ratio, 1.0);
   EXPECT_EQ(s.window, 4);
@@ -632,6 +635,74 @@ TEST(CandObjM4, MergeNeverJumpsThePublishedValues) {
   EXPECT_LE(max_dh, 0.05 + 1e-6);
   EXPECT_LE(max_dc, 0.08 + 1e-6);
   EXPECT_NEAR(trees[0].height, 5.0, 0.05);  // converged to the taller measured surface, not stuck at 4.0
+}
+
+// ------------------------------------------------------------------------------- centre (miss reduction, D66)
+
+namespace {
+// A crown first seen from a far track at the image edge, then from a near track (the Isaac pattern of
+// results/miss_reduction.md "Centre"): the true crown is a disc of radius 1.5 m at (0, 0). From the far track
+// (8.4 m across) the stereo puts the crown 1.5 m toward the drone and sees the true far half as ground; its cells
+// carry the low point weight of oblique, far points (0.15). From the near track (3.7 m across) the crown is where
+// it is, with near-nadir weight (0.9), and the far view's ghost band is ground. `each` is called after every frame.
+template <typename F>
+void farThenNear(CandObj& m, double& t, F each) {
+  auto frame = [&](double cy, double w, double drone_y) {
+    std::vector<Crown> c{disc(0.0, cy, 1.5, 2.7)};
+    FrameView v = viewOf(c);
+    v.hwt.assign(v.state.size(), static_cast<float>(w));
+    m.integrate(t += 0.1, MissionPhase::kScan, kNoTree, poseAt(0.0, drone_y), v, c);
+    each();
+  };
+  for (int i = 0; i < 25; ++i) frame(-1.5, 0.15, -8.4);  // far pass
+  for (int i = 0; i < 40; ++i) frame(0.0, 0.9, -3.7);    // near pass
+}
+}  // namespace
+
+// The published centre converges to the crown once near views exist: the far view's cells latched (they stay in
+// the outline, rule 2) but no longer carry the centre once the observation-weighted evidence says ground.
+TEST(CandObj, CentreConvergesAfterNearViews) {
+  CandObj m;
+  double t = 0;
+  bool published_far = false;
+  int frames = 0;
+  farThenNear(m, t, [&] {
+    if (++frames == 25) {  // end of the far pass: published, biased toward the far track like the latched cells
+      const auto trees = m.publishedTrees();
+      ASSERT_EQ(trees.size(), 1u) << dump(m);
+      EXPECT_LT(trees[0].centre.y, -1.0);
+      published_far = true;
+    }
+  });
+  ASSERT_TRUE(published_far);
+  const auto trees = m.publishedTrees();
+  ASSERT_EQ(trees.size(), 1u) << dump(m);
+  EXPECT_LT(std::hypot(trees[0].centre.x, trees[0].centre.y), 0.3) << "centre " << trees[0].centre.x << ", " << trees[0].centre.y;
+}
+
+// Through the same sequence the published outline only grows and the centre never moves faster than max_centre_rate.
+TEST(CandObj, CentreFixKeepsOutlineGrowOnly) {
+  CandObj m;
+  double t = 0;
+  double prev_area = -1.0;
+  Point2 prev_c{0, 0};
+  int n_pub = 0;
+  double max_dc = 0.0;
+  farThenNear(m, t, [&] {
+    const auto trees = m.publishedTrees();
+    if (trees.empty()) return;
+    ASSERT_EQ(trees.size(), 1u) << dump(m);
+    const double a = area(trees[0]);
+    if (n_pub++ > 0) {
+      EXPECT_GE(a, prev_area - 1e-9) << "outline shrank at t " << t;
+      max_dc = std::max(max_dc, std::hypot(trees[0].centre.x - prev_c.x, trees[0].centre.y - prev_c.y));
+    }
+    prev_area = a;
+    prev_c = trees[0].centre;
+  });
+  EXPECT_GT(n_pub, 40);
+  EXPECT_LE(max_dc, m.config().max_centre_rate * 0.1 + 1e-6);
+  EXPECT_GT(cnt(m, "centre_steps_clamped"), 0u);  // the centre did move a long way, at the bounded rate
 }
 
 // ------------------------------------------------------------------------------- final review (S4, S6, S8, S12)

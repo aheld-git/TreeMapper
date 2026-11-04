@@ -28,7 +28,8 @@ Numbers are cited from committed result files; how the design was chosen is in `
        4. match crowns to tree instances by world geometry (top inside outline / near centre / latched overlap)
        5. per-instance evidence grid: +1 canopy-of-this-tree, -1 ground or another tree's canopy, quality-weighted;
           a cell latches permanently after 5 positive frames at >= 75 % positive
-       6. publish when confirmed: outline = convex hull of latched cells, centre = their centroid (rate-limited),
+       6. publish when confirmed: outline = convex hull of latched cells, centre = centroid of the cells whose
+          observation-weighted evidence currently supports this tree (D66; rate-limited),
           height = 0.99 quantile of the latched cells' fused surface z (rate-limited, finite by construction)
                                                          |
                             publishedTrees() -> ~map, ~markers, ~get_trees;   counters() -> ~counters;

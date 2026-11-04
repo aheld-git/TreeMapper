@@ -95,6 +95,7 @@ Config Config::sanitized(const std::function<void(const std::string&)>& log) con
   c.height_quantile = clampLog("height_quantile", c.height_quantile, 0.0, 1.0, log);
   c.max_height_rate = clampLog("max_height_rate", c.max_height_rate, 0.0, 1000.0, log);
   c.max_centre_rate = clampLog("max_centre_rate", c.max_centre_rate, 0.0, 1000.0, log);
+  c.centre_support_ratio = clampLog("centre_support_ratio", c.centre_support_ratio, 0.0, 1.0, log);
   c.merge_overlap = clampLog("merge_overlap", c.merge_overlap, 0.0, 1.0, log);
   c.merge_centre_dist = clampLog("merge_centre_dist", c.merge_centre_dist, 0.0, 50.0, log);
   c.post_spray_hold_radius = clampLog("post_spray_hold_radius", c.post_spray_hold_radius, 0.0, 100.0, log);
@@ -146,6 +147,8 @@ Config configFrom(const MapperConfig& config) {
   c.height_quantile = r.getDouble("height_quantile", c.height_quantile);
   c.max_height_rate = r.getDouble("max_height_rate", c.max_height_rate);
   c.max_centre_rate = r.getDouble("max_centre_rate", c.max_centre_rate);
+  c.centre_from_support = r.getBool("centre_from_support", c.centre_from_support);
+  c.centre_support_ratio = r.getDouble("centre_support_ratio", c.centre_support_ratio);
   c.merge_overlap = r.getDouble("merge_overlap", c.merge_overlap);
   c.merge_centre_dist = r.getDouble("merge_centre_dist", c.merge_centre_dist);
   c.post_spray_hold_radius = r.getDouble("post_spray_hold_radius", c.post_spray_hold_radius);
@@ -666,7 +669,12 @@ void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vec
       const std::uint8_t st = view.state[vk];
       if (st == 0) continue;  // unknown: no evidence either way
       const int owner = cell_owner[vk];
+      // D66: the same judgement weighted by how well this frame saw the cell: its points' mean weight (range and
+      // off-axis), capped at one frame, times the frame quality. A far, oblique view counts ~0.15 of a near one.
+      // No per-cell weights (tests, empty hwt): the frame quality, like npos / nneg.
+      const float wo = have_w ? std::min(view.hwt[vk], q) : q;
       if (owner == self) {
+        in.wpos[lk] += wo;
         in.npos[lk] = std::min(65535.0f, in.npos[lk] + q);
         // height fusion of this instance's canopy cell (weighted running mean, saturating, gated)
         if (have_z) {
@@ -693,6 +701,7 @@ void CandObj::updateEvidence(Instance& in, const FrameView& view, const std::vec
         }
       } else if (st == 1 || owner >= 0) {
         in.nneg[lk] = std::min(65535.0f, in.nneg[lk] + q);  // ground, or another tree's canopy
+        in.wneg[lk] += wo;
       } else {
         continue;  // canopy nobody claimed (unboxed / tiny crown / skirt): unknown
       }
@@ -734,6 +743,36 @@ void CandObj::refreshHull(Instance& in) {
   in.hull = pts.size() >= 3 ? convexHull(std::move(pts)) : Polygon2{};
 }
 
+void CandObj::refreshCentreSupport(Instance& in) {
+  // D66: the published centre's target. Latching is permanent, so the latched centroid keeps every cell a far,
+  // oblique first view latched (displaced toward that track) and misses the far half of the crown that this view
+  // judged ground. The centroid of the cells whose observation-weighted evidence currently says "this tree's
+  // canopy" follows the better (nearer, more nadir) views instead. Fails open to the latched centroid (counted)
+  // while fewer than min_height_cells cells qualify.
+  in.has_centre_support = false;
+  if (!cfg_.centre_from_support) return;
+  const float wmin = static_cast<float>(cfg_.latch_frames);
+  const float ratio = static_cast<float>(cfg_.centre_support_ratio);
+  double sx = 0.0, sy = 0.0;
+  int n = 0;
+  for (int lj = 0; lj < cfg_.window; ++lj) {
+    for (int li = 0; li < cfg_.window; ++li) {
+      const int lk = lj * cfg_.window + li;
+      const float wp = in.wpos[lk];
+      if (wp < wmin || wp < ratio * (wp + in.wneg[lk])) continue;
+      sx += (in.ai + li + 0.5) * cfg_.cell;
+      sy += (in.aj + lj + 0.5) * cfg_.cell;
+      ++n;
+    }
+  }
+  if (n < cfg_.min_height_cells) {
+    if (in.confirmed) count("centre_support_fallback_latched");
+    return;
+  }
+  in.centre_support = {sx / n, sy / n};
+  in.has_centre_support = true;
+}
+
 void CandObj::refreshHeight(Instance& in) {
   // the tree height is a high quantile of the latched cells' fused surface: a partial first view cannot
   // pin it to the top of the visible slice, and no single cell (or frame) defines it
@@ -766,13 +805,14 @@ void CandObj::stepPublished(Instance& in, double t) {
     if (std::fabs(d) > lim) count("height_steps_clamped");
     in.height_pub += std::clamp(d, -lim, lim);
   }
-  const double dx = in.centre.x - in.centre_pub.x, dy = in.centre.y - in.centre_pub.y;
+  const Point2& target = centreTarget(in);
+  const double dx = target.x - in.centre_pub.x, dy = target.y - in.centre_pub.y;
   const double dd = std::hypot(dx, dy), lim = cfg_.max_centre_rate * dt;
   if (dd > lim) {
     count("centre_steps_clamped");
     if (dd > 0.0) { in.centre_pub.x += dx * lim / dd; in.centre_pub.y += dy * lim / dd; }
   } else {
-    in.centre_pub = in.centre;
+    in.centre_pub = target;
   }
 }
 
@@ -793,6 +833,8 @@ void CandObj::absorb(Instance& keep, const Instance& lose) {
       const int kk = kj * cfg_.window + ki;
       keep.npos[kk] = std::min(65535.0f, keep.npos[kk] + lose.npos[lk]);
       keep.nneg[kk] = std::min(65535.0f, keep.nneg[kk] + lose.nneg[lk]);
+      keep.wpos[kk] += lose.wpos[lk];
+      keep.wneg[kk] += lose.wneg[lk];
       if (lose.hw[lk] > 0.0f) {  // the loser's surface measurements of cells the winner had not measured
         const float wn = keep.hw[kk] + lose.hw[lk];
         keep.hz[kk] = (keep.hz[kk] * keep.hw[kk] + lose.hz[lk] * lose.hw[lk]) / wn;
@@ -879,6 +921,7 @@ void CandObj::mergeInstances(double t) {
         const std::size_t lose_idx = a_keeps ? b : a;
         absorb(keep, instances_[lose_idx]);
         refreshHull(keep);
+        refreshCentreSupport(keep);
         refreshHeight(keep);
         instances_.erase(instances_.begin() + static_cast<long>(lose_idx));  // its ID is retired forever (rule 1)
         count("instances_merged");
@@ -945,6 +988,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
       const std::size_t n = static_cast<std::size_t>(cfg_.window) * cfg_.window;
       in.npos.assign(n, 0.0f); in.nneg.assign(n, 0.0f); in.latched.assign(n, 0);
       in.hz.assign(n, 0.0f); in.hw.assign(n, 0.0f); in.hrej.assign(n, 0); in.hgood.assign(n, 0);
+      in.wpos.assign(n, 0.0f); in.wneg.assign(n, 0.0f);
       in.centre = in.centre_pub = c.peak;
       in.height_target = in.height_pub = kNaN;
       in.first_seen = in.last_seen = in.last_step_t = t;
@@ -977,6 +1021,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
       // re-measure cells the scan saw from above); outlines keep growing under the phase policy
       updateEvidence(in, view, cell_owner, cell_trunc, static_cast<int>(k), quality, pol.may_create ? z_cap : -std::numeric_limits<double>::infinity());
       refreshHull(in);
+      refreshCentreSupport(in);
       if (pol.may_create) refreshHeight(in);
     }
     if (!in.confirmed && pol.may_create && in.frames_seen >= cfg_.confirm_frames && std::isfinite(in.height_target) &&
@@ -987,7 +1032,7 @@ void CandObj::integrate(double t, MissionPhase phase, TreeId target, const Drone
       if (in.n_good_height_cells < cfg_.min_height_cells) { count("instances_waiting_untruncated_height"); stepPublished(in, t); continue; }
       in.confirmed = true;
       in.height_pub = in.height_target;  // first publication: no previous value to rate-limit from
-      in.centre_pub = in.centre;
+      in.centre_pub = centreTarget(in);
       in.last_step_t = t;
       count("instances_confirmed");
       continue;

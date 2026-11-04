@@ -587,3 +587,36 @@ dependency (S14).
 the old (a, b) order, so the first merging pair is the same; crown matching tests the O(1) reach before the cell overlap.
 1.29 ms / frame at 1600 trees. Proven identical: map streams (without `stage_ms`), targets and counters byte-identical on
 Isaac (3 / 3 files) and suite_v2 (45 / 45) against the S4+S8 build.
+
+## Miss reduction (2026-11-04; D66-)
+
+**D66. Published centre from observation-weighted support, not the latched centroid** (spec
+`2026-11-03-miss-reduction-design.md` section 4.3; evidence `results/miss_reduction.md` "Centre"). Trees first published
+far across track kept a centre biased toward that track: 1.01 / 1.06 m mean error at the dose on the two 5x5 Isaac
+replays, 62 / 70 % beyond the 0.8 m spray footprint. Cause: a far view at the image edge (about 15 m range on an oblique
+ray, 1 px of disparity = 3 m) draws the crown displaced toward the drone and higher; those cells latch permanently
+(58 % of the cells latched from >= 7 m lie outside the true crown, +1.1 to +1.5 m toward the drone), and the same
+view's ground judgements on the true far half keep it from ever reaching `latch_ratio` once near views see it. Every
+frame counted as one frame whatever its geometry. Fix: per cell a second pair of evidence counts weighted by how well the
+frame saw the cell (min(mean point weight, 1) x frame quality, about 0.15 for the far edge view and 1 near nadir); the
+published centre moves (at `max_centre_rate`, unchanged) toward the centroid of the cells with at least `latch_frames`
+weighted positive frames and a weighted positive share of at least `centre_support_ratio` (0.5); fewer than
+`min_height_cells` such cells falls back to the latched centroid (counted `centre_support_fallback_latched`). New keys
+`centre_from_support` (true) and `centre_support_ratio` (0.5). Not changed: latching and the outline (rule 2 as before:
+grow-only, no cell enters from one frame), heights, the internal centre used for matching / merges / spill guard /
+sprayed checks. Result on the four replays: map streams identical to the baseline except the centre, A1 / A2 identical
+entry by entry, A3 far 0.099 / 0.114 m with none beyond 0.8 m (5x5), near 0.106 / 0.089 m; rows far 0.116 / 0.128 m
+(from 0.347 / 0.445), near 0.140 / 0.102 m (from 0.365 / 0.237). Rejected (measured): support over latched cells only
+(0.470 m, no margin; the unlatched far half cannot come in), the same estimate as the internal centre (changes matching,
+A1 count 6 -> 8), weighted evidence as a second latch path (new cells feed the height, A1 dose 0.88 -> 5.72 m).
+Consequences: the centre and the outline are now separate quantities and a corrected centre can lie outside the
+(still biased, grow-only) outline: 6 of 226 replay doses, at most 0.99 m outside, within the navigator's 1.3 m reach for
+a guard release. Part of the correction arrives on the leg to the dose, which the navigator does not follow (it replans
+on height changes only): measured at the start of the dosing leg the 5x5 corridor far error is 0.452 m with 2 of 13
+beyond 0.8 m.
+Real-flight profile: gets the same (`centre_from_support = true`, `centre_support_ratio = 0.5`, identical code). Safe
+there because nothing that bounds the descent changes: on the real farm log outlines, heights and IDs are byte-identical
+for all 63 final trees, every centre stays inside its own outline, and the centre still moves at <= 0.8 m/s (largest
+snapshot step 0.26 m, as before). The centres move by a median 0.48 m (max 3.17 m); against the stereo crown peaks (a
+proxy, no truth) mean distance 1.76 -> 1.63 m, p90 3.02 -> 2.66 m, 22 trees closer and 11 farther by more than 0.3 m.
+The section 6 regression check (Task 7) has to confirm it; `centre_from_support = false` restores the M4 centre.
