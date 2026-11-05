@@ -1,0 +1,914 @@
+{
+ "title": "TreeMapper (cand_obj) vs SpotSpraying: Isaac 5x5 tropical",
+ "systems": [
+  "cand_obj",
+  "existing"
+ ],
+ "datasets": [
+  "/data/work/extracted/isaac_5x5_2026-10-29-13-35-35"
+ ],
+ "repeat": 1,
+ "reference": "cand_obj",
+ "configs": {},
+ "results": {
+  "cand_obj": {
+   "per_dataset": {
+    "isaac_5x5_2026-10-29-13-35-35": [
+     {
+      "headline": {
+       "recall (final)": 1.0,
+       "precision (final)": 0.9615384615384616,
+       "published / truth (final)": 26.0,
+       "recall (per-frame mean)": 0.5923285661899523,
+       "mean IoU (final)": 0.8429452775134046,
+       "min IoU (final)": 0.6319898321877964,
+       "merged entries (final)": 1.0,
+       "neighbours swallowed (final)": 1.0,
+       "split trees (final)": 0.0,
+       "false trees (final)": 1.0,
+       "centre RMSE m (final)": 0.2934523552469805,
+       "height bias m (final)": -0.6944440000000002,
+       "height RMSE m (final)": 0.8070398649385297,
+       "spill (final)": 0.04878126664994017,
+       "neighbour spill max (final)": 0.2582535904374202,
+       "ID switches after lock": 0.0,
+       "geometry retreats": 0.0,
+       "centre jumps": 0.0,
+       "height jumps": 0.0,
+       "IDs vanished while held by nav": 0.0,
+       "SAFETY total violations": 0.0,
+       "  undefined-height frames": 0.0,
+       "  new trees after scan": 0.0,
+       "  non-target changes in descent": 0.0,
+       "  sprayed-tree changes": 0.0,
+       "  new tree inside sprayed": 0.0,
+       "  invalid-entry frames": 0.0,
+       "  duplicate-ID frames": 0.0,
+       "  implausible-height frames": 0.0,
+       "  locked ID vanished": 0.0,
+       "truth trees sprayed": 21.0,
+       "truth trees sprayed twice": 0.0,
+       "scan latency mean s": 0.6558760000000023
+      },
+      "cost": "{\"stages\": {\"chm\": {\"mean_ms\": 0.8753378193430656, \"p95_ms\": 0.953445, \"max_ms\": 1.0976, \"n\": 2192}, \"instances\": {\"mean_ms\": 0.009616605839416058, \"p95_ms\": 0.0255, \"max_ms\": 0.0551, \"n\": 2192}}}",
+      "run_dir": "/data/work/eval_5x5/runs/cand_obj/isaac_5x5_2026-10-29-13-35-35"
+     }
+    ]
+   },
+   "aggregate": {
+    "recall (final)": {
+     "mean": 1.0,
+     "worst": 1.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "precision (final)": {
+     "mean": 0.9615384615384616,
+     "worst": 0.9615384615384616,
+     "std": 0.0,
+     "n": 1
+    },
+    "published / truth (final)": {
+     "mean": 26.0,
+     "worst": null,
+     "std": 0.0,
+     "n": 1
+    },
+    "recall (per-frame mean)": {
+     "mean": 0.5923285661899523,
+     "worst": 0.5923285661899523,
+     "std": 0.0,
+     "n": 1
+    },
+    "mean IoU (final)": {
+     "mean": 0.8429452775134046,
+     "worst": 0.8429452775134046,
+     "std": 0.0,
+     "n": 1
+    },
+    "min IoU (final)": {
+     "mean": 0.6319898321877964,
+     "worst": 0.6319898321877964,
+     "std": 0.0,
+     "n": 1
+    },
+    "merged entries (final)": {
+     "mean": 1.0,
+     "worst": 1.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "neighbours swallowed (final)": {
+     "mean": 1.0,
+     "worst": 1.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "split trees (final)": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "false trees (final)": {
+     "mean": 1.0,
+     "worst": 1.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "centre RMSE m (final)": {
+     "mean": 0.2934523552469805,
+     "worst": 0.2934523552469805,
+     "std": 0.0,
+     "n": 1
+    },
+    "height bias m (final)": {
+     "mean": -0.6944440000000002,
+     "worst": null,
+     "std": 0.0,
+     "n": 1
+    },
+    "height RMSE m (final)": {
+     "mean": 0.8070398649385297,
+     "worst": 0.8070398649385297,
+     "std": 0.0,
+     "n": 1
+    },
+    "spill (final)": {
+     "mean": 0.04878126664994017,
+     "worst": 0.04878126664994017,
+     "std": 0.0,
+     "n": 1
+    },
+    "neighbour spill max (final)": {
+     "mean": 0.2582535904374202,
+     "worst": 0.2582535904374202,
+     "std": 0.0,
+     "n": 1
+    },
+    "ID switches after lock": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "geometry retreats": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "centre jumps": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "height jumps": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "IDs vanished while held by nav": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "SAFETY total violations": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  undefined-height frames": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  new trees after scan": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  non-target changes in descent": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  sprayed-tree changes": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  new tree inside sprayed": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  invalid-entry frames": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  duplicate-ID frames": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  implausible-height frames": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  locked ID vanished": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "truth trees sprayed": {
+     "mean": 21.0,
+     "worst": 21.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "truth trees sprayed twice": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "scan latency mean s": {
+     "mean": 0.6558760000000023,
+     "worst": 0.6558760000000023,
+     "std": 0.0,
+     "n": 1
+    }
+   },
+   "run_to_run_max_diff": {}
+  },
+  "existing": {
+   "per_dataset": {
+    "isaac_5x5_2026-10-29-13-35-35": [
+     {
+      "headline": {
+       "recall (final)": 1.0,
+       "precision (final)": 0.8064516129032258,
+       "published / truth (final)": 31.0,
+       "recall (per-frame mean)": 0.652042537587092,
+       "mean IoU (final)": 0.6977753215142662,
+       "min IoU (final)": 0.48228052200043003,
+       "merged entries (final)": 0.0,
+       "neighbours swallowed (final)": 0.0,
+       "split trees (final)": 0.0,
+       "false trees (final)": 6.0,
+       "centre RMSE m (final)": 0.6614363261871848,
+       "height bias m (final)": -0.1446312538042302,
+       "height RMSE m (final)": 0.16153774730713885,
+       "spill (final)": 0.14248636083427507,
+       "neighbour spill max (final)": 0.13060189697566857,
+       "ID switches after lock": 0.0,
+       "geometry retreats": 0.0,
+       "centre jumps": 16.0,
+       "height jumps": 57.0,
+       "IDs vanished while held by nav": 0.0,
+       "SAFETY total violations": 20.0,
+       "  undefined-height frames": 0.0,
+       "  new trees after scan": 0.0,
+       "  non-target changes in descent": 0.0,
+       "  sprayed-tree changes": 0.0,
+       "  new tree inside sprayed": 0.0,
+       "  invalid-entry frames": 0.0,
+       "  duplicate-ID frames": 0.0,
+       "  implausible-height frames": 20.0,
+       "  locked ID vanished": 0.0,
+       "truth trees sprayed": 25.0,
+       "truth trees sprayed twice": 0.0,
+       "scan latency mean s": 0.4342226000000016
+      },
+      "cost": "n/a",
+      "run_dir": "/data/work/eval_5x5/runs/existing/isaac_5x5_2026-10-29-13-35-35"
+     }
+    ]
+   },
+   "aggregate": {
+    "recall (final)": {
+     "mean": 1.0,
+     "worst": 1.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "precision (final)": {
+     "mean": 0.8064516129032258,
+     "worst": 0.8064516129032258,
+     "std": 0.0,
+     "n": 1
+    },
+    "published / truth (final)": {
+     "mean": 31.0,
+     "worst": null,
+     "std": 0.0,
+     "n": 1
+    },
+    "recall (per-frame mean)": {
+     "mean": 0.652042537587092,
+     "worst": 0.652042537587092,
+     "std": 0.0,
+     "n": 1
+    },
+    "mean IoU (final)": {
+     "mean": 0.6977753215142662,
+     "worst": 0.6977753215142662,
+     "std": 0.0,
+     "n": 1
+    },
+    "min IoU (final)": {
+     "mean": 0.48228052200043003,
+     "worst": 0.48228052200043003,
+     "std": 0.0,
+     "n": 1
+    },
+    "merged entries (final)": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "neighbours swallowed (final)": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "split trees (final)": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "false trees (final)": {
+     "mean": 6.0,
+     "worst": 6.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "centre RMSE m (final)": {
+     "mean": 0.6614363261871848,
+     "worst": 0.6614363261871848,
+     "std": 0.0,
+     "n": 1
+    },
+    "height bias m (final)": {
+     "mean": -0.1446312538042302,
+     "worst": null,
+     "std": 0.0,
+     "n": 1
+    },
+    "height RMSE m (final)": {
+     "mean": 0.16153774730713885,
+     "worst": 0.16153774730713885,
+     "std": 0.0,
+     "n": 1
+    },
+    "spill (final)": {
+     "mean": 0.14248636083427507,
+     "worst": 0.14248636083427507,
+     "std": 0.0,
+     "n": 1
+    },
+    "neighbour spill max (final)": {
+     "mean": 0.13060189697566857,
+     "worst": 0.13060189697566857,
+     "std": 0.0,
+     "n": 1
+    },
+    "ID switches after lock": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "geometry retreats": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "centre jumps": {
+     "mean": 16.0,
+     "worst": 16.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "height jumps": {
+     "mean": 57.0,
+     "worst": 57.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "IDs vanished while held by nav": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "SAFETY total violations": {
+     "mean": 20.0,
+     "worst": 20.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  undefined-height frames": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  new trees after scan": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  non-target changes in descent": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  sprayed-tree changes": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  new tree inside sprayed": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  invalid-entry frames": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  duplicate-ID frames": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  implausible-height frames": {
+     "mean": 20.0,
+     "worst": 20.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "  locked ID vanished": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "truth trees sprayed": {
+     "mean": 25.0,
+     "worst": 25.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "truth trees sprayed twice": {
+     "mean": 0.0,
+     "worst": 0.0,
+     "std": 0.0,
+     "n": 1
+    },
+    "scan latency mean s": {
+     "mean": 0.4342226000000016,
+     "worst": 0.4342226000000016,
+     "std": 0.0,
+     "n": 1
+    }
+   },
+   "run_to_run_max_diff": {}
+  }
+ },
+ "paired": {
+  "existing": {
+   "per_dataset": {
+    "isaac_5x5_2026-10-29-13-35-35": {
+     "recall (final)": 0.0,
+     "precision (final)": -0.1550868486352358,
+     "published / truth (final)": 5.0,
+     "recall (per-frame mean)": 0.05971397139713963,
+     "mean IoU (final)": -0.1451699559991384,
+     "min IoU (final)": -0.14970931018736633,
+     "merged entries (final)": -1.0,
+     "neighbours swallowed (final)": -1.0,
+     "split trees (final)": 0.0,
+     "false trees (final)": 5.0,
+     "centre RMSE m (final)": 0.36798397094020435,
+     "height bias m (final)": 0.54981274619577,
+     "height RMSE m (final)": -0.6455021176313909,
+     "spill (final)": 0.0937050941843349,
+     "neighbour spill max (final)": -0.12765169346175162,
+     "ID switches after lock": 0.0,
+     "geometry retreats": 0.0,
+     "centre jumps": 16.0,
+     "height jumps": 57.0,
+     "IDs vanished while held by nav": 0.0,
+     "SAFETY total violations": 20.0,
+     "  undefined-height frames": 0.0,
+     "  new trees after scan": 0.0,
+     "  non-target changes in descent": 0.0,
+     "  sprayed-tree changes": 0.0,
+     "  new tree inside sprayed": 0.0,
+     "  invalid-entry frames": 0.0,
+     "  duplicate-ID frames": 0.0,
+     "  implausible-height frames": 20.0,
+     "  locked ID vanished": 0.0,
+     "truth trees sprayed": 4.0,
+     "truth trees sprayed twice": 0.0,
+     "scan latency mean s": -0.22165340000000072
+    }
+   },
+   "summary": {
+    "recall (final)": {
+     "n": 1,
+     "ref_mean": 1.0,
+     "other_mean": 1.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "precision (final)": {
+     "n": 1,
+     "ref_mean": 0.9615384615384616,
+     "other_mean": 0.8064516129032258,
+     "mean_diff": -0.1550868486352358,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "published / truth (final)": {
+     "n": 1,
+     "ref_mean": 26.0,
+     "other_mean": 31.0,
+     "mean_diff": 5.0,
+     "std_diff": null,
+     "t": null,
+     "wins": null,
+     "losses": null,
+     "ties": null
+    },
+    "recall (per-frame mean)": {
+     "n": 1,
+     "ref_mean": 0.5923285661899523,
+     "other_mean": 0.652042537587092,
+     "mean_diff": 0.05971397139713963,
+     "std_diff": null,
+     "t": null,
+     "wins": 1,
+     "losses": 0,
+     "ties": 0
+    },
+    "mean IoU (final)": {
+     "n": 1,
+     "ref_mean": 0.8429452775134046,
+     "other_mean": 0.6977753215142662,
+     "mean_diff": -0.1451699559991384,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "min IoU (final)": {
+     "n": 1,
+     "ref_mean": 0.6319898321877964,
+     "other_mean": 0.48228052200043003,
+     "mean_diff": -0.14970931018736633,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "merged entries (final)": {
+     "n": 1,
+     "ref_mean": 1.0,
+     "other_mean": 0.0,
+     "mean_diff": -1.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 1,
+     "losses": 0,
+     "ties": 0
+    },
+    "neighbours swallowed (final)": {
+     "n": 1,
+     "ref_mean": 1.0,
+     "other_mean": 0.0,
+     "mean_diff": -1.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 1,
+     "losses": 0,
+     "ties": 0
+    },
+    "split trees (final)": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "false trees (final)": {
+     "n": 1,
+     "ref_mean": 1.0,
+     "other_mean": 6.0,
+     "mean_diff": 5.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "centre RMSE m (final)": {
+     "n": 1,
+     "ref_mean": 0.2934523552469805,
+     "other_mean": 0.6614363261871848,
+     "mean_diff": 0.36798397094020435,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "height bias m (final)": {
+     "n": 1,
+     "ref_mean": -0.6944440000000002,
+     "other_mean": -0.1446312538042302,
+     "mean_diff": 0.54981274619577,
+     "std_diff": null,
+     "t": null,
+     "wins": null,
+     "losses": null,
+     "ties": null
+    },
+    "height RMSE m (final)": {
+     "n": 1,
+     "ref_mean": 0.8070398649385297,
+     "other_mean": 0.16153774730713885,
+     "mean_diff": -0.6455021176313909,
+     "std_diff": null,
+     "t": null,
+     "wins": 1,
+     "losses": 0,
+     "ties": 0
+    },
+    "spill (final)": {
+     "n": 1,
+     "ref_mean": 0.04878126664994017,
+     "other_mean": 0.14248636083427507,
+     "mean_diff": 0.0937050941843349,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "neighbour spill max (final)": {
+     "n": 1,
+     "ref_mean": 0.2582535904374202,
+     "other_mean": 0.13060189697566857,
+     "mean_diff": -0.12765169346175162,
+     "std_diff": null,
+     "t": null,
+     "wins": 1,
+     "losses": 0,
+     "ties": 0
+    },
+    "ID switches after lock": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "geometry retreats": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "centre jumps": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 16.0,
+     "mean_diff": 16.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "height jumps": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 57.0,
+     "mean_diff": 57.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "IDs vanished while held by nav": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "SAFETY total violations": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 20.0,
+     "mean_diff": 20.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "  undefined-height frames": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "  new trees after scan": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "  non-target changes in descent": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "  sprayed-tree changes": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "  new tree inside sprayed": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "  invalid-entry frames": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "  duplicate-ID frames": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "  implausible-height frames": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 20.0,
+     "mean_diff": 20.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 1,
+     "ties": 0
+    },
+    "  locked ID vanished": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "truth trees sprayed": {
+     "n": 1,
+     "ref_mean": 21.0,
+     "other_mean": 25.0,
+     "mean_diff": 4.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 1,
+     "losses": 0,
+     "ties": 0
+    },
+    "truth trees sprayed twice": {
+     "n": 1,
+     "ref_mean": 0.0,
+     "other_mean": 0.0,
+     "mean_diff": 0.0,
+     "std_diff": null,
+     "t": null,
+     "wins": 0,
+     "losses": 0,
+     "ties": 1
+    },
+    "scan latency mean s": {
+     "n": 1,
+     "ref_mean": 0.6558760000000023,
+     "other_mean": 0.4342226000000016,
+     "mean_diff": -0.22165340000000072,
+     "std_diff": null,
+     "t": null,
+     "wins": 1,
+     "losses": 0,
+     "ties": 0
+    }
+   },
+   "n_pairs": 1
+  }
+ }
+}
