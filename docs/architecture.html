@@ -1,0 +1,660 @@
+<meta charset="utf-8">
+<title>TreeMapper Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: a field survey sheet. Cool green-grey ground, one colour per part of the system
+   (simulator, bridge, perception, mapping, navigation, offline scoring), monospace for anything that is a file. */
+:root {
+  --bg: #eef2ee; --surface: #f8faf7; --surface2: #e6ece6; --ink: #17211b; --muted: #56635a; --line: #c5d0c7; --accent: #2f6b45;
+  --sim: #12797a; --sim-s: #d9eeee; --br: #5f6e64; --br-s: #e2e8e3; --perc: #2b6aa0; --perc-s: #dbe8f4;
+  --map: #3a7a40; --map-s: #dcecdc; --nav: #a8650f; --nav-s: #f4e5cc; --off: #a23f58; --off-s: #f3dce2;
+  --warn: #9a5b00; --warn-s: #f7ead2;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111815; --surface: #18211c; --surface2: #1f2a24; --ink: #e4ece6; --muted: #9bab9f; --line: #33423a; --accent: #7cc293;
+    --sim: #4cc3c4; --sim-s: #143333; --br: #a3b2a8; --br-s: #232d27; --perc: #7db4e6; --perc-s: #16293b;
+    --map: #7cc783; --map-s: #173019; --nav: #e7a653; --nav-s: #3a2a10; --off: #e58aa2; --off-s: #3b1b25;
+    --warn: #e7a653; --warn-s: #3a2a10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111815; --surface: #18211c; --surface2: #1f2a24; --ink: #e4ece6; --muted: #9bab9f; --line: #33423a; --accent: #7cc293;
+  --sim: #4cc3c4; --sim-s: #143333; --br: #a3b2a8; --br-s: #232d27; --perc: #7db4e6; --perc-s: #16293b;
+  --map: #7cc783; --map-s: #173019; --nav: #e7a653; --nav-s: #3a2a10; --off: #e58aa2; --off-s: #3b1b25;
+  --warn: #e7a653; --warn-s: #3a2a10;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55;
+  padding-block: 0 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1120px; margin: 0 auto; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+a { color: var(--accent); }
+h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.1; margin: 0 0 12px; font-weight: 600; text-wrap: balance; }
+h2 { font-size: 22px; margin: 0 0 6px; font-weight: 600; text-wrap: balance; }
+h3 { font-size: 16px; margin: 0 0 6px; font-weight: 600; }
+h4 { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+p { margin: 0 0 10px; max-width: 72ch; }
+.lede { font-size: 17px; max-width: 70ch; }
+header { padding: 40px 0 20px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 22px 0 18px; }
+.facts div { background: var(--surface); padding: 10px 12px; }
+.facts b { display: block; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.facts span { font-size: 12px; color: var(--muted); }
+nav.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+nav.toc a { text-decoration: none; border-bottom: 1px solid var(--line); }
+section { padding: 34px 0 6px; border-top: 1px solid var(--line); margin-top: 28px; }
+section > p.sub { color: var(--muted); }
+.frame { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); margin: 14px 0; }
+.frame svg { display: block; width: 100%; height: auto; min-width: 900px; }
+svg text { font-family: var(--f-body); fill: var(--ink); }
+svg .t-title { font: 600 13px var(--f-body); }
+svg .t-sub { font: 11px var(--f-body); fill: var(--muted); }
+svg .t-lane { font: 600 11px var(--f-body); fill: var(--muted); }
+svg .t-edge { font: 11px var(--f-body); fill: var(--muted); }
+svg .edge { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+svg .edge.dash { stroke-dasharray: 5 4; }
+svg .arrowhead { fill: var(--muted); }
+svg .lane-bg { fill: var(--surface2); stroke: none; }
+.n { cursor: pointer; }
+.n rect.box { stroke-width: 1.3; }
+[data-lane="sim"] rect.box { fill: var(--sim-s); stroke: var(--sim); }
+[data-lane="br"] rect.box { fill: var(--br-s); stroke: var(--br); }
+[data-lane="perc"] rect.box { fill: var(--perc-s); stroke: var(--perc); }
+[data-lane="map"] rect.box { fill: var(--map-s); stroke: var(--map); }
+[data-lane="nav"] rect.box { fill: var(--nav-s); stroke: var(--nav); }
+[data-lane="off"] rect.box { fill: var(--off-s); stroke: var(--off); }
+.n:hover rect.box, .n.sel rect.box { stroke-width: 3; }
+.n:focus-visible rect.box { stroke-dasharray: 4 2; stroke-width: 3; }
+.n:focus { outline: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; border: 1.5px solid; }
+.legend .l-sim { background: var(--sim-s); border-color: var(--sim); } .legend .l-br { background: var(--br-s); border-color: var(--br); }
+.legend .l-perc { background: var(--perc-s); border-color: var(--perc); } .legend .l-map { background: var(--map-s); border-color: var(--map); }
+.legend .l-nav { background: var(--nav-s); border-color: var(--nav); } .legend .l-off { background: var(--off-s); border-color: var(--off); }
+.detail { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; }
+@media (max-width: 760px) { .detail { grid-template-columns: minmax(0, 1fr); } }
+.detail ul { margin: 0; padding-left: 18px; }
+.detail li { margin-bottom: 5px; }
+.lane-tag { font-family: var(--f-mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.steps { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; list-style: none; padding: 0; margin: 14px 0; counter-reset: s; }
+.steps li { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; min-width: 0; counter-increment: s; }
+.steps li::before { content: counter(s); display: inline-block; font-family: var(--f-mono); font-size: 12px; color: var(--accent); border: 1px solid var(--line); border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 20px; margin-bottom: 6px; }
+.steps h3 { margin-bottom: 4px; }
+.steps p { font-size: 14px; margin-bottom: 8px; }
+.steps .out, .steps .where { font-size: 12.5px; color: var(--muted); margin: 0 0 3px; overflow-wrap: anywhere; }
+.steps .out b { color: var(--ink); font-weight: 500; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); margin: 12px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--surface2); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin: 12px 0; }
+.cols > div { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.cols ul { margin: 0; padding-left: 18px; }
+.cols li { margin-bottom: 5px; }
+.note { border-left: 3px solid var(--warn); background: var(--warn-s); padding: 8px 12px; margin: 12px 0; font-size: 14px; }
+dl.terms { display: grid; grid-template-columns: minmax(120px, 200px) minmax(0, 1fr); gap: 8px 18px; margin: 12px 0; }
+dl.terms dt { font-family: var(--f-mono); font-size: 13px; font-weight: 500; }
+dl.terms dd { margin: 0; font-size: 14px; }
+@media (max-width: 600px) { dl.terms { grid-template-columns: minmax(0, 1fr); } dl.terms dd { margin-bottom: 6px; } }
+ol.seq { padding-left: 22px; } ol.seq li { margin-bottom: 8px; max-width: 80ch; }
+footer { border-top: 1px solid var(--line); margin-top: 40px; padding-top: 16px; font-size: 13px; color: var(--muted); }
+footer code { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+<header id="top">
+  <div class="eyebrow">TreeMapper &middot; architecture of the repository at one commit</div>
+  <h1>A drone that maps an orchard from stereo video, then flies tree to tree and sprays each one</h1>
+  <p class="lede">TreeMapper is the perception stage. It turns tree boxes from a detector, stereo disparity and the drone's pose into a map of trees (stable id, ground outline, centre, canopy height, sprayed flag). A corridor navigator flies on that map. The repo also holds an Isaac Sim orchard that closes the loop, and the tools that score each mission against ground truth.</p>
+  <div class="facts" aria-label="Facts about the repository">
+    <div><b>34,053</b><span>lines of C++, Python and shell in core, nav, ros, sim, tools, scripts</span></div>
+    <div><b>3</b><span>mappers: simple, cand_grid, cand_obj (cand_obj ships)</span></div>
+    <div><b>13</b><span>navigator states, 42 config keys</span></div>
+    <div><b>48</b><span>cand_obj config keys, 9 differ in the real-flight profile</span></div>
+    <div><b>about 1 ms</b><span>per frame in the TreeMapper node on x86. Orin Nano never measured</span></div>
+    <div><b>35 of 666</b><span>tree visits missed in the 12 Isaac runs the miss-reduction work started from</span></div>
+  </div>
+  <nav class="toc" aria-label="Sections">
+    <a href="#system">The whole system</a><a href="#frame">One frame</a><a href="#visit">One tree visit</a><a href="#run">One mission run</a><a href="#replay">Replay and scoring</a>
+    <a href="#runtime">Runtime</a><a href="#state">Across runs</a><a href="#code">Code map</a><a href="#where">Where it runs</a><a href="#tests">Test boundary</a>
+    <a href="#commands">Which command</a><a href="#status">Status</a><a href="#drift">Docs vs code</a><a href="#terms">Terms</a>
+  </nav>
+</header>
+
+<section id="system">
+  <h2>The whole system</h2>
+  <p class="sub">Inputs on the left, the live closed loop in the top three rows, the offline work after a run in the bottom row. Click a box for what it does, its numbers and where it lives in the code.</p>
+  <div class="legend" aria-label="Colour legend">
+    <span><i class="l-sim"></i>Simulator</span><span><i class="l-br"></i>ROS bridge</span><span><i class="l-perc"></i>Perception</span>
+    <span><i class="l-map"></i>Mapping</span><span><i class="l-nav"></i>Navigation</span><span><i class="l-off"></i>Recording and scoring</span>
+  </div>
+  <div class="frame">
+<svg viewBox="0 0 1120 440" role="group" aria-label="System diagram">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arrowhead"/></marker></defs>
+
+  <g class="n" data-id="inputs" data-lane="sim" tabindex="0" role="button" aria-label="Run inputs">
+    <rect class="box" x="20" y="40" width="180" height="64" rx="4"/><text class="t-title" x="32" y="66">Run inputs</text><text class="t-sub" x="32" y="86">spec, field.yaml, cfg</text></g>
+  <g class="n" data-id="isaac" data-lane="sim" tabindex="0" role="button" aria-label="Isaac Sim orchard">
+    <rect class="box" x="20" y="140" width="180" height="64" rx="4"/><text class="t-title" x="32" y="166">Isaac Sim orchard</text><text class="t-sub" x="32" y="186">renders, truth, spray</text></g>
+  <g class="n" data-id="bridge" data-lane="br" tabindex="0" role="button" aria-label="ROS bridge">
+    <rect class="box" x="245" y="140" width="180" height="64" rx="4"/><text class="t-title" x="257" y="166">ROS 1 to ROS 2 bridge</text><text class="t-sub" x="257" y="186">tm_sim_ros container</text></g>
+  <g class="n" data-id="sgbm" data-lane="perc" tabindex="0" role="button" aria-label="Stereo SGBM">
+    <rect class="box" x="470" y="40" width="180" height="64" rx="4"/><text class="t-title" x="482" y="66">Stereo SGBM</text><text class="t-sub" x="482" y="86">disparity, 13 ms</text></g>
+  <g class="n" data-id="det" data-lane="perc" tabindex="0" role="button" aria-label="YOLOX detector">
+    <rect class="box" x="470" y="240" width="180" height="64" rx="4"/><text class="t-title" x="482" y="266">YOLOX detector</text><text class="t-sub" x="482" y="286">tree boxes, 10 ms</text></g>
+  <g class="n" data-id="tm" data-lane="map" tabindex="0" role="button" aria-label="treemapper node">
+    <rect class="box" x="695" y="140" width="180" height="64" rx="4"/><text class="t-title" x="707" y="166">treemapper node</text><text class="t-sub" x="707" y="186">pairs inputs, about 1 ms</text></g>
+  <g class="n" data-id="core" data-lane="map" tabindex="0" role="button" aria-label="cand_obj mapper">
+    <rect class="box" x="695" y="240" width="180" height="64" rx="4"/><text class="t-title" x="707" y="266">cand_obj mapper</text><text class="t-sub" x="707" y="286">crowns to tree entries</text></g>
+  <g class="n" data-id="map" data-lane="map" tabindex="0" role="button" aria-label="TreeMap topic">
+    <rect class="box" x="920" y="140" width="180" height="64" rx="4"/><text class="t-title" x="932" y="166">TreeMap topic</text><text class="t-sub" x="932" y="186">id, outline, height</text></g>
+  <g class="n" data-id="nav" data-lane="nav" tabindex="0" role="button" aria-label="corridor_nav">
+    <rect class="box" x="920" y="240" width="180" height="64" rx="4"/><text class="t-title" x="932" y="266">corridor_nav</text><text class="t-sub" x="932" y="286">13 states, 20 Hz</text></g>
+  <g class="n" data-id="run" data-lane="off" tabindex="0" role="button" aria-label="Run folder">
+    <rect class="box" x="20" y="335" width="180" height="64" rx="4"/><text class="t-title" x="32" y="361">Run folder</text><text class="t-sub" x="32" y="381">bag, truth, deposition</text></g>
+  <g class="n" data-id="score" data-lane="off" tabindex="0" role="button" aria-label="mission_score">
+    <rect class="box" x="245" y="335" width="180" height="64" rx="4"/><text class="t-title" x="257" y="361">mission_score</text><text class="t-sub" x="257" y="381">scorecard, safety</text></g>
+  <g class="n" data-id="frames" data-lane="off" tabindex="0" role="button" aria-label="sim_frames">
+    <rect class="box" x="470" y="335" width="180" height="64" rx="4"/><text class="t-title" x="482" y="361">sim_frames</text><text class="t-sub" x="482" y="381">bag to frames.bin</text></g>
+  <g class="n" data-id="replay" data-lane="off" tabindex="0" role="button" aria-label="treemapper_replay">
+    <rect class="box" x="695" y="335" width="180" height="64" rx="4"/><text class="t-title" x="707" y="361">treemapper_replay</text><text class="t-sub" x="707" y="381">offline map rebuild</text></g>
+  <g class="n" data-id="metrics" data-lane="off" tabindex="0" role="button" aria-label="replay_metrics">
+    <rect class="box" x="920" y="335" width="180" height="64" rx="4"/><text class="t-title" x="932" y="361">replay_metrics</text><text class="t-sub" x="932" y="381">height, centre error</text></g>
+
+  <path class="edge" d="M110 104 V138" marker-end="url(#ah)"/>
+  <path class="edge" d="M200 172 H243" marker-end="url(#ah)"/>
+  <path class="edge" d="M425 172 H447 V72 H468" marker-end="url(#ah)"/>
+  <path class="edge" d="M447 172 V272 H468" marker-end="url(#ah)"/>
+  <path class="edge" d="M650 72 H665 V158 H693" marker-end="url(#ah)"/>
+  <path class="edge" d="M650 272 H680 V186 H693" marker-end="url(#ah)"/>
+  <path class="edge" d="M770 204 V238" marker-end="url(#ah)"/>
+  <path class="edge" d="M800 240 V206" marker-end="url(#ah)"/>
+  <path class="edge" d="M875 160 H918" marker-end="url(#ah)"/>
+  <path class="edge dash" d="M920 290 H897 V190 H877" marker-end="url(#ah)"/>
+  <path class="edge" d="M1010 204 V238" marker-end="url(#ah)"/>
+  <path class="edge" d="M1010 304 V318 H150 V206" marker-end="url(#ah)"/>
+  <path class="edge" d="M70 204 V333" marker-end="url(#ah)"/>
+  <path class="edge" d="M200 367 H243" marker-end="url(#ah)"/>
+  <path class="edge" d="M110 399 V418 H560 V401" marker-end="url(#ah)"/>
+  <path class="edge" d="M650 367 H693" marker-end="url(#ah)"/>
+  <path class="edge" d="M875 367 H918" marker-end="url(#ah)"/>
+</svg>
+  </div>
+  <p style="font-size:13px;color:var(--muted)">Solid arrows carry data. The dashed arrow is the navigator telling TreeMapper a tree is sprayed (a service call). The long arrow under the third row is the setpoint and the nozzle command going back through the bridge to Isaac.</p>
+  <div class="detail" id="detail" aria-live="polite"></div>
+</section>
+
+<section id="frame">
+  <h2>One unit of work: one frame through cand_obj</h2>
+  <p class="sub">Every detection message that arrives becomes one frame. These are the steps from <code>CandObj::process</code> (cand_obj.cpp:219-276), in order. Line numbers are in cand_obj.cpp unless named.</p>
+  <ol class="steps">
+    <li><h3>Pair the inputs</h3><p>The node matches each detection set with the disparity grid of the same stamp, else the nearest within 20 ms, else none. It looks up the drone pose by stamp and clamps frame time to be monotonic.</p>
+      <p class="out">Output: <b>FrameInput</b> (t, stamp, pose, phase, hop_target, boxes, disparity grid)</p><p class="where">ros/treemapper_ros/src/input_sync.cpp: FrameSync; treemapper_node.cpp: processFrame</p></li>
+    <li><h3>Phase policy</h3><p>The mission phase decides whether the mapper is awake, may create or merge trees, and whether non-target trees are frozen. A lock after PLANNING stays until the next SCAN.</p>
+      <p class="out">Output: <b>PhasePolicy</b></p><p class="where">cand_obj.cpp: policyFor :199-217</p></li>
+    <li><h3>Early outs and frame quality</h3><p>Sleeping phases, a lost pose or an empty disparity skip the frame and bump a counter. Otherwise the rotation rate from consecutive poses gives a quality weight.</p>
+      <p class="out">Output: <b>q</b>, 0 to 1</p><p class="where">cand_obj.cpp: process :232-266, frameQuality :176</p></li>
+    <li><h3>Gate points and bin the canopy model</h3><p>Disparity is back-projected to world points, gated by range and height above the drone, weighted by distance and tilt, and binned on a 0.4 m world lattice. A frame with a noise burst is dropped.</p>
+      <p class="out">Output: <b>median z per cell</b>, valid flag</p><p class="where">cand_obj.cpp: extractCrowns :288-373</p></li>
+    <li><h3>Ground plane and canopy cells</h3><p>A plane is fitted to the lowest 40 % of cells. Cells are smoothed 3x3 and called canopy when they rise at least min_above_ground over the plane.</p>
+      <p class="out">Output: <b>cell state</b> 0 unknown, 1 ground, 2 canopy</p><p class="where">cand_obj.cpp: extractCrowns :374-452</p></li>
+    <li><h3>Watershed into crowns</h3><p>Steepest ascent with prominence merging splits the canopy into crowns. A crown counts only if its top lies inside a detection box. Crowns whose peak is at the image edge are flagged truncated.</p>
+      <p class="out">Output: <b>Crown list</b> (cells, peak, boxed, truncated)</p><p class="where">cand_obj.cpp: extractCrowns :453-590</p></li>
+    <li><h3>Match or seed an instance</h3><p>Each crown is matched to a tree instance by world geometry, with no 2D tracks. An unmatched crown seeds a tentative instance when the policy allows creation.</p>
+      <p class="out">Output: <b>cell owner map</b></p><p class="where">cand_obj.cpp: findInstanceForCrown :595-642, integrate :1022-1038</p></li>
+    <li><h3>Evidence and latching</h3><p>Each instance keeps per-cell counts. A cell latches for good after 5 quality-weighted canopy frames at 75 % or more of the frames it was judged.</p>
+      <p class="out">Output: <b>latched cells</b>, observation-weighted support</p><p class="where">cand_obj.cpp: updateEvidence :674-736</p></li>
+    <li><h3>Hull, centre, height</h3><p>The outline is the convex hull of latched cells, so it only grows. Height is the 0.99 quantile of the fused surface. The centre is the centroid of well-supported cells, held within 1.0 m of the outline (D66). Both move at a bounded rate.</p>
+      <p class="out">Output: <b>hull, centre, height</b></p><p class="where">cand_obj.cpp: refreshHull :738, refreshCentreSupport :763, refreshHeight :812, stepPublished :832</p></li>
+    <li><h3>Merge and read out</h3><p>Fragments of one tree merge when the policy allows. Only instances with at least 3 outline vertices and a finite height are published.</p>
+      <p class="out">Output: <b>vector of TreeEntry</b>, sorted by id</p><p class="where">cand_obj.cpp: mergeInstances :895, publishedTrees :1110</p></li>
+  </ol>
+  <p>Frame work is timed in two stages, <code>chm</code> (steps 4 to 6) and <code>instances</code> (steps 7 to 10). The ROS node adds <code>node_frame_total</code> and <code>node_disparity_sample</code>.</p>
+</section>
+
+<section id="visit">
+  <h2>Second flow: one tree visit in the navigator</h2>
+  <p class="sub"><code>Navigator::step</code> is deterministic and has no ROS in it. It takes time, pose, an optional map snapshot, clearance and requests, and returns a setpoint, a nozzle flag, a phase string, a target id and an optional request to mark a tree sprayed (navigator.hpp:44-64).</p>
+  <ol class="steps">
+    <li><h3>Lock the corridor</h3><p>After a corridor has been scanned out and has settled, the tree list is assigned and ordered from exit back to entry (axial sort plus 2-opt). In field_first mode one lock covers all corridors.</p>
+      <p class="out">State: <b>LOCK</b>, phase PLANNING</p><p class="where">navigator.cpp: startLock :353-380, orderStops</p></li>
+    <li><h3>Glide to the tree</h3><p>The path follows the canopy. If a straight segment is too close to a neighbour it becomes up, over and down. The clearance guard climbs when the nadir reading drops below 1.5 m and gives up after 3 climbs.</p>
+      <p class="out">State: <b>GLIDE</b>, phase HOPPING</p><p class="where">navigator.cpp: stepGlide :252-275; navigator_safety.cpp: guardUpdate :75-135; glide.cpp</p></li>
+    <li><h3>Dose</h3><p>The drone holds at the spray point. The nozzle opens only within 0.3 m of it. Dose time is 0.3 s per m&sup2; of outline, clamped to 2 to 6 s, and valid at 80 % open time.</p>
+      <p class="out">State: <b>DOSE</b>, phase SPRAYING, nozzle on</p><p class="where">navigator.cpp: stepDose :277-313; spray.cpp</p></li>
+    <li><h3>Mark the tree sprayed</h3><p>The node calls the TreeMapper service <code>set_tree_sprayed</code> from an async worker. A silent service is retried 3 times at 2 s, then the navigator holds.</p>
+      <p class="out">Effect: <b>sprayed flag</b> set, tree frozen in the map</p><p class="where">navigator_safety.cpp: pollMark :143-181; corridor_nav_node.cpp :425-451</p></li>
+    <li><h3>Advance</h3><p>The next target comes from the corridor. When targets run out the navigator builds a cleanup list of late trees and of trees parked for an implausible height that are now plausible. A retry is dropped if it sits within 1.5 m of a sprayed tree.</p>
+      <p class="out">List: <b>cleanup</b>, 2 passes</p><p class="where">navigator.cpp: advance :457-535, collectImplausibleRetries :600-627, nearSprayed :629-634</p></li>
+    <li><h3>Return and land</h3><p>When nothing is left the drone flies home at scan altitude and lands. Repeated hold timeouts or a planning failure go to ABORT, which shows ERROR for one tick and then returns.</p>
+      <p class="out">States: <b>RETURN, LAND, DONE</b></p><p class="where">navigator.cpp: startReturn :404-413; navigator_safety.cpp: startAbort :267-277</p></li>
+  </ol>
+  <div class="tablewrap"><table>
+    <thead><tr><th>State</th><th>Phase string (/mission_state)</th><th>Leaves when</th></tr></thead>
+    <tbody>
+      <tr><td><code>IDLE</code></td><td>IDLE</td><td>start requested and a pose exists; plans corridors, aborts if planning fails</td></tr>
+      <tr><td><code>TAKEOFF</code>, <code>TRANSIT</code></td><td>SCAN_APPROACH</td><td>path end reached; climbs to scan altitude (z_scan 15 m), then flies level to the corridor start</td></tr>
+      <tr><td><code>SCAN_OUT</code></td><td>SCAN</td><td>end of scan line at 4 m/s</td></tr>
+      <tr><td><code>SCAN_SETTLE</code></td><td>SCAN</td><td>no new tree centre for 2 s, or 8 s timeout</td></tr>
+      <tr><td><code>LOCK</code></td><td>PLANNING</td><td>0.5 s hold, then advance</td></tr>
+      <tr><td><code>GLIDE</code></td><td>HOPPING</td><td>at the spray point, guard not climbing</td></tr>
+      <tr><td><code>DOSE</code></td><td>SPRAYING, then HOPPING while the mark is sent</td><td>dose valid and tree marked sprayed</td></tr>
+      <tr><td><code>HOLD</code></td><td>unchanged</td><td>no pose, stale map or service failure clears; 20 s timeout returns, a second one aborts</td></tr>
+      <tr><td><code>RETURN</code>, <code>LAND</code>, <code>DONE</code></td><td>RETURN, IDLE</td><td>home reached, then landed</td></tr>
+      <tr><td><code>ABORT</code></td><td>ERROR</td><td>one tick, then RETURN</td></tr>
+    </tbody></table></div>
+  <p>Strategies: <b>corridor</b> locks after every corridor and sprays it before moving on. <b>field_first</b> scans all corridors, locks once, then sprays. The spec says field_first exists only to measure what corridor mode saves (corridor-spray-nav-design.md:249-251).</p>
+</section>
+
+<section id="run">
+  <h2>Second flow: one mission run in the simulator</h2>
+  <p class="sub">What <code>scripts/sim_mission.sh</code> does for each run (run_one, sim_mission.sh:255-346). Every run gets a fresh Isaac and a fresh <code>tm_sim_ros</code>.</p>
+  <ol class="steps">
+    <li><h3>Pre-flight</h3><p>Refuses to start if <code>tm_isaac</code> or <code>tm_sim_ros</code> is running or the work drive has under 10 GB free. Builds the five Noetic packages in a dedicated catkin workspace unless <code>--no-build</code>.</p>
+      <p class="out">Output: <b>devel/setup.bash</b></p><p class="where">sim_mission.sh :123-183</p></li>
+    <li><h3>Write the run inputs</h3><p>Writes run.json, spec.json, field.yaml and corridor_nav.cfg with the chosen strategy.</p>
+      <p class="out">Output: <b>run folder</b></p><p class="where">tools/treemapper_tools/sim_inputs.py; sim_mission.sh :261-266</p></li>
+    <li><h3>Start the bridge, then Isaac</h3><p>Starts <code>tm_sim_ros bridge</code> and waits up to 90 s for the bridge. Starts <code>tm_isaac</code>, which runs <code>orchard_sim.py</code> and logs to isaac.log.</p>
+      <p class="out">Containers: <b>tm_sim_ros</b>, <b>tm_isaac</b></p><p class="where">sim_mission.sh :270-295</p></li>
+    <li><h3>Wait for /clock</h3><p>Polls for the first /clock for up to 400 s wall and fails at once if Isaac exits. This is where the Isaac 5.1 crash on the RTX 5080 showed up.</p>
+      <p class="out">Gate: <b>/clock received</b></p><p class="where">sim_mission.sh :299-311; sim_mission_driver.py wait-clock</p></li>
+    <li><h3>Launch perception, TreeMapper, navigator and recorder</h3><p><code>sim_closed_loop.launch</code> starts SGBM, the detector, the TreeMapper node, the navigator and <code>rosbag record</code> with an explicit topic allow-list.</p>
+      <p class="out">Output: <b>mission.bag</b> (lz4)</p><p class="where">ros/corridor_nav_ros/launch/sim_closed_loop.launch :41-90</p></li>
+    <li><h3>Drive the mission</h3><p>The driver waits for every input to appear, calls the navigator's start service and logs state changes until DONE, a stall, the timeout or low disk. Exit 0 is DONE, 3 is timeout, 4 startup, 5 disk, 6 clock stalled, 7 navigator gone.</p>
+      <p class="out">Output: <b>driver.json</b></p><p class="where">scripts/sim_mission_driver.py: run :118-239</p></li>
+    <li><h3>Stop and score</h3><p>Closes the bag, stops the two containers, and runs <code>mission_score</code> on the run folder. With <code>--record-frames</code> it also converts the run to <code>frames.bin</code> and replaces the bag with a filtered copy.</p>
+      <p class="out">Output: <b>scorecard.md, mission_score.json</b></p><p class="where">sim_mission.sh :194-217, :336-345</p></li>
+    <li><h3>Compare</h3><p>After several runs, <code>mission_score --compare</code> writes compare.md. Exit codes: 0 all passed, 2 a run failed a row, 1 setup failure.</p>
+      <p class="out">Output: <b>compare.md</b></p><p class="where">sim_mission.sh :364-372</p></li>
+  </ol>
+</section>
+
+<section id="replay">
+  <h2>Third flow: replay and scoring</h2>
+  <p class="sub">The replay path rebuilds the map from a recording without running Isaac, so a change to the mapper can be measured in seconds.</p>
+  <ol class="steps">
+    <li><h3>Record only what the mapper reads</h3><p><code>--record-frames</code> records the stride-4 disparity grid (about 64 kB per image instead of about 1 MB), the camera infos and the pose. A run folder is 120 to 400 MB this way.</p>
+      <p class="out">Topic: <b>/rec/disparity_grid</b> (DisparityGrid)</p><p class="where">ros/sim_perception/scripts/disparity_grid_node.py</p></li>
+    <li><h3>Convert and check</h3><p><code>sim_frames</code> writes <code>frames.bin</code> (format TMF1). The check fails the run if any disparity is malformed, fewer than 80 % of detection frames got a disparity, or over 1 % of stereo images were lost.</p>
+      <p class="out">Output: <b>frames.bin + frames.bin.meta.json</b></p><p class="where">tools/treemapper_tools/sim_frames.py (403 lines); frames.py :46</p></li>
+    <li><h3>Replay through a mapper</h3><p><code>treemapper_replay</code> feeds the frames to a registered mapper with an emulated navigator that resolves the recorded targets to its own ids and marks trees sprayed when SPRAYING ends.</p>
+      <p class="out">Output: <b>map.jsonl, targets.json, counters.json</b></p><p class="where">core/apps/replay_main.cpp: usage :80, default system :86, target resolve :58-68</p></li>
+    <li><h3>Measure against truth</h3><p><code>replay_metrics</code> reports height error and centre error for each tree at the lock and at each dose, and the A1 to A3 acceptance rows.</p>
+      <p class="out">Output: <b>metrics.json</b></p><p class="where">tools/treemapper_tools/replay_metrics.py</p></li>
+    <li><h3>Gate: replay equals the closed loop</h3><p>At least 90 % of paired entries must agree within 0.15 m on final height and centre. It passes on all four datasets: 100 % within 0.15 m, largest final height difference 0.0004 m, largest final centre difference 0.0252 m.</p>
+      <p class="out">Pinned: <b>results/miss_reduction/baseline/*/metrics.json</b>, sha256 in the doc</p><p class="where">results/miss_reduction.md :75-110, :154-186</p></li>
+  </ol>
+</section>
+
+<section id="runtime">
+  <h2>Runtime: who runs on which thread</h2>
+  <p class="sub">The closed loop is processes and one thread each. Time runs left to right along the data flow. Colour is the process.</p>
+  <div class="legend"><span><i class="l-sim"></i>Isaac (tm_isaac)</span><span><i class="l-br"></i>bridge</span><span><i class="l-perc"></i>perception nodes</span><span><i class="l-map"></i>treemapper_node</span><span><i class="l-nav"></i>corridor_nav</span><span><i class="l-off"></i>driver and recorder</span></div>
+  <div class="frame">
+<svg viewBox="0 0 1100 504" role="group" aria-label="Runtime lanes">
+  <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arrowhead"/></marker></defs>
+  <text class="t-lane" x="18" y="62">Isaac</text><text class="t-lane" x="18" y="142">bridge</text><text class="t-lane" x="18" y="222">perception</text>
+  <text class="t-lane" x="18" y="302">treemapper_node</text><text class="t-lane" x="18" y="382">corridor_nav</text><text class="t-lane" x="18" y="462">driver, recorder</text>
+
+  <g data-lane="sim"><rect class="box" x="170" y="30" width="230" height="54" rx="4"/><text class="t-title" x="182" y="53">physics callback, 60 Hz</text><text class="t-sub" x="182" y="71">drone step, /clock, /tf</text></g>
+  <g data-lane="sim"><rect class="box" x="430" y="30" width="230" height="54" rx="4"/><text class="t-title" x="442" y="53">cameras, 10 Hz</text><text class="t-sub" x="442" y="71">stereo pair, camera_info</text></g>
+  <g data-lane="br"><rect class="box" x="300" y="110" width="360" height="54" rx="4"/><text class="t-title" x="312" y="133">parameter_bridge</text><text class="t-sub" x="312" y="151">ROS 2 to ROS 1, one process, both directions</text></g>
+  <g data-lane="perc"><rect class="box" x="430" y="190" width="200" height="54" rx="4"/><text class="t-title" x="442" y="213">stereo_sgbm</text><text class="t-sub" x="442" y="231">rospy thread, about 13 ms</text></g>
+  <g data-lane="perc"><rect class="box" x="650" y="190" width="200" height="54" rx="4"/><text class="t-title" x="662" y="213">detector</text><text class="t-sub" x="662" y="231">queue 1, about 10 ms</text></g>
+  <g data-lane="map"><rect class="box" x="520" y="270" width="330" height="54" rx="4"/><text class="t-title" x="532" y="293">treemapper spin thread</text><text class="t-sub" x="532" y="311">pairing and Mapper::process, about 1 ms</text></g>
+  <g data-lane="map"><rect class="box" x="870" y="270" width="210" height="54" rx="4"/><text class="t-title" x="882" y="293">timers</text><text class="t-sub" x="882" y="311">map 5 Hz, health 2 Hz</text></g>
+  <g data-lane="nav"><rect class="box" x="700" y="350" width="220" height="54" rx="4"/><text class="t-title" x="712" y="373">corridor_nav tick</text><text class="t-sub" x="712" y="391">20 Hz, one thread</text></g>
+  <g data-lane="nav"><rect class="box" x="940" y="350" width="140" height="54" rx="4"/><text class="t-title" x="952" y="373">async worker</text><text class="t-sub" x="952" y="391">set_tree_sprayed</text></g>
+  <g data-lane="off"><rect class="box" x="700" y="430" width="220" height="54" rx="4"/><text class="t-title" x="712" y="453">mission driver</text><text class="t-sub" x="712" y="471">start, abort, watch status</text></g>
+  <g data-lane="off"><rect class="box" x="440" y="430" width="230" height="54" rx="4"/><text class="t-title" x="452" y="453">rosbag record, lz4</text><text class="t-sub" x="452" y="471">explicit topic allow-list</text></g>
+
+  <path class="edge" d="M350 84 V108" marker-end="url(#ah2)"/><text class="t-edge" x="356" y="99">clock, tf</text>
+  <path class="edge" d="M545 84 V108" marker-end="url(#ah2)"/><text class="t-edge" x="551" y="99">images</text>
+  <path class="edge" d="M500 164 V188" marker-end="url(#ah2)"/><text class="t-edge" x="506" y="181">image_raw</text>
+  <path class="edge" d="M655 164 V188" marker-end="url(#ah2)"/><text class="t-edge" x="661" y="181">image_raw</text>
+  <path class="edge" d="M560 244 V268" marker-end="url(#ah2)"/><text class="t-edge" x="566" y="261">disparity</text>
+  <path class="edge" d="M760 244 V268" marker-end="url(#ah2)"/><text class="t-edge" x="766" y="261">detections</text>
+  <path class="edge" d="M780 324 V348" marker-end="url(#ah2)"/><text class="t-edge" x="786" y="342">/treemapper/map</text>
+  <path class="edge dash" d="M1000 350 V326" marker-end="url(#ah2)"/><text class="t-edge" x="994" y="342" text-anchor="end">mark sprayed</text>
+  <path class="edge" d="M810 430 V406" marker-end="url(#ah2)"/><text class="t-edge" x="816" y="424">start, abort</text>
+  <path class="edge" d="M700 377 H158 V137 H298" marker-end="url(#ah2)"/><text class="t-edge" x="170" y="371">setpoint, spray command</text>
+</svg>
+  </div>
+  <ul>
+    <li><b>treemapper_node</b> has one <code>ros::spin()</code> thread, so callbacks and timers run one at a time and the node has no lock of its own. A second thread exists only with <code>pose_source=pose_topic</code>. Every callback is wrapped so an exception is counted and the node keeps running (treemapper_node.cpp:214-239). Disparity queue 20, detections queue 50.</li>
+    <li><b>corridor_nav</b> pumps one thread with <code>callAvailable(0.05)</code>. The tick and a 0.5 s status timer run on it. At most 8 <code>set_tree_sprayed</code> calls are pending in async workers (corridor_nav_node.cpp:425-451, :680-692).</li>
+    <li><b>Perception</b> runs in rospy receive threads. The SGBM publisher queue of 2 is the documented place where images are lost under load. The detector takes only the newest frame (queue 1).</li>
+    <li><b>Isaac</b> runs physics at 60 Hz with a camera render every sixth step, headless. It republishes <code>/tf_static</code> and <code>/sim/truth</code> once a second because the bridge's ROS 2 to ROS 1 side is unlatched (orchard_sim.py:269-273).</li>
+    <li>Respawn is off for the TreeMapper and navigator nodes because a restart resets tree ids to 0.</li>
+  </ul>
+</section>
+
+<section id="state">
+  <h2>Across runs: what persists and what reads it</h2>
+  <p class="sub">TreeMapper keeps state inside a run and nothing between runs. What travels from one run to the next is files.</p>
+  <ol class="seq">
+    <li><b>Within a frame sequence.</b> <code>CandObj</code> keeps every live instance, a monotonic id counter (ids are never reused), the sticky list lock, the post-spray hold and the pose history for the rotation rate (cand_obj.hpp:247-270). Each instance holds a 28 x 28 cell window of evidence, latched cells, the fused heights and the published hull, centre and height (cand_obj.hpp:195-224).</li>
+    <li><b>What reads it.</b> Latched cells feed the hull, matching and merging. Observation-weighted support feeds only the centre. Fused heights feed height and the guard that stops a tree seen only with its top outside the image from publishing. Sprayed instances are never updated again.</li>
+    <li><b>Within a mission.</b> The navigator keeps the sprayed and attempted sets, the cleanup list, the parked implausible trees and its counters. It learns a tree is sprayed from its own dose and tells TreeMapper through the service.</li>
+    <li><b>Between runs.</b> Nothing in memory. Each run starts fresh containers. A run leaves a folder: run.json, spec.json, truth.json, ground_truth.json, deposition.json, mission.bag, driver.json, logs, scorecard.md, mission_score.json, optionally frames.bin.</li>
+    <li><b>Carried forward.</b> <code>frames.bin</code> feeds every later replay of the same mission. The pinned baseline <code>metrics.json</code> files (sha256 in miss_reduction.md:167-170) are what a changed mapper is compared against.</li>
+    <li><b>Where the files live.</b> Run folders and frames live on the work drive, <code>/data/work</code> in the containers, which is <code>$TM_WORK_HOST</code> on the host. They are not in git.</li>
+  </ol>
+</section>
+
+<section id="code">
+  <h2>Code map</h2>
+  <p class="sub">Two ROS-free C++17 libraries (the mapper and the navigator), each wrapped by a thin ROS 1 node. Python holds perception, the simulator and all the scoring.</p>
+  <div class="frame">
+<svg viewBox="0 0 1140 320" role="group" aria-label="Package dependencies">
+  <defs><marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arrowhead"/></marker></defs>
+  <g data-lane="map"><rect class="box" x="20" y="30" width="200" height="56" rx="4"/><text class="t-title" x="32" y="54">core/</text><text class="t-sub" x="32" y="72">ROS-free C++17, 6,180 lines</text></g>
+  <g data-lane="map"><rect class="box" x="20" y="130" width="200" height="56" rx="4"/><text class="t-title" x="32" y="154">treemapper_msgs</text><text class="t-sub" x="32" y="172">TreeEntry, TreeMap, services</text></g>
+  <g data-lane="map"><rect class="box" x="320" y="30" width="200" height="56" rx="4"/><text class="t-title" x="332" y="54">treemapper_ros</text><text class="t-sub" x="332" y="72">node and input sync</text></g>
+  <g data-lane="nav"><rect class="box" x="20" y="230" width="200" height="56" rx="4"/><text class="t-title" x="32" y="254">nav/corridor_nav</text><text class="t-sub" x="32" y="272">ROS-free C++17, 5,759 lines</text></g>
+  <g data-lane="nav"><rect class="box" x="320" y="230" width="200" height="56" rx="4"/><text class="t-title" x="332" y="254">corridor_nav_ros</text><text class="t-sub" x="332" y="272">node and NavStatus message</text></g>
+  <g data-lane="perc"><rect class="box" x="620" y="30" width="200" height="56" rx="4"/><text class="t-title" x="632" y="54">sim_perception</text><text class="t-sub" x="632" y="72">SGBM and YOLOX nodes</text></g>
+  <g data-lane="sim"><rect class="box" x="620" y="130" width="200" height="56" rx="4"/><text class="t-title" x="632" y="154">sim/</text><text class="t-sub" x="632" y="172">Isaac scene, bridge, specs</text></g>
+  <g data-lane="off"><rect class="box" x="620" y="230" width="200" height="56" rx="4"/><text class="t-title" x="632" y="254">tools/treemapper_tools</text><text class="t-sub" x="632" y="272">scorers, replay, frames</text></g>
+  <g data-lane="br"><rect class="box" x="920" y="130" width="200" height="56" rx="4"/><text class="t-title" x="932" y="154">scripts/</text><text class="t-sub" x="932" y="172">mission, tests, evaluation</text></g>
+
+  <path class="edge" d="M220 58 H318" marker-end="url(#ah3)"/>
+  <path class="edge" d="M220 158 H270 V78 H318" marker-end="url(#ah3)"/>
+  <path class="edge dash" d="M420 86 V228" marker-end="url(#ah3)"/><text class="t-edge" x="428" y="160">map, mark sprayed</text>
+  <path class="edge" d="M220 258 H318" marker-end="url(#ah3)"/>
+  <path class="edge dash" d="M618 58 H522" marker-end="url(#ah3)"/><text class="t-edge" x="530" y="50">disparity, boxes</text>
+  <path class="edge dash" d="M522 250 H600 V170 H618" marker-end="url(#ah3)"/><text class="t-edge" x="526" y="244">setpoint</text>
+  <path class="edge" d="M918 158 H822" marker-end="url(#ah3)"/>
+  <path class="edge dash" d="M720 186 V228" marker-end="url(#ah3)"/><text class="t-edge" x="728" y="212">run folders</text>
+</svg>
+  </div>
+  <p style="font-size:13px;color:var(--muted)">Solid arrows are build dependencies. Dashed arrows are topics, services or files at run time.</p>
+  <h3>Key files</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>File</th><th class="num">Lines</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>core/src/candidates/cand_obj/cand_obj.cpp</code></td><td class="num">1,156</td><td>the shipped mapper</td></tr>
+      <tr><td><code>core/src/candidates/cand_grid/cand_grid_mapper.cpp</code></td><td class="num">570</td><td>map-centric alternative mapper</td></tr>
+      <tr><td><code>core/src/simple_mapper.cpp</code></td><td class="num">321</td><td>baseline mapper and the phase policy</td></tr>
+      <tr><td><code>core/apps/replay_main.cpp</code></td><td class="num">188</td><td><code>treemapper_replay</code></td></tr>
+      <tr><td><code>nav/corridor_nav/src/navigator.cpp</code></td><td class="num">711</td><td>state machine, advance, cleanup</td></tr>
+      <tr><td><code>nav/corridor_nav/src/navigator_safety.cpp</code></td><td class="num">279</td><td>hold, abort, clearance guard, mark, re-resolve</td></tr>
+      <tr><td><code>ros/treemapper_ros/src/treemapper_node.cpp</code></td><td class="num">665</td><td>TreeMapper ROS node</td></tr>
+      <tr><td><code>ros/treemapper_ros/src/input_sync.cpp</code></td><td class="num">264</td><td>disparity sampling, calibration, frame pairing</td></tr>
+      <tr><td><code>ros/corridor_nav_ros/src/corridor_nav_node.cpp</code></td><td class="num">701</td><td>navigator ROS node</td></tr>
+      <tr><td><code>ros/sim_perception/scripts/stereo_sgbm_node.py</code></td><td class="num">115</td><td>stereo disparity node</td></tr>
+      <tr><td><code>ros/sim_perception/scripts/detector_node.py</code></td><td class="num">106</td><td>YOLOX detector node</td></tr>
+      <tr><td><code>sim/isaac/orchard_sim.py</code></td><td class="num">394</td><td>Isaac orchard entry point</td></tr>
+      <tr><td><code>scripts/sim_mission.sh</code></td><td class="num">372</td><td>one-command Isaac mission</td></tr>
+      <tr><td><code>scripts/sim_mission_driver.py</code></td><td class="num">261</td><td>starts and watches a mission</td></tr>
+      <tr><td><code>tools/treemapper_tools/score.py</code></td><td class="num">1,299</td><td>contract scorer for any mapper</td></tr>
+      <tr><td><code>tools/treemapper_tools/mission_score.py</code></td><td class="num">1,008</td><td>closed-loop mission scorecard</td></tr>
+      <tr><td><code>tools/treemapper_tools/sim_frames.py</code></td><td class="num">403</td><td>run bag to <code>frames.bin</code></td></tr>
+      <tr><td><code>tools/treemapper_tools/replay_metrics.py</code></td><td class="num">385</td><td>per-tree height and centre error, A1 to A3</td></tr>
+    </tbody></table></div>
+  <h3>Other folders</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Folder</th><th>Holds</th></tr></thead>
+    <tbody>
+      <tr><td><code>config/</code></td><td><code>cand_obj.cfg</code> (sim profile, equals code defaults), <code>cand_obj_real.cfg</code> (real flight), <code>cand_grid.cfg</code>, <code>corridor_nav.cfg</code> (equals code defaults, tested)</td></tr>
+      <tr><td><code>docs/</code></td><td>DESIGN, DECISIONS (D1 to D67), PROJECT_BRIEF, SCORER, REAL_FLIGHT, DATA_README, LOCAL_RUN, candidates/, superpowers/ (specs and plans)</td></tr>
+      <tr><td><code>results/</code></td><td>scorecards and result notes, <code>miss_reduction/</code> with the pinned baseline, the centre-fix metrics and the parked height patch, and the status report</td></tr>
+      <tr><td><code>overnight/</code></td><td>historical: the 9-hour autonomous build supervisor of 2026-10-23</td></tr>
+      <tr><td><code>scripts/mutation/</code></td><td>20 mutants of <code>cand_obj.cpp</code>; the tests must fail for each (3 are documented as equivalent)</td></tr>
+    </tbody></table></div>
+</section>
+
+<section id="where">
+  <h2>Where it runs</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Where</th><th>What runs there</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Host with an NVIDIA GPU</td><td><code>sim_mission.sh</code>, which starts the Docker containers</td><td>RTX 5080 on this machine. Isaac 5.1 crashes at startup on it, so missions run on Isaac 6.2.</td></tr>
+      <tr><td><code>tm_isaac</code></td><td>Isaac Sim and <code>orchard_sim.py</code></td><td>Image <code>treehoppingnavigation-treehoppingsim</code>, built in the TreeHoppingNavigation repo (branch feat/isaac-6.2 for 6.2)</td></tr>
+      <tr><td><code>tm_sim_ros</code></td><td>bridge, SGBM, detector, TreeMapper, navigator, recorder</td><td>Built from <code>sim/bridge/Dockerfile</code> on <code>treehoppingnavigation-bridge</code> (ROS Noetic and Humble). 32 GB.</td></tr>
+      <tr><td><code>tm_sim_build</code></td><td>one-shot <code>catkin build</code> of five packages</td><td>Workspace <code>/data/work/catkin_sim</code></td></tr>
+      <tr><td><code>tm_dev</code></td><td>C++ build, ctest, pytest, evaluation</td><td>No Docker socket, so it cannot run <code>sim_mission.sh</code></td></tr>
+      <tr><td>Work drive</td><td>run folders, recordings, detector model, catkin workspaces</td><td><code>/data/work</code> in containers. Needs 10 GB free to start a mission and aborts a run below 8 GB. It had about 11 GB free.</td></tr>
+      <tr><td>Target: Jetson Orin Nano</td><td>ROS 1 Noetic, C++17</td><td>Never built or measured. All timings in the docs are x86.</td></tr>
+    </tbody></table></div>
+  <h3>Measured performance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Measure</th><th class="num">Value</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>TreeMapper node, per frame, x86</td><td class="num">0.84 to 0.89 ms</td><td>results/ros_replay_isaac.md:122-123, results/isaac_5x5_tropical.md:44</td></tr>
+      <tr><td>SGBM / detector, mean</td><td class="num">13.2 / 10.3 ms</td><td>results/corridor_nav_isaac.md:70</td></tr>
+      <tr><td>Navigator step</td><td class="num">0.01 ms</td><td>results/corridor_nav_isaac.md:70</td></tr>
+      <tr><td>Simulator real-time factor</td><td class="num">1.000</td><td>rows_8x12 scorecards, 1079.8 s sim over 1079.8 s wall</td></tr>
+      <tr><td>Merge sweep at 1,600 trees</td><td class="num">1.3 ms (was 18.6)</td><td>docs/DESIGN.md:282</td></tr>
+    </tbody></table></div>
+</section>
+
+<section id="tests">
+  <h2>Test boundary</h2>
+  <p class="sub">Ground truth is read only by scoring and test code. A search of the repo for the truth and deposition files found hits only in the places in the left column, and none in core, nav or the node sources. This was a file-name search, not a read of every source.</p>
+  <div class="cols">
+    <div><h3>Reads truth or mocks</h3><ul>
+      <li><code>sim/</code> writes <code>truth.json</code>, <code>ground_truth.json</code>, <code>deposition.json</code> and publishes <code>/sim/truth</code>, <code>/sim/deposition</code></li>
+      <li><code>tools/treemapper_tools/*</code>: score, mission_score, replay_metrics, evaluate, sim_compare_report, synth</li>
+      <li><code>scripts/sim_mission.sh</code> lists the truth files as run files; <code>score_baseline.sh</code></li>
+      <li><code>sim_closed_loop.launch</code> only records the truth topics into the bag. Nothing subscribes.</li>
+      <li>Tests: <code>ctest</code> (core, nav), <code>pytest tools/tests sim/tests ros/sim_perception/test</code>, the <code>nav_sim_lite</code> closed loop with a fake world, 20 mutation tests of cand_obj</li>
+    </ul></div>
+    <div><h3>Ships and runs live</h3><ul>
+      <li><code>core/</code>: the mappers, fed only detections, disparity, pose and phase</li>
+      <li><code>nav/</code>: the navigator, fed the map, pose, clearance, <code>field.yaml</code> and <code>corridor_nav.cfg</code></li>
+      <li><code>ros/treemapper_ros</code>, <code>ros/corridor_nav_ros</code>, <code>ros/sim_perception</code></li>
+      <li>The simulator exists only to produce sensor data and to measure the spray. The mission driver sees only the navigator's status.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section id="commands">
+  <h2>Which command</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>I want to</th><th>Run</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>run a closed-loop mission in Isaac</td><td><code>scripts/sim_mission.sh sim/specs/&lt;spec&gt;.json --strategy corridor|field_first --runs N --out /data/work/sim_runs/&lt;name&gt;</code></td><td>host</td></tr>
+      <tr><td>record frames for replay</td><td>add <code>--record-frames</code> to the mission command</td><td>host</td></tr>
+      <tr><td>re-run into a folder that has old runs</td><td>add <code>--force-clean</code></td><td>host</td></tr>
+      <tr><td>skip the Noetic rebuild</td><td>add <code>--no-build</code></td><td>host</td></tr>
+      <tr><td>run all tests</td><td><code>docker exec tm_dev bash -lc 'cd /ws &amp;&amp; ./scripts/run_tests.sh'</code>, plus <code>TM_ROS_TESTS=1</code> for the ROS packages</td><td>tm_dev</td></tr>
+      <tr><td>score mapper candidates on recordings and synthetic scenes</td><td><code>./scripts/evaluate.sh [system|a,b] [suite]</code></td><td>tm_dev</td></tr>
+      <tr><td>score a finished mission</td><td><code>python3 -m treemapper_tools.mission_score --run &lt;run_1&gt; --out scorecard.md</code></td><td>tm_dev or tm_sim_ros</td></tr>
+      <tr><td>compare strategies over scored runs</td><td><code>python3 -m treemapper_tools.mission_score --run A --compare B --out compare.md</code>, or <code>sim_compare_report</code></td><td>tm_dev</td></tr>
+      <tr><td>replay a recording through a mapper</td><td><code>treemapper_replay --frames F.bin --out-map M.jsonl --out-targets T.json --system cand_obj</code></td><td>tm_dev</td></tr>
+      <tr><td>measure a replay against truth</td><td><code>python3 -m treemapper_tools.replay_metrics --map ... --truth ... --mission ... --replay --targets ...</code></td><td>tm_dev</td></tr>
+      <tr><td>check the tests catch a mutated cand_obj</td><td><code>scripts/mutation/run_mutants.sh</code></td><td>tm_dev</td></tr>
+      <tr><td>build the ROS 1 sim image</td><td><code>docker build -t tm_sim_ros:latest sim/bridge</code></td><td>host, once</td></tr>
+    </tbody></table></div>
+  <p>Mission specs in <code>sim/specs</code>: <code>5x5_tropical</code> (25 trees, seed 1001), <code>rows_8x12</code> (86 trees of 96 slots, seed 7), <code>3x3_smoke</code> (9 trees), <code>3x3_check</code>. The defaults used for the numbers on this page are corridor and field_first, one run each.</p>
+</section>
+
+<section id="status">
+  <h2>Status</h2>
+  <h3>Done in the fewer-missed-trees work</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Item</th><th>Result</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Navigator retry (<code>ce256db</code>, <code>07b0563</code>)</td><td>A tree skipped for an implausible height gets one more try at the end if its height is now plausible. A retry within 1.5 m of a sprayed tree is dropped and counted.</td><td>status_2026-11-07.md</td></tr>
+      <tr><td>Centre fix D66</td><td>Far-tree centre error at spray time 1.008 to 0.099 m (corridor) and 1.061 to 0.114 m (field_first) on 5x5. Share beyond 0.8 m 0.615 and 0.700 down to 0. Isaac centre RMSE 0.191 to 0.255 m, easy-scene RMSE 1.4 to 1.5 cm worse.</td><td>miss_reduction.md; DECISIONS D66</td></tr>
+      <tr><td>Post-spray hold D67</td><td>Non-target trees stay frozen until the drone is 2 m from the hover point. Isaac safety failures 1 to 0. 5x5 corridor trees above 1.5 m too high went 6 to 8, accepted as R25, worst value unchanged at 3.63 m.</td><td>miss_reduction.md; DECISIONS D67</td></tr>
+      <tr><td>Regression check</td><td>Synthetic suite, held-back scenes, the old Isaac recording and the real-flight log pass. <code>centre_from_support = false</code> restores the old maps byte for byte.</td><td>miss_reduction.md:514-607</td></tr>
+    </tbody></table></div>
+  <h3>Open decisions</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Decision</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>Height fix (parked)</td><td>Heights still run up to 3.6 m too high, and about 6 of the old 35 misses came from that. The best variant (<code>hgsupcap</code>) removes the runaways but fails A1 at 1.88 m and 1.57 m and fails A2. Patch: <code>results/miss_reduction/height_experiments.patch</code>.</td></tr>
+      <tr><td>Navigator replanning when a centre moves</td><td>Not built. On the 5x5 corridor recording, 2 of 13 far trees are still beyond 0.8 m at the start of the dosing leg, one over the target.</td></tr>
+      <tr><td>Double-spray guard distance</td><td>1.5 m today (<code>reresolve_radius</code>). 1.3 m, the navigator's reach, still catches every duplicate seen and drops 2 real neighbours' retries instead of 5.</td></tr>
+    </tbody></table></div>
+  <h3>Task 8: Isaac re-measure (partial)</h3>
+  <p>The two rows_8x12 runs are done, one run each, and both passed every safety check. The two 5x5 runs, where the original misses were counted, have not been run. The acceptance row A4 (at most 12 misses in the visits, from 35) is therefore unmeasured.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>rows_8x12, 86 trees</th><th class="num">corridor</th><th class="num">field_first</th></tr></thead>
+    <tbody>
+      <tr><td>Trees sprayed</td><td class="num">86 of 86</td><td class="num">85 of 86 (tree 37 missed)</td></tr>
+      <tr><td>Mission time</td><td class="num">999 s</td><td class="num">874 s</td></tr>
+      <tr><td>Path length</td><td class="num">1,499 m</td><td class="num">1,236 m</td></tr>
+      <tr><td>On-target fraction</td><td class="num">0.994</td><td class="num">0.980</td></tr>
+      <tr><td>Minimum clearance over canopy</td><td class="num">1.67 m</td><td class="num">1.40 m</td></tr>
+      <tr><td>Retry or guard code exercised</td><td class="num">no</td><td class="num">no</td></tr>
+    </tbody></table></div>
+  <h3>Known gaps</h3>
+  <ul>
+    <li>Nothing is measured on the Orin Nano. Every timing is x86.</li>
+    <li>The recorded Isaac mission and the held-out suite were used for tuning (D60), so they validate and do not test. Fresh seeds 1000 to 1009 are recommended there.</li>
+    <li>The 5x5 recordings from the old machine live only on the external work drive, which is not in git and is not currently mounted on this machine.</li>
+    <li>The rock clutter in <code>rows_8x12.json</code> is requested but not implemented in the simulator.</li>
+  </ul>
+</section>
+
+<section id="drift">
+  <h2>Docs that disagree with the code</h2>
+  <p class="sub">Each row names both sides. The first three were confirmed by reading the lines named. The rest come from the reading reports for each area and name file and line.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Doc or comment says</th><th>Code or other doc says</th></tr></thead>
+    <tbody>
+      <tr><td><code>navigator.hpp:200-201</code>: <code>nearSprayed</code> is the signal cand_obj's <code>insideSprayed</code> uses</td><td><code>insideSprayed</code> (cand_obj.cpp:644-651) is a point inside the sprayed hull or a centre closer than <code>match_radius</code> 2.0. <code>nearSprayed</code> (navigator.cpp:629-634) is distance to the outline within <code>reresolve_radius</code> 1.5.</td></tr>
+      <tr><td><code>cand_obj.md:225</code>, <code>:311-312</code>: 45 config keys; <code>:43</code>: <code>confirm_frames</code> 4; <code>:311</code>: 20 cand_obj tests</td><td><code>cand_obj.hpp:138</code> has 48 keys; <code>cand_obj.cfg:40</code> has <code>confirm_frames</code> 3; <code>test_cand_obj.cpp</code> has 35 tests.</td></tr>
+      <tr><td><code>README.md:309</code>: <code>treemapper_replay</code> without <code>--config</code> uses the cand_obj profile</td><td><code>replay_main.cpp:86</code> defaults <code>--system</code> to <code>simple</code>. The row holds only with <code>--system cand_obj</code>.</td></tr>
+      <tr><td>Spec <code>2026-10-30-corridor-spray-nav-design.md:261</code>: an implausibly high target is never visited. <code>navigator.hpp:149-150</code> cites "spec 4.4" for the retry.</td><td>The navigator retries it once in cleanup (navigator.cpp:490-502, :600-627). Spec section 4.4 does not mention it.</td></tr>
+      <tr><td>Spec <code>:3</code>: "approved design, not implemented"; <code>:30-31</code>, <code>:67</code>: a <code>FlightBackend</code> interface</td><td>The navigator, node and tests exist. No <code>FlightBackend</code> class exists in <code>corridor_nav_ros</code>.</td></tr>
+      <tr><td><code>Dockerfile:3</code>, <code>run_orchard_sim.sh:2</code>, <code>README.md:206-209</code>: Isaac Sim 5.1</td><td>status_2026-11-07.md:54-56: 5.1 crashes on the RTX 5080 and missions run on 6.2. <code>run_orchard_sim.sh:12-15</code> handles both.</td></tr>
+      <tr><td><code>LOCAL_RUN.md:7-11</code>: RTX 3070, no remote and never push, no <code>docker build</code>, 20 GB root disk</td><td>This machine has an RTX 5080 and an <code>origin</code> remote, the images were rebuilt, and the root disk has hundreds of GB free.</td></tr>
+      <tr><td><code>DESIGN.md:71</code>: with <code>seed_truncated = true</code> the truncated flag only feeds a counter</td><td><code>cand_obj.cpp:1020-1021</code>: <code>true</code> seeds instances from truncated crowns. The flag also drives the height guard (:670, :716, :1070).</td></tr>
+      <tr><td><code>README.md:58-59</code>: 72 gtest cases and 102 pytest tests</td><td>78 <code>TEST</code> macros under <code>core/tests</code> and about 206 test functions in <code>tools/tests</code> (grep counts).</td></tr>
+      <tr><td><code>DECISIONS.md:5</code>: D1 to D57; <code>PROGRESS.md:23</code>: D1 to D65</td><td>DECISIONS.md runs to D67 (from line 591).</td></tr>
+      <tr><td><code>PROGRESS.md:100-111</code>: centre bias and height ramp open, navigator never retries, no miss from navigation</td><td>D66 fixed the centre, the retry exists, and the miss-reduction spec counts 3 navigator skips.</td></tr>
+      <tr><td><code>status_2026-11-07.md:12</code>: a replay rebuilds the live map to within 0.0004 m</td><td>miss_reduction.md:88-97: 0.0004 m is the largest final height difference. Final centre differs by up to 0.0252 m and transient differences reach 0.31 m. The gate tolerance is 0.15 m.</td></tr>
+      <tr><td><code>status_2026-11-07.md:31-32</code>: both rows_8x12 runs ran at <code>51c5793</code> with one uncommitted file</td><td>The Isaac 6.2 library-path edit to <code>run_orchard_sim.sh</code> was uncommitted when those runs started (it was committed later as <code>fdfc5a5</code>), so at least two files were dirty. Not checked against run.json: the work drive was unmounted when this page was built.</td></tr>
+      <tr><td><code>StageTiming.msg:2</code>: cost for the latest frame</td><td><code>treemapper_node.cpp:494-500</code> publishes the mean per frame since the previous map snapshot. The detector, SGBM and navigator publish per frame.</td></tr>
+      <tr><td><code>DisparityGrid.msg:5-7</code>: samples exactly as treemapper_node does</td><td>The node also subtracts <code>disparity_offset</code> (input_sync.cpp:45-51). The recorder does not, and its stride is hard-coded to 4 (sim_closed_loop.launch:75).</td></tr>
+      <tr><td><code>README.md:18</code>, <code>:138</code>: the real launch reads the camera mount from TF</td><td><code>treemapper_real.launch:25</code> defaults <code>camera_mount_source</code> to <code>param</code>, an 82 degree mount.</td></tr>
+      <tr><td><code>rows_8x12.json</code>: <code>clutter.rocks</code> 30</td><td><code>orchard_sim.py:94-95</code> only logs a warning, rocks are not implemented.</td></tr>
+      <tr><td><code>isaac_5x5_tropical.md:3</code>: never used for tuning</td><td>The same scene, seed 1001, was used to diagnose and tune D66 (miss_reduction.md:25).</td></tr>
+      <tr><td><code>REPORT.md:8-10</code>, <code>PROGRESS.md:43-45</code>: Isaac centre RMSE 0.19 m</td><td>After D66 it is 0.255 m (DECISIONS D66 addendum).</td></tr>
+    </tbody></table></div>
+</section>
+
+<section id="terms">
+  <h2>Terms</h2>
+  <dl class="terms">
+    <dt>A1, A2, A3</dt><dd>Acceptance rows of the miss-reduction work. A1: no lock or dose height more than 1.5 m above the true top. A2: the too-low side does not get worse. A3: on 5x5, far trees have a mean centre error at dose of at most 0.5 m with at most 15 % beyond 0.8 m. A4: at most 12 closed-loop misses (from 35). A5: safety rows pass.</dd>
+    <dt>cand_obj</dt><dd>The shipped object-centric mapper. <code>cand_grid</code> is the map-centric alternative, <code>simple</code> the baseline.</dd>
+    <dt>corridor</dt><dd>A strip across the row direction. The navigator scans one out, locks its trees, sprays them, then moves on.</dd>
+    <dt>field_first</dt><dd>The strategy that scans every corridor, locks once, then sprays. Kept to measure what corridor mode saves.</dd>
+    <dt>crown, CHM</dt><dd>A crown is one watershed basin of the canopy height model, a grid of heights over a 0.4 m world lattice.</dd>
+    <dt>latched cell</dt><dd>A cell that stayed canopy for 5 weighted frames at 75 % or more. It never un-latches.</dd>
+    <dt>hull</dt><dd>The published outline: the convex hull of the latched cells.</dd>
+    <dt>lock</dt><dd>The moment the tree list is fixed. In corridor mode that is the navigator's PLANNING phase. A lock stays until the next SCAN.</dd>
+    <dt>dose</dt><dd>One SPRAYING interval with a single target id.</dd>
+    <dt>hold</dt><dd>Two things. The post-spray hold keeps non-target trees frozen until the drone is 2 m from the hover point. The navigator's HOLD state pauses flight on a lost pose, a stale map or a service failure.</dd>
+    <dt>glide</dt><dd>Terrain-following flight between trees.</dd>
+    <dt>runaway</dt><dd>A published height that keeps rising after the drone has passed a tree, more than 1.5 m above the truth at the lock.</dd>
+    <dt>far, near</dt><dd>Entries first published at least, or less than, 5 m across track.</dd>
+    <dt>dh, dc</dt><dd>Published height minus the true top, and distance from the published centre to the true centre.</dd>
+    <dt>frames.bin</dt><dd>A recording of exactly what the mapper reads (format TMF1), used to replay a mission offline.</dd>
+    <dt>late tree</dt><dd>A tree that appears in the map after its corridor was locked. It goes to the cleanup list.</dd>
+  </dl>
+</section>
+
+<footer>
+  <p>Built from commit <code>81680b215492624f74037dc2dd3b7b47999423eb</code> (results: status report 2026-11-07). The working tree was dirty: <code>.claude/settings.json</code> modified, <code>.vscode/</code> untracked.</p>
+  <p>Read for this page: README.md, PROGRESS.md, docs/DESIGN.md, DECISIONS.md, PROJECT_BRIEF.md, SCORER.md, docs/candidates/, the corridor-spray-nav spec and plan, results/miss_reduction.md and results/status_2026-11-07.md; core/ headers and cand_obj.cpp, the navigator sources, the ROS node sources, the sim and script entry points, the tools modules. Not read in full: cand_grid_pure.cpp and several core and tool source bodies, the corridor and glide algorithm bodies, results/ beyond the files named, test bodies. Measured numbers are quoted from the docs named and were not re-run. Task 8 numbers come from the scorecards read before the work drive was unmounted.</p>
+</footer>
+</div>
+
+<script>
+// Every claim was read from the repo. Files are the places to look, with function names or line numbers.
+const D = {
+  inputs: { lane: "Simulator", title: "Run inputs",
+    body: ["Before each run, sim_inputs writes the run's inputs: run.json, spec.json, field.yaml (polygon, heading, home) and corridor_nav.cfg, which is the shipped navigator config with the chosen strategy and a sim-only carrot_lead_s of 1.2.",
+           "The spec decides the orchard: seed, rows, spacing, jitter and missing-tree fraction. The navigator never reads the truth files. It gets field.yaml, the cfg and perception."],
+    facts: ["5x5_tropical: 25 trees, seed 1001, spacing 7 m, 38 x 38 m field", "rows_8x12: 96 slots, 8 % missing, 86 trees, seed 7, slope 0.03 rad", "3x3_smoke: 9 trees, seed 1", "All specs: orange and lemon 50/50, home at (-3, -3), flow 0.075 L/s, 20 degree spray cone"],
+    files: ["tools/treemapper_tools/sim_inputs.py (123 lines)", "sim/specs/*.json", "scripts/sim_mission.sh:261-266"] },
+  isaac: { lane: "Simulator", title: "Isaac Sim orchard",
+    body: ["Isaac builds the orchard (ground mesh, lights, tree models with convex-hull colliders), flies a kinematic drone from the navigator's setpoints, renders a stereo pair and measures where the spray lands with ray casts against the canopy hulls.",
+           "Physics runs at 60 Hz and cameras at 10 Hz, headless. It writes truth.json and ground_truth.json when the scene is built and deposition.json and rtf.json when it is stopped."],
+    facts: ["Ideal rectified pinhole cameras: fx = fy = 454.53, 640 x 400, baseline 0.160 m", "Nozzle: 64 rays, 20 degree half-angle, 30 m range, anything that is not a canopy hit counts as ground", "Isaac 5.1 segfaults in the RTX renderer on the RTX 5080. Missions run on Isaac 6.2.", "Real-time factor 1.000 in the rows_8x12 runs"],
+    files: ["sim/isaac/orchard_sim.py (394 lines): physics callback, scene build", "sim/isaac/scene.py (237), cameras.py (190), nozzle.py (64), drone.py (65), controller.py (168)", "sim/isaac/run_orchard_sim.sh: ROS 2 library path for 5.1 and 6.2"] },
+  bridge: { lane: "ROS bridge", title: "ROS 1 to ROS 2 bridge",
+    body: ["Isaac speaks ROS 2 Humble. The perception, TreeMapper and navigator nodes speak ROS 1 Noetic. One container, tm_sim_ros, runs roscore and ros1_bridge's parameter_bridge so topics cross both ways.",
+           "The bridge's ROS 2 to ROS 1 side does not latch, so Isaac republishes /tf_static and /sim/truth about once a second."],
+    facts: ["ROS_DOMAIN_ID 77, rmw_fastrtps_cpp", "Isaac to Noetic: both camera images and camera_info, /tf, /tf_static, /clock, /sim/truth, /sim/deposition", "Noetic to Isaac: /corridor_nav/setpoint (PoseStamped), /corridor_nav/spray (Bool)", "Image chain: treehoppingnavigation-bridge, then tm_sim_ros (32 GB)"],
+    files: ["sim/bridge/Dockerfile (69 lines)", "sim/bridge/entrypoint.sh", "sim/bridge/bridge_topics.yaml"] },
+  sgbm: { lane: "Perception", title: "Stereo SGBM",
+    body: ["Pairs the left and right images by exact stamp and computes a disparity image with OpenCV's semi-global block matcher. Invalid pixels are NaN. The output carries the left image's header."],
+    facts: ["64 disparities, block size 5, sgbm_3way mode", "About 13.2 ms per pair (results/corridor_nav_isaac.md:70)", "Publisher queue 2 is the documented place where frames are lost under load", "Isaac sends rgb8, the real bags mono8. Both are converted without cv_bridge."],
+    files: ["ros/sim_perception/scripts/stereo_sgbm_node.py (115 lines): on_pair", "ros/sim_perception/src/sim_perception/sgbm.py:19-55", "ros/sim_perception/src/sim_perception/image_utils.py"] },
+  det: { lane: "Perception", title: "YOLOX detector",
+    body: ["Runs a YOLOX ONNX model on the left image with onnxruntime (CUDA, falling back to CPU) and publishes the tree boxes. It always works on the newest frame."],
+    facts: ["About 10.3 ms per frame", "Closed loop uses input 416 x 640 and score threshold 0.8. The launch default is 416 x 416 and 0.3.", "Subscriber queue 1, so older frames are skipped", "The node exits at startup if onnxruntime or the model file is missing"],
+    files: ["ros/sim_perception/scripts/detector_node.py (106 lines)", "ros/sim_perception/src/sim_perception/yolox.py (120)", "ros/corridor_nav_ros/launch/sim_closed_loop.launch:34, :44-47"] },
+  tm: { lane: "Mapping", title: "treemapper node",
+    body: ["Latches the stereo calibration from both camera infos, samples the disparity image on a stride-4 grid, pairs it with each detection set by stamp, looks up the pose and calls Mapper::process. It publishes the map at 5 Hz and on phase changes.",
+           "It also serves get_trees and set_tree_sprayed, publishes health at 2 Hz and counters at 1 Hz."],
+    facts: ["About 0.84 to 0.89 ms per frame on x86 (results/ros_replay_isaac.md:122-123)", "One spin thread, no lock in the node", "Detections pair with the disparity of the same stamp, else the nearest within 20 ms", "A replay of the same inputs reproduced 9 trees with the same ids, centres within 0.023 m and heights within 0.033 m", "Orin Nano: never built or measured"],
+    files: ["ros/treemapper_ros/src/treemapper_node.cpp (665 lines): processFrame, guarded :214-239", "ros/treemapper_ros/src/input_sync.cpp (264): FrameSync, sampling", "ros/treemapper_ros/config/treemapper.yaml"] },
+  core: { lane: "Mapping", title: "cand_obj mapper",
+    body: ["Bins disparity into a canopy height model, splits it into crowns with a watershed, matches crowns to tree instances by world geometry, latches cells that stay canopy and publishes the hull, centre and height of each instance. A tree is never un-published and an outline only grows.",
+           "Two recent changes. D66 computes the centre from observation-weighted support and clamps it within 1.0 m of the outline. D67 holds non-target trees frozen until the drone is 2 m from the hover point."],
+    facts: ["48 config keys. cand_obj.cfg equals the code defaults (tested). cand_obj_real.cfg changes 9 keys.", "0.4 m lattice, latch after 5 frames at 75 %, height quantile 0.99, height rate limit 0.5 m/s, centre rate limit 0.8 m/s", "Neighbours swallowed per mission, easy / medium / hard: cand_obj 0 / 1.0 / 2.8, simple 1.8 / 14.3 / 29.3", "cand_obj is 1,156 of the 6,180 lines under core/"],
+    files: ["core/src/candidates/cand_obj/cand_obj.cpp: process :219-276, extractCrowns :280-591, integrate :970-1099", "core/include/treemapper/candidates/cand_obj/cand_obj.hpp (274)", "core/src/mapper_registry.cpp: simple, cand_grid, cand_obj"] },
+  map: { lane: "Mapping", title: "TreeMap topic",
+    body: ["The map is a list of tree entries ordered by id. Each has a stable id that is never reused, a ground outline of at least 3 counter-clockwise vertices, a centre, a height, an observation count, a sprayed flag and a locked flag."],
+    facts: ["Height is the canopy top as a world-frame z, not height above ground", "Published latched at 5 Hz, on a phase change and after a sprayed change", "confidence is reserved and always 0", "set_tree_sprayed refuses sprayed = false"],
+    files: ["ros/treemapper_msgs/msg/TreeEntry.msg (25 lines), TreeMap.msg", "ros/treemapper_msgs/srv/SetTreeSprayed.srv, GetTrees.srv", "ros/treemapper_ros/src/conversions.cpp"] },
+  nav: { lane: "Navigation", title: "corridor_nav",
+    body: ["Flies the field in corridors at scan altitude, scans one out, locks its trees, glides from tree to tree and doses each, then marks it sprayed. It ends with a cleanup pass for late trees and for trees first skipped as implausibly high, then returns home.",
+           "The core is a ROS-free Navigator::step with 13 states. The ROS node wraps it at 20 Hz."],
+    facts: ["42 config keys, shipped cfg equals the defaults (tested)", "Height plausible up to home + 7.0 + 2.0 = 9.0 m", "Clearance guard at 1.5 m with 0.5 m hysteresis, gives up after 3 climbs", "Retry drop radius 1.5 m (reresolve_radius)", "Navigator step costs about 0.01 ms"],
+    files: ["nav/corridor_nav/src/navigator.cpp (711 lines): step :61-90, advance :457-535", "nav/corridor_nav/src/navigator_safety.cpp (279): hold, abort, guard, mark", "ros/corridor_nav_ros/src/corridor_nav_node.cpp (701)"] },
+  run: { lane: "Recording and scoring", title: "Run folder",
+    body: ["Everything one run leaves behind: its inputs, the truth files, the Isaac deposition log, the rosbag of the mission, the driver and container logs and the scorecard."],
+    facts: ["Files: run.json, spec.json, field.yaml, corridor_nav.cfg, truth.json, ground_truth.json, deposition.json, rtf.json, mission.bag, driver.json, isaac.log, ros.log, scorecard.md, mission_score.json", "The rows_8x12 corridor bag was 93 MB", "Lives on the work drive, not in git"],
+    files: ["scripts/sim_mission.sh:33-37 and RUN_FILES :69-71"] },
+  score: { lane: "Recording and scoring", title: "mission_score",
+    body: ["Scores a finished mission from its run folder: efficiency, spray, safety, guards, cost and the map. Safety rows must all pass."],
+    facts: ["Sprayed: at least 50 % of an episode's intended dose", "Double-sprayed: at least 20 % in two episodes", "Safety: mission completed, minimum clearance over canopy, nozzle never open outside DOSE, no sprayed tree targeted again", "Scorecard also counts implausible-height skipped, retried, recovered and dropped"],
+    files: ["tools/treemapper_tools/mission_score.py (1,008 lines): card_markdown :902-960", "tools/treemapper_tools/score.py (1,299): the map score it calls"] },
+  frames: { lane: "Recording and scoring", title: "sim_frames",
+    body: ["Converts a run recorded with --record-frames to frames.bin, the replay input, and checks it. Only if the check passes is mission.bag replaced by a copy without the disparity topics. A failed check fails the run and keeps the full bag."],
+    facts: ["Check: at least 80 % of detection frames paired with a disparity, no rejected disparity, at most 1 % of stereo images lost, pose coverage", "About 64 kB per recorded image instead of about 1 MB", "A frames.bin is about 32 kB per frame (PROGRESS.md:182-186)"],
+    files: ["tools/treemapper_tools/sim_frames.py (403 lines)", "tools/treemapper_tools/frames.py (200): TMF1 format :46", "ros/sim_perception/scripts/disparity_grid_node.py (88)"] },
+  replay: { lane: "Recording and scoring", title: "treemapper_replay",
+    body: ["Reads frames.bin and runs a registered mapper over it with an emulated navigator. It resolves recorded targets to the mapper's own ids and marks trees sprayed when SPRAYING ends. It writes the map stream, the resolved targets and the counters."],
+    facts: ["Usage: --frames F.bin --out-map M.jsonl --out-targets T.json [--out-counters C.json] [--rate 5] [--system simple] [--config k=v;k=v]", "The default system is simple, so pass --system cand_obj", "Map snapshots at 5 Hz plus one on each phase change", "Runs without Isaac"],
+    files: ["core/apps/replay_main.cpp (188 lines): usage :80, default :86, target resolve :58-68, markSprayed :135"] },
+  metrics: { lane: "Recording and scoring", title: "replay_metrics",
+    body: ["Scores a replayed map against truth, per tree, at the lock and at each dose: height error and centre error. It computes the acceptance rows A1 to A3 and refuses a replay scored without its own targets."],
+    facts: ["Baseline 5x5 corridor far centre error at dose 1.018 m, after D66 0.099 m", "The four baseline metrics.json files are pinned by sha256", "Replay equals closed loop: 100 % of entries within 0.15 m, largest final height difference 0.0004 m, centre 0.0252 m"],
+    files: ["tools/treemapper_tools/replay_metrics.py (385 lines)", "results/miss_reduction/baseline/*/metrics.json", "results/miss_reduction.md:75-110, :154-186"] }
+};
+const panel = document.getElementById("detail");
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function show(id) {
+  const d = D[id]; if (!d) return;
+  document.querySelectorAll("#system .n").forEach(n => n.classList.toggle("sel", n.dataset.id === id));
+  panel.innerHTML =
+    `<div><div class="lane-tag">${esc(d.lane)}</div><h3>${esc(d.title)}</h3>` + d.body.map(p => `<p>${esc(p)}</p>`).join("") + `</div>` +
+    `<div><h4>Numbers and facts</h4><ul>${d.facts.map(f => `<li>${esc(f)}</li>`).join("")}</ul>` +
+    `<h4>Where in the code</h4><ul>${d.files.map(f => `<li><code>${esc(f)}</code></li>`).join("")}</ul></div>`;
+}
+document.querySelectorAll("#system .n").forEach(n => {
+  n.addEventListener("click", () => show(n.dataset.id));
+  n.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(n.dataset.id); } });
+});
+show("core");
+</script>
